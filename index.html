@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Cornhole Physics</title>
+  <title>Space Cornhole</title>
   <style>
     body {
       margin: 0;
@@ -252,13 +252,14 @@ function throwBag() {
   const angleRad = angleDeg * Math.PI / 180;
   const g = currentPlanet.gravity;
 
-  // Adjusted scaling factors
-  const METERS_TO_PIXELS = 50;
-  const REAL_DISTANCE = 8.23;
-  const TIME_SCALE = 1.5;
+  // Much smaller scaling factors to keep everything in view
+  const METERS_TO_PIXELS = 20; // Reduced from 50
+  const REAL_DISTANCE = 8.23;  // ~27 feet in meters
+  const TIME_SCALE = 2;        // Slowed down more
+  const MAX_HEIGHT = 300;      // Maximum pixels for vertical movement
   
-  // Initial velocity adjusted for better visualization
-  const v0 = power * 0.5 * (7 / currentPlanet.throwAdjustment);
+  // Reduced initial velocity
+  const v0 = power * 0.3 * (7 / currentPlanet.throwAdjustment);
 
   let startTime = null;
 
@@ -271,25 +272,33 @@ function throwBag() {
     const z = v0 * Math.cos(angleRad) * t;
     const y = v0 * Math.sin(angleRad) * t - (0.5 * g * t * t);
 
-    // Scale positions to screen space
-    const screenZ = z * METERS_TO_PIXELS;
-    const screenY = y * METERS_TO_PIXELS;
+    // Scale and constrain positions to screen space
+    const screenZ = Math.min(z * METERS_TO_PIXELS, REAL_DISTANCE * METERS_TO_PIXELS);
+    const screenY = Math.min(Math.max(y * METERS_TO_PIXELS, -MAX_HEIGHT), MAX_HEIGHT);
 
-    // Calculate distance to board for collision detection
+    // Calculate board position
     const boardZ = REAL_DISTANCE * METERS_TO_PIXELS;
     
     // End conditions: hit ground, reached board, or timeout
-    if (y < 0 || z > REAL_DISTANCE || t > 4) {
+    if (y < 0 || z > REAL_DISTANCE || t > 3) {
       isAnimating = false;
       
       // If near the board, show landing animation
       if (Math.abs(z - REAL_DISTANCE) < 0.5) {
-        const finalY = 0;
-        const finalZ = boardZ;
-        const finalScale = 0.3;
+        // Slide slightly on landing
+        let finalY = 0;
+        let finalZ = boardZ;
+        let finalScale = 0.3;
         
         bag.style.transform = `translate3d(${x}px, ${-finalY}px, ${finalZ}px) 
                              scale(${finalScale}) rotateX(0deg)`;
+                             
+        // Add a small bounce/slide effect
+        setTimeout(() => {
+          finalY = 5;
+          bag.style.transform = `translate3d(${x}px, ${-finalY}px, ${finalZ}px) 
+                               scale(${finalScale}) rotateX(10deg)`;
+        }, 100);
       }
       
       // Reset after delay
@@ -300,15 +309,15 @@ function throwBag() {
       return;
     }
 
-    // Improved scaling calculation
-    const distanceRatio = screenZ / (REAL_DISTANCE * METERS_TO_PIXELS);
+    // Improved scaling calculation with tighter constraints
+    const distanceRatio = screenZ / boardZ;
     const scale = Math.max(0.3, 1 - (distanceRatio * 0.7));
     
-    // Rotation based on trajectory
-    const rotationSpeed = 360;
+    // Slower rotation
+    const rotationSpeed = 180; // reduced from 360
     const rotation = t * rotationSpeed;
     
-    // Apply transforms with proper perspective
+    // Apply transforms with constrained values
     bag.style.transform = `translate3d(${x}px, ${-screenY}px, ${screenZ}px) 
                           scale(${scale}) 
                           rotateX(${rotation}deg) 
