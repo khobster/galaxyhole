@@ -2,21 +2,20 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Simple Cornhole</title>
+  <title>Cornhole Game</title>
   <style>
     body {
       margin: 0;
       padding: 0;
-      background: #87CEEB; /* Sky blue */
-      font-family: Arial, sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
     #game-container {
       width: 100vw;
       height: 100vh;
       position: relative;
-      perspective: 1000px;
-      background: linear-gradient(#87CEEB 60%, #90EE90); /* Sky to grass */
+      perspective: 1500px;
+      background: linear-gradient(#87CEEB, #90EE90);
       overflow: hidden;
     }
 
@@ -30,45 +29,49 @@
 
     #board {
       position: absolute;
-      width: 300px;
-      height: 600px;
+      width: 240px;      /* 2ft wide */
+      height: 480px;     /* 4ft long */
       left: 50%;
-      top: 15%;
+      /* Positioned further back to represent ~27ft distance */
+      top: 5%;
       transform: translate(-50%, 0);
-      background: #8B4513; /* Brown board */
-      border: 8px solid #654321;
-      border-radius: 10px;
+      background: #8B4513;
+      border: 6px solid #654321;
+      border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
 
     #hole {
       position: absolute;
-      width: 80px;
-      height: 80px;
+      width: 60px;      /* 6 inch hole */
+      height: 60px;
       left: 50%;
-      top: 20%;
-      transform: translate(-50%, 0);
+      top: 25%;
+      transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
     }
 
     #bag {
       position: absolute;
-      width: 50px;
-      height: 50px;
-      left: calc(50% - 25px);
+      width: 40px;      /* ~6 inch bag */
+      height: 40px;
+      left: calc(50% - 20px);
       bottom: 100px;
-      background: #c41e3a; /* Red bag */
+      background: #c41e3a;
       border-radius: 5px;
       transform-style: preserve-3d;
+      transition: transform 0.05s linear;
     }
 
+    /* Keep your existing UI styles which look great */
     #controls {
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       background: white;
-      padding: 15px;
+      padding: 15px 25px;
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       display: flex;
@@ -81,7 +84,7 @@
       top: 20px;
       left: 20px;
       background: white;
-      padding: 15px;
+      padding: 15px 25px;
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
@@ -99,6 +102,10 @@
       padding: 8px 20px;
     }
 
+    button:hover {
+      background: #d42e4a;
+    }
+
     input[type="range"] {
       width: 120px;
     }
@@ -110,6 +117,7 @@
   </style>
 </head>
 <body>
+<!-- Keep your existing HTML structure -->
 <div id="game-container">
   <div id="court">
     <div id="board">
@@ -155,6 +163,7 @@
 </div>
 
 <script>
+// Keep your existing planets data
 const planets = {
   earth: {
     gravity: 9.81,
@@ -222,11 +231,9 @@ const powerRange = document.getElementById('power-range');
 const angleRange = document.getElementById('angle-range');
 const throwButton = document.getElementById('throw-button');
 
-// Animation state
 let currentPlanet = planets.earth;
 let isAnimating = false;
 
-// Update planet info when selected
 function updatePlanetInfo(planetKey) {
   currentPlanet = planets[planetKey];
   planetName.textContent = currentPlanet.name;
@@ -234,40 +241,46 @@ function updatePlanetInfo(planetKey) {
   planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment}x`;
 }
 
-// Handle the bag throwing animation
+// Improved throwing physics
 function throwBag() {
   if (isAnimating) return;
   isAnimating = true;
 
   const power = parseFloat(powerRange.value);
-  const angle = parseFloat(angleRange.value) * (Math.PI / 180); // Convert to radians
+  const angle = parseFloat(angleRange.value) * (Math.PI / 180);
   const gravity = currentPlanet.gravity;
   
   let startTime = null;
 
   function animate(currentTime) {
     if (!startTime) startTime = currentTime;
-    const elapsed = (currentTime - startTime) / 1000; // Convert to seconds
+    const elapsed = (currentTime - startTime) / 1000;
 
-    // Calculate position using physics equations
-    const initialVelocity = power * 40;
-    const x = 0; // No horizontal offset
+    // Adjusted physics for better visualization
+    const initialVelocity = power * 25; // Scaled down for better visuals
+    const x = 0;
     const y = (initialVelocity * Math.sin(angle) * elapsed) - 
               (0.5 * gravity * elapsed * elapsed);
     const z = (initialVelocity * Math.cos(angle) * elapsed);
 
-    // Stop animation if bag hits the ground
-    if (y < 0) {
+    // Stop animation when bag hits ground or goes too far
+    if (y < 0 || z > 1000) {
       isAnimating = false;
+      // Reset bag position after short delay
+      setTimeout(() => {
+        bag.style.transform = 'translate3d(0, 0, 0)';
+      }, 1000);
       return;
     }
 
-    // Scale for screen space and apply transforms
-    const screenY = -y * 2; // Negative because CSS Y is inverted
-    const screenZ = z * 2;
-    const scale = Math.max(0.3, 1 - (screenZ / 1000)); // Shrink as it goes further
-
-    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) scale(${scale})`;
+    // Improved scaling and positioning
+    const screenY = -y * 1.5;  // Adjusted for better vertical visibility
+    const screenZ = z * 1.2;   // Adjusted for better distance perception
+    const scale = Math.max(0.2, 1 - (screenZ / 800));
+    
+    // Add rotation for more realistic movement
+    const rotation = elapsed * 360; // Full rotation per second
+    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) scale(${scale}) rotateX(${rotation}deg)`;
 
     if (isAnimating) {
       requestAnimationFrame(animate);
