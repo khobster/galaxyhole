@@ -2,139 +2,116 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Galaxy Hole 3D</title>
+  <title>Simple Cornhole</title>
   <style>
-    html, body {
+    body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      background: #000205;
-      font-family: system-ui, -apple-system, sans-serif;
-      color: #fff;
+      background: #87CEEB; /* Sky blue */
+      font-family: Arial, sans-serif;
     }
 
     #game-container {
       width: 100vw;
       height: 100vh;
       position: relative;
-      perspective: 800px;
+      perspective: 1000px;
+      background: linear-gradient(#87CEEB 60%, #90EE90); /* Sky to grass */
       overflow: hidden;
-      background: radial-gradient(circle at 50% 50%, #001525 0%, #000205 100%);
     }
 
-    #scene {
+    #court {
+      position: absolute;
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      transform: rotateX(60deg) translateY(-100px);
-      position: relative;
+      transform: rotateX(60deg);
     }
 
     #board {
       position: absolute;
-      left: 50%;
-      top: 50%;
       width: 300px;
-      height: 450px;
-      background: linear-gradient(45deg, #432818, #654321);
-      border: 4px solid #452301;
-      transform: translate(-50%, -50%) translate3d(0, 0, 600px);
-      transform-style: preserve-3d;
+      height: 600px;
+      left: 50%;
+      top: 15%;
+      transform: translate(-50%, 0);
+      background: #8B4513; /* Brown board */
+      border: 8px solid #654321;
+      border-radius: 10px;
     }
 
     #hole {
       position: absolute;
-      width: 60px;
-      height: 60px;
+      width: 80px;
+      height: 80px;
       left: 50%;
       top: 20%;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, 0);
       background: #000;
       border-radius: 50%;
     }
 
     #bag {
       position: absolute;
-      width: 40px;
-      height: 40px;
-      left: 50%;
-      bottom: 50px;
-      background: #c41e3a;
+      width: 50px;
+      height: 50px;
+      left: calc(50% - 25px);
+      bottom: 100px;
+      background: #c41e3a; /* Red bag */
       border-radius: 5px;
       transform-style: preserve-3d;
-      transform-origin: center center;
     }
 
-    #ui-panel {
-      position: absolute;
+    #controls {
+      position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       display: flex;
       gap: 20px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      padding: 15px 20px;
+      align-items: center;
     }
 
     #planet-info {
-      position: absolute;
+      position: fixed;
       top: 20px;
       left: 20px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 15px 20px;
+      background: white;
+      padding: 15px;
       border-radius: 10px;
-      max-width: 300px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 
-    #planet-info h3 {
-      margin: 0 0 10px 0;
-      font-size: 1.2rem;
-    }
-
-    #planet-info p {
-      margin: 5px 0;
-      font-size: 0.9rem;
-      opacity: 0.8;
-    }
-
-    label {
-      display: block;
-      font-size: 0.9rem;
-      margin-bottom: 5px;
-      opacity: 0.8;
-    }
-
-    input[type="range"] {
-      width: 120px;
-      accent-color: #c41e3a;
-    }
-
-    select {
-      background: rgba(0, 0, 0, 0.5);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 5px 10px;
+    select, button {
+      padding: 8px;
       border-radius: 5px;
-      font-size: 0.9rem;
     }
 
     button {
       background: #c41e3a;
-      color: #fff;
+      color: white;
       border: none;
-      padding: 8px 20px;
-      border-radius: 5px;
       cursor: pointer;
-      font-size: 0.9rem;
+      padding: 8px 20px;
+    }
+
+    input[type="range"] {
+      width: 120px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
     }
   </style>
 </head>
 <body>
 <div id="game-container">
-  <div id="scene">
+  <div id="court">
     <div id="board">
       <div id="hole"></div>
     </div>
@@ -147,7 +124,7 @@
     <p id="throw-adjustment">Throw force: 1.0x</p>
   </div>
 
-  <div id="ui-panel">
+  <div id="controls">
     <div>
       <label for="planet-select">Planet:</label>
       <select id="planet-select">
@@ -173,9 +150,7 @@
       <input type="range" id="angle-range" min="20" max="75" step="1" value="35"/>
     </div>
 
-    <div>
-      <button id="throw-button">Throw!</button>
-    </div>
+    <button id="throw-button">Throw!</button>
   </div>
 </div>
 
@@ -237,9 +212,7 @@ const planets = {
   }
 };
 
-const scene = document.getElementById('scene');
-const board = document.getElementById('board');
-const hole = document.getElementById('hole');
+// Get DOM elements
 const bag = document.getElementById('bag');
 const planetSelect = document.getElementById('planet-select');
 const planetName = document.getElementById('planet-name');
@@ -249,60 +222,67 @@ const powerRange = document.getElementById('power-range');
 const angleRange = document.getElementById('angle-range');
 const throwButton = document.getElementById('throw-button');
 
-function setBagTransform(x, y, z) {
-  const scale = Math.max(0.3, 1 - (z / 1000));
-  const pxX = x;
-  const pxY = -y;
-  const pxZ = z;
-  
-  bag.style.transform = `translate3d(${pxX}px, ${pxY}px, ${pxZ}px) scale(${scale})`;
+// Animation state
+let currentPlanet = planets.earth;
+let isAnimating = false;
+
+// Update planet info when selected
+function updatePlanetInfo(planetKey) {
+  currentPlanet = planets[planetKey];
+  planetName.textContent = currentPlanet.name;
+  planetDesc.textContent = currentPlanet.description;
+  planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment}x`;
 }
 
-let animating = false;
+// Handle the bag throwing animation
 function throwBag() {
-  if (animating) return;
-  animating = true;
+  if (isAnimating) return;
+  isAnimating = true;
 
   const power = parseFloat(powerRange.value);
-  const angleDeg = parseFloat(angleRange.value);
-  const angleRad = angleDeg * Math.PI / 180;
-  const g = currentPlanet.gravity;
-
-  let startTime = null;
+  const angle = parseFloat(angleRange.value) * (Math.PI / 180); // Convert to radians
+  const gravity = currentPlanet.gravity;
   
-  function animateFrame(timestamp) {
-    if (!startTime) startTime = timestamp;
-    const t = (timestamp - startTime) / 1000;
-    
-    const v0 = power * 50;
-    const zPos = v0 * Math.cos(angleRad) * t;
-    let yPos = v0 * Math.sin(angleRad) * t - 0.5 * g * t * t;
-    
-    if (yPos <= 0 || t > 2) {
-      animating = false;
+  let startTime = null;
+
+  function animate(currentTime) {
+    if (!startTime) startTime = currentTime;
+    const elapsed = (currentTime - startTime) / 1000; // Convert to seconds
+
+    // Calculate position using physics equations
+    const initialVelocity = power * 40;
+    const x = 0; // No horizontal offset
+    const y = (initialVelocity * Math.sin(angle) * elapsed) - 
+              (0.5 * gravity * elapsed * elapsed);
+    const z = (initialVelocity * Math.cos(angle) * elapsed);
+
+    // Stop animation if bag hits the ground
+    if (y < 0) {
+      isAnimating = false;
       return;
     }
 
-    setBagTransform(0, yPos * 2, zPos * 2);
-    requestAnimationFrame(animateFrame);
+    // Scale for screen space and apply transforms
+    const screenY = -y * 2; // Negative because CSS Y is inverted
+    const screenZ = z * 2;
+    const scale = Math.max(0.3, 1 - (screenZ / 1000)); // Shrink as it goes further
+
+    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) scale(${scale})`;
+
+    if (isAnimating) {
+      requestAnimationFrame(animate);
+    }
   }
 
-  requestAnimationFrame(animateFrame);
+  requestAnimationFrame(animate);
 }
 
-let currentPlanet = planets.earth;
-function updatePlanetInfo(key) {
-  currentPlanet = planets[key];
-  planetName.textContent = currentPlanet.name;
-  planetDesc.textContent = currentPlanet.description;
-  planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
-}
-
-planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
+// Event listeners
+planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
 throwButton.addEventListener('click', throwBag);
 
+// Initialize
 updatePlanetInfo('earth');
-setBagTransform(0, 0, 0);
 </script>
 </body>
 </html>
