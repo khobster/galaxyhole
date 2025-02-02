@@ -1,209 +1,351 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            background: linear-gradient(to bottom, #87CEEB, #4A90E2);
-            position: relative;
-            perspective: 1000px;
-        }
-        #court {
-            position: absolute;
-            width: 80%;
-            height: 90%;
-            left: 10%;
-            top: 5%;
-            background: #8B4513;
-            transform: rotateX(60deg);
-            transform-origin: center bottom;
-        }
-        #board {
-            position: absolute;
-            width: 20%;
-            height: 15%;
-            left: 40%;
-            top: 10%;
-            background: #654321;
-            border: 2px solid #452301;
-        }
-        #hole {
-            position: absolute;
-            width: 30%;
-            height: 40%;
-            left: 35%;
-            top: 30%;
-            background: #000;
-            border-radius: 50%;
-        }
-        #bag {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            left: calc(50% - 15px);
-            bottom: 10%;
-            background: red;
-            border-radius: 5px;
-            transition: all 0.5s;
-        }
-        #controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-            z-index: 100;
-        }
-        #planet-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-        }
-        select {
-            padding: 5px;
-            font-size: 16px;
-        }
-    </style>
+  <meta charset="UTF-8"/>
+  <title>Galaxy Hole - Cornhole Physics</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Let’s hide scrollbars if any */
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #00111a, #000); /* a starry-night vibe */
+      color: #fff;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Board styling */
+    #board {
+      position: absolute;
+      background: #654321;
+      border: 2px solid #452301;
+      transform-origin: top left;
+    }
+    /* The hole in the board */
+    #hole {
+      position: absolute;
+      background: #000;
+      border-radius: 50%;
+    }
+    /* The bag */
+    #bag {
+      position: absolute;
+      background: red;
+      border-radius: 5px;
+      pointer-events: none; /* so clicks pass through */
+    }
+
+    /* Planet info & controls */
+    #controls, #planet-info {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      border-radius: 10px;
+      backdrop-filter: blur(4px);
+    }
+    #controls {
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #planet-info {
+      top: 20px;
+      left: 20px;
+    }
+    select {
+      padding: 5px;
+      font-size: 16px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #555;
+    }
+  </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="court">
-            <div id="board">
-                <div id="hole"></div>
-            </div>
-        </div>
-        <div id="bag"></div>
-        <div id="controls">
-            <select id="planet-select">
-                <option value="earth">Earth (9.81 m/s²)</option>
-                <option value="mercury">Mercury (3.7 m/s²)</option>
-                <option value="moon">Moon (1.62 m/s²)</option>
-                <option value="mars">Mars (3.72 m/s²)</option>
-                <option value="venus">Venus (8.87 m/s²)</option>
-                <option value="jupiter">Jupiter (24.79 m/s²)</option>
-                <option value="titan">Titan (1.352 m/s²)</option>
-                <option value="pluto">Pluto (0.62 m/s²)</option>
-                <option value="kepler">Kepler-16b (18.3 m/s²)</option>
-            </select>
-        </div>
-        <div id="planet-info">
-            <h3 id="planet-name">Earth</h3>
-            <p id="planet-description">Standard cornhole - your baseline experience</p>
-            <p id="throw-adjustment">Throw force: 1x</p>
-        </div>
-    </div>
+<div id="game-container">
 
-    <script>
-        const planets = {
-            earth: { 
-                gravity: 9.81,
-                name: "Earth",
-                description: "Standard cornhole - your baseline experience",
-                throwAdjustment: 1.0
-            },
-            mercury: {
-                gravity: 3.7,
-                name: "Mercury",
-                description: "Similar to Mars, requires less force than Earth",
-                throwAdjustment: 0.38
-            },
-            moon: { 
-                gravity: 1.62,
-                name: "Moon",
-                description: "Low gravity means gentle tosses go much further",
-                throwAdjustment: 0.16
-            },
-            mars: { 
-                gravity: 3.72,
-                name: "Mars",
-                description: "About 1/3 of Earth's gravity - requires less force",
-                throwAdjustment: 0.38
-            },
-            venus: { 
-                gravity: 8.87,
-                name: "Venus",
-                description: "Similar to Earth, slightly easier throws",
-                throwAdjustment: 0.90
-            },
-            jupiter: { 
-                gravity: 24.79,
-                name: "Jupiter",
-                description: "Extreme gravity requires much more force",
-                throwAdjustment: 2.53
-            },
-            titan: { 
-                gravity: 1.352,
-                name: "Titan",
-                description: "Similar to Moon gameplay",
-                throwAdjustment: 0.14
-            },
-            pluto: { 
-                gravity: 0.62,
-                name: "Pluto",
-                description: "Ultra-low gravity for extreme distance",
-                throwAdjustment: 0.06
-            },
-            kepler: {
-                gravity: 18.3,
-                name: "Kepler-16b",
-                description: "High gravity exoplanet orbiting two stars",
-                throwAdjustment: 1.87
-            }
-        };
+  <!-- The "board" and "hole" will be absolutely placed and sized
+       according to real cornhole dimensions, scaled to pixels. -->
+  <div id="board">
+    <div id="hole"></div>
+  </div>
 
-        const bag = document.getElementById('bag');
-        const planetSelect = document.getElementById('planet-select');
-        const planetName = document.getElementById('planet-name');
-        const planetDescription = document.getElementById('planet-description');
-        const throwAdjustment = document.getElementById('throw-adjustment');
-        let isAnimating = false;
+  <!-- The bag (6"x6") thrown by the user -->
+  <div id="bag"></div>
 
-        function updatePlanetInfo(planetKey) {
-            const planet = planets[planetKey];
-            planetName.textContent = planet.name;
-            planetDescription.textContent = planet.description;
-            throwAdjustment.textContent = `Throw force: ${planet.throwAdjustment}x`;
-        }
+  <!-- Planet selection -->
+  <div id="controls">
+    <select id="planet-select">
+      <option value="earth">Earth (9.81 m/s²)</option>
+      <option value="mercury">Mercury (3.7 m/s²)</option>
+      <option value="moon">Moon (1.62 m/s²)</option>
+      <option value="mars">Mars (3.72 m/s²)</option>
+      <option value="venus">Venus (8.87 m/s²)</option>
+      <option value="jupiter">Jupiter (24.79 m/s²)</option>
+      <option value="titan">Titan (1.352 m/s²)</option>
+      <option value="pluto">Pluto (0.62 m/s²)</option>
+      <option value="kepler">Kepler-16b (18.3 m/s²)</option>
+    </select>
+  </div>
 
-        function throwBag(event) {
-            if (isAnimating) return;
-            
-            const planetKey = planetSelect.value;
-            const planet = planets[planetKey];
-            
-            isAnimating = true;
-            
-            // Calculate throw trajectory based on planet's gravity
-            const duration = 1000 * Math.sqrt(planet.throwAdjustment);
-            const height = 60 * (1 / planet.throwAdjustment);
-            
-            bag.style.transition = `all ${duration}ms cubic-bezier(0.17, 0.67, 0.83, 0.67)`;
-            bag.style.transform = `translateY(-${height}vh) scale(0.5)`;
-            
-            setTimeout(() => {
-                bag.style.transition = 'none';
-                bag.style.transform = 'none';
-                isAnimating = false;
-            }, duration);
-        }
+  <!-- Planet info display -->
+  <div id="planet-info">
+    <h3 id="planet-name">Earth</h3>
+    <p id="planet-description">Standard cornhole - your baseline experience</p>
+    <p id="throw-adjustment">Throw force: 1.0x</p>
+  </div>
 
-        planetSelect.addEventListener('change', (e) => {
-            updatePlanetInfo(e.target.value);
-        });
+</div><!-- /game-container -->
 
-        document.addEventListener('click', throwBag);
-        updatePlanetInfo('earth');
-    </script>
+<script>
+  /********************************************************
+   * Planet data
+   *******************************************************/
+  const planets = {
+    earth: {
+      gravity: 9.81,
+      name: "Earth",
+      description: "Standard cornhole - your baseline experience",
+      throwAdjustment: 1.0
+    },
+    mercury: {
+      gravity: 3.7,
+      name: "Mercury",
+      description: "Similar to Mars, requires less force than Earth",
+      throwAdjustment: 0.38
+    },
+    moon: {
+      gravity: 1.62,
+      name: "Moon",
+      description: "Low gravity means gentle tosses go much further",
+      throwAdjustment: 0.16
+    },
+    mars: {
+      gravity: 3.72,
+      name: "Mars",
+      description: "About 1/3 of Earth's gravity - requires less force",
+      throwAdjustment: 0.38
+    },
+    venus: {
+      gravity: 8.87,
+      name: "Venus",
+      description: "Similar to Earth, slightly easier throws",
+      throwAdjustment: 0.90
+    },
+    jupiter: {
+      gravity: 24.79,
+      name: "Jupiter",
+      description: "Extreme gravity requires much more force",
+      throwAdjustment: 2.53
+    },
+    titan: {
+      gravity: 1.352,
+      name: "Titan",
+      description: "Similar to Moon gameplay",
+      throwAdjustment: 0.14
+    },
+    pluto: {
+      gravity: 0.62,
+      name: "Pluto",
+      description: "Ultra-low gravity for extreme distance",
+      throwAdjustment: 0.06
+    },
+    kepler: {
+      gravity: 18.3,
+      name: "Kepler-16b",
+      description: "High-gravity exoplanet orbiting two stars",
+      throwAdjustment: 1.87
+    }
+  };
+
+  /********************************************************
+   * DOM Elements
+   *******************************************************/
+  const board   = document.getElementById("board");
+  const hole    = document.getElementById("hole");
+  const bag     = document.getElementById("bag");
+  const planetSelect = document.getElementById("planet-select");
+  const planetName = document.getElementById("planet-name");
+  const planetDescription = document.getElementById("planet-description");
+  const throwAdj = document.getElementById("throw-adjustment");
+
+  /********************************************************
+   * Constants / Dimensions (in real meters)
+   *******************************************************/
+  // Board distances
+  const BOARD_DISTANCE_FT = 27; // front-edge to front-edge in regulation
+  const BOARD_DISTANCE_M   = BOARD_DISTANCE_FT * 0.3048; // ~8.2296 m
+  // Board size
+  const BOARD_LENGTH_FT = 4;    // 4 ft
+  const BOARD_WIDTH_FT  = 2;    // 2 ft
+  const BOARD_LENGTH_M  = BOARD_LENGTH_FT * 0.3048; // ~1.2192 m
+  const BOARD_WIDTH_M   = BOARD_WIDTH_FT  * 0.3048; // ~0.6096 m
+  // Hole diameter & offset
+  const HOLE_DIAMETER_IN = 6; // 6 in => 0.1524 m
+  const HOLE_OFFSET_IN   = 9; // 9 in from top => 0.2286 m
+  const HOLE_DIAMETER_M  = HOLE_DIAMETER_IN * 0.0254; 
+  const HOLE_OFFSET_M    = HOLE_OFFSET_IN   * 0.0254;
+  // Bag size
+  const BAG_SIZE_IN  = 6; // 6 in => 0.1524 m
+  const BAG_SIZE_M   = BAG_SIZE_IN * 0.0254;
+
+  // We'll pick a scale so that 1 meter in real life = e.g. 80 px on screen.
+  // Tweak as needed so that the entire flight fits nicely on your screen.
+  const SCALE = 80; // px per meter
+
+  // Let's place the "throwing line" near the bottom center of the screen.
+  // (x=0 => left= window.innerWidth/2,  y=0 => bottom= 50 px for example)
+  // We will define a "reference" in pixel coordinates for x=0, y=0
+  let originX, originY;
+
+  // We’ll define an initial throw angle & speed. You can tweak to see different arcs:
+  const THROW_ANGLE_DEG = 35;
+  const THROW_ANGLE_RAD = THROW_ANGLE_DEG * Math.PI / 180;
+  const THROW_SPEED = 9; // m/s (just a typical toss guess)
+
+  // Animation state
+  let animating = false;
+  let startTime = null; // used for smooth animation with requestAnimationFrame
+  let currentPlanetKey = "earth";
+
+  /********************************************************
+   * Planet UI
+   *******************************************************/
+  function updatePlanetInfo(planetKey) {
+    const p = planets[planetKey];
+    planetName.textContent        = p.name;
+    planetDescription.textContent = p.description;
+    throwAdj.textContent          = `Throw force: ${p.throwAdjustment.toFixed(2)}x`;
+  }
+
+  planetSelect.addEventListener("change", (e) => {
+    currentPlanetKey = e.target.value;
+    updatePlanetInfo(currentPlanetKey);
+  });
+
+  /********************************************************
+   * Position & Size the Board / Hole / Bag in CSS
+   * so that it matches real dimensions (scaled).
+   *******************************************************/
+  function layoutScene() {
+    // We'll define an origin so that x=0, y=0 is near bottom center.
+    // Then x (meters) increases to the right, and y (meters) goes up.
+    originX = window.innerWidth / 2;
+    originY = 50; // some padding from bottom
+
+    // Position & size the board:
+    // Let's place the front edge of the board at x = BOARD_DISTANCE_M
+    // and have it “flat” on the ground (y=0).
+    const boardLeft  = originX + (BOARD_DISTANCE_M * SCALE);
+    const boardBottom= originY; // y=0 => origin
+    const boardPxWidth  = BOARD_WIDTH_M  * SCALE; // 0.61 m * 80 px/m = ~48.8 px
+    const boardPxHeight = BOARD_LENGTH_M * SCALE; // 1.22 m * 80 px/m = ~97.6 px
+
+    board.style.left   = boardLeft + "px";
+    // We’ll use `bottom` to position vertically since it’s more intuitive:
+    board.style.bottom = boardBottom + "px";
+    board.style.width  = boardPxWidth + "px";
+    board.style.height = boardPxHeight + "px";
+
+    // The hole is 6 in in diameter, and 9 in from the top:
+    const holePxDiameter = HOLE_DIAMETER_M * SCALE;
+    hole.style.width  = holePxDiameter + "px";
+    hole.style.height = holePxDiameter + "px";
+
+    // The hole’s top-left should be ( boardWidth/2 - holeDiameter/2 , 9 in from top ).
+    // In CSS, `top` is from board’s top inside coordinate, so:
+    const holeX = (boardPxWidth / 2) - (holePxDiameter / 2);
+    const holeY = HOLE_OFFSET_M * SCALE; // from the top edge
+    hole.style.left = holeX + "px";
+    hole.style.top  = holeY + "px";
+
+    // Bag initial size & position
+    // We won't set top/left now (we set it dynamically before each throw).
+    const bagPxSize = BAG_SIZE_M * SCALE;
+    bag.style.width  = bagPxSize + "px";
+    bag.style.height = bagPxSize + "px";
+  }
+
+  /********************************************************
+   * Throwing the Bag: Physics-based animation
+   *******************************************************/
+  function throwBag() {
+    if (animating) return;
+    animating = true;
+    startTime = null;
+
+    const planet = planets[currentPlanetKey];
+    const g = planet.gravity; // m/s^2
+
+    // Our standard projectile equations:
+    // x(t) = v0*cos(theta)*t
+    // y(t) = v0*sin(theta)*t - 1/2*g*t^2
+
+    // We'll just run until the bag hits y=0 on the way down.
+    // For a standard cornhole throw, if y(t) < 0 => ground contact => stop.
+
+    function animateFrame(timestamp) {
+      // Initialize startTime if needed
+      if (!startTime) {
+        startTime = timestamp;
+      }
+      // Delta time in seconds
+      const elapsedMs = timestamp - startTime;
+      const t = elapsedMs / 1000; // convert to seconds
+
+      // The position in meters:
+      const x = THROW_SPEED * Math.cos(THROW_ANGLE_RAD) * t;
+      let y    = THROW_SPEED * Math.sin(THROW_ANGLE_RAD) * t - 0.5 * g * t * t;
+
+      if (y < 0) {
+        // The bag hit the ground, so end the animation
+        y = 0; // visually place it on the ground
+        setBagPosition(x, y);
+        animating = false;
+        return;
+      }
+
+      setBagPosition(x, y);
+
+      // Keep animating
+      requestAnimationFrame(animateFrame);
+    }
+
+    // Kicks off the animation
+    requestAnimationFrame(animateFrame);
+  }
+
+  // Helper to set the bag’s CSS position from (x,y) in meters.
+  function setBagPosition(xMeters, yMeters) {
+    const pxLeft  = originX + xMeters * SCALE;
+    const pxBottom= originY + yMeters * SCALE;
+    bag.style.left   = pxLeft + "px";
+    bag.style.bottom = pxBottom + "px";
+  }
+
+  /********************************************************
+   * Init
+   *******************************************************/
+  function init() {
+    layoutScene();
+    updatePlanetInfo("earth");
+
+    // Put the bag at the origin initially:
+    setBagPosition(0, 0);
+
+    // On resize, re-layout everything
+    window.addEventListener("resize", layoutScene);
+
+    // On click anywhere, throw the bag:
+    document.addEventListener("click", throwBag);
+  }
+
+  init();
+</script>
 </body>
 </html>
