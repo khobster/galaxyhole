@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Cornhole Game</title>
+  <title>Cornhole Physics</title>
   <style>
     body {
       margin: 0;
@@ -14,7 +14,7 @@
       width: 100vw;
       height: 100vh;
       position: relative;
-      perspective: 2000px;
+      perspective: 2500px;
       background: linear-gradient(#87CEEB, #90EE90);
       overflow: hidden;
     }
@@ -24,26 +24,26 @@
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      transform: rotateX(65deg);
+      transform: rotateX(70deg);
     }
 
     #board {
       position: absolute;
-      width: 180px;      /* Smaller to appear further */
-      height: 360px;
+      width: 120px;
+      height: 240px;
       left: 50%;
-      top: 2%;          /* Moved up to appear further away */
+      top: 5%;
       transform: translate(-50%, 0);
       background: #8B4513;
-      border: 6px solid #654321;
-      border-radius: 8px;
+      border: 4px solid #654321;
+      border-radius: 4px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
 
     #hole {
       position: absolute;
-      width: 45px;     /* Scaled down with board */
-      height: 45px;
+      width: 30px;
+      height: 30px;
       left: 50%;
       top: 25%;
       transform: translate(-50%, -50%);
@@ -56,14 +56,12 @@
       width: 40px;
       height: 40px;
       left: calc(50% - 20px);
-      bottom: 100px;
+      bottom: 50px;
       background: #c41e3a;
       border-radius: 5px;
       transform-style: preserve-3d;
-      transition: transform 0.05s linear;
     }
 
-    /* Keep your existing UI styles */
     #controls {
       position: fixed;
       bottom: 20px;
@@ -113,10 +111,17 @@
       display: block;
       margin-bottom: 5px;
     }
+
+    h3 {
+      margin: 0 0 10px 0;
+    }
+
+    p {
+      margin: 5px 0;
+    }
   </style>
 </head>
 <body>
-<!-- Keep your existing HTML structure -->
 <div id="game-container">
   <div id="court">
     <div id="board">
@@ -162,7 +167,6 @@
 </div>
 
 <script>
-// Keep your existing planets data
 const planets = {
   earth: {
     gravity: 9.81,
@@ -220,9 +224,7 @@ const planets = {
   }
 };
 
-// Get DOM elements
 const bag = document.getElementById('bag');
-const board = document.getElementById('board');
 const planetSelect = document.getElementById('planet-select');
 const planetName = document.getElementById('planet-name');
 const planetDesc = document.getElementById('planet-description');
@@ -241,49 +243,55 @@ function updatePlanetInfo(planetKey) {
   planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment}x`;
 }
 
-// Improved throwing physics with complete arc
 function throwBag() {
   if (isAnimating) return;
   isAnimating = true;
 
   const power = parseFloat(powerRange.value);
-  const angle = parseFloat(angleRange.value) * (Math.PI / 180);
-  const gravity = currentPlanet.gravity;
+  const angleDeg = parseFloat(angleRange.value);
+  const angleRad = angleDeg * Math.PI / 180;
+  const g = currentPlanet.gravity;
+
+  // Real-world scaling factors
+  const METERS_TO_PIXELS = 100;
+  const REAL_DISTANCE = 8.23; // ~27 feet in meters
+  const TIME_SCALE = 0.5;
   
+  // Initial velocity calculations
+  const v0 = power * 0.8 * (7 / currentPlanet.throwAdjustment);
+
   let startTime = null;
-  const boardRect = board.getBoundingClientRect();
-  const boardZ = 800; // Approximate Z distance to board
-  
+  const animationDuration = 2000;
+
   function animate(currentTime) {
     if (!startTime) startTime = currentTime;
-    const elapsed = (currentTime - startTime) / 1000;
+    let t = (currentTime - startTime) / 1000 / TIME_SCALE;
 
-    // Adjusted physics for better visualization
-    const initialVelocity = power * 20 * (1 / currentPlanet.throwAdjustment);
+    // Parametric equations for trajectory
     const x = 0;
-    const y = (initialVelocity * Math.sin(angle) * elapsed) - 
-              (0.5 * gravity * elapsed * elapsed);
-    const z = (initialVelocity * Math.cos(angle) * elapsed);
+    const z = v0 * Math.cos(angleRad) * t;
+    const y = v0 * Math.sin(angleRad) * t - (0.5 * g * t * t);
 
-    // Check if bag has reached the board or ground
-    if (y < 0 || z >= boardZ) {
+    // Convert to screen coordinates
+    const screenZ = z * METERS_TO_PIXELS;
+    const screenY = y * METERS_TO_PIXELS;
+
+    // End conditions
+    if (y < 0 || z > REAL_DISTANCE || t > 2) {
       isAnimating = false;
-      // Reset bag position after short delay
       setTimeout(() => {
         bag.style.transform = 'translate3d(0, 0, 0)';
       }, 1000);
       return;
     }
 
-    // Improved scaling and positioning
-    const screenY = -y * 2;  // Adjusted for better vertical visibility
-    const screenZ = z;       // Keep Z movement linear
-    const scale = Math.max(0.2, 1 - (z / boardZ));
+    // Scale based on distance
+    const scale = Math.max(0.2, 1 - (screenZ / (REAL_DISTANCE * METERS_TO_PIXELS)));
     
-    // Add rotation for more realistic movement
-    const rotation = elapsed * 360; // Full rotation per second
+    // Rotation based on trajectory
+    const rotation = t * 360;
     
-    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) 
+    bag.style.transform = `translate3d(${x}px, ${-screenY}px, ${screenZ}px) 
                           scale(${scale}) 
                           rotateX(${rotation}deg) 
                           rotateY(${rotation * 0.5}deg)`;
@@ -296,11 +304,9 @@ function throwBag() {
   requestAnimationFrame(animate);
 }
 
-// Event listeners
 planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
 throwButton.addEventListener('click', throwBag);
 
-// Initialize
 updatePlanetInfo('earth');
 </script>
 </body>
