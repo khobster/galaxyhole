@@ -14,7 +14,7 @@
       width: 100vw;
       height: 100vh;
       position: relative;
-      perspective: 1500px;
+      perspective: 2000px;
       background: linear-gradient(#87CEEB, #90EE90);
       overflow: hidden;
     }
@@ -24,16 +24,15 @@
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      transform: rotateX(60deg);
+      transform: rotateX(65deg);
     }
 
     #board {
       position: absolute;
-      width: 240px;      /* 2ft wide */
-      height: 480px;     /* 4ft long */
+      width: 180px;      /* Smaller to appear further */
+      height: 360px;
       left: 50%;
-      /* Positioned further back to represent ~27ft distance */
-      top: 5%;
+      top: 2%;          /* Moved up to appear further away */
       transform: translate(-50%, 0);
       background: #8B4513;
       border: 6px solid #654321;
@@ -43,8 +42,8 @@
 
     #hole {
       position: absolute;
-      width: 60px;      /* 6 inch hole */
-      height: 60px;
+      width: 45px;     /* Scaled down with board */
+      height: 45px;
       left: 50%;
       top: 25%;
       transform: translate(-50%, -50%);
@@ -54,7 +53,7 @@
 
     #bag {
       position: absolute;
-      width: 40px;      /* ~6 inch bag */
+      width: 40px;
       height: 40px;
       left: calc(50% - 20px);
       bottom: 100px;
@@ -64,7 +63,7 @@
       transition: transform 0.05s linear;
     }
 
-    /* Keep your existing UI styles which look great */
+    /* Keep your existing UI styles */
     #controls {
       position: fixed;
       bottom: 20px;
@@ -223,6 +222,7 @@ const planets = {
 
 // Get DOM elements
 const bag = document.getElementById('bag');
+const board = document.getElementById('board');
 const planetSelect = document.getElementById('planet-select');
 const planetName = document.getElementById('planet-name');
 const planetDesc = document.getElementById('planet-description');
@@ -241,7 +241,7 @@ function updatePlanetInfo(planetKey) {
   planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment}x`;
 }
 
-// Improved throwing physics
+// Improved throwing physics with complete arc
 function throwBag() {
   if (isAnimating) return;
   isAnimating = true;
@@ -251,20 +251,22 @@ function throwBag() {
   const gravity = currentPlanet.gravity;
   
   let startTime = null;
-
+  const boardRect = board.getBoundingClientRect();
+  const boardZ = 800; // Approximate Z distance to board
+  
   function animate(currentTime) {
     if (!startTime) startTime = currentTime;
     const elapsed = (currentTime - startTime) / 1000;
 
     // Adjusted physics for better visualization
-    const initialVelocity = power * 25; // Scaled down for better visuals
+    const initialVelocity = power * 20 * (1 / currentPlanet.throwAdjustment);
     const x = 0;
     const y = (initialVelocity * Math.sin(angle) * elapsed) - 
               (0.5 * gravity * elapsed * elapsed);
     const z = (initialVelocity * Math.cos(angle) * elapsed);
 
-    // Stop animation when bag hits ground or goes too far
-    if (y < 0 || z > 1000) {
+    // Check if bag has reached the board or ground
+    if (y < 0 || z >= boardZ) {
       isAnimating = false;
       // Reset bag position after short delay
       setTimeout(() => {
@@ -274,13 +276,17 @@ function throwBag() {
     }
 
     // Improved scaling and positioning
-    const screenY = -y * 1.5;  // Adjusted for better vertical visibility
-    const screenZ = z * 1.2;   // Adjusted for better distance perception
-    const scale = Math.max(0.2, 1 - (screenZ / 800));
+    const screenY = -y * 2;  // Adjusted for better vertical visibility
+    const screenZ = z;       // Keep Z movement linear
+    const scale = Math.max(0.2, 1 - (z / boardZ));
     
     // Add rotation for more realistic movement
     const rotation = elapsed * 360; // Full rotation per second
-    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) scale(${scale}) rotateX(${rotation}deg)`;
+    
+    bag.style.transform = `translate3d(${x}px, ${screenY}px, ${screenZ}px) 
+                          scale(${scale}) 
+                          rotateX(${rotation}deg) 
+                          rotateY(${rotation * 0.5}deg)`;
 
     if (isAnimating) {
       requestAnimationFrame(animate);
