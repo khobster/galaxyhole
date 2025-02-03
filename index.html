@@ -61,7 +61,6 @@
       background: #c41e3a;
       border-radius: 5px;
       transform-style: preserve-3d;
-      transition: transform 0.05s linear;
     }
 
     .throw-meter {
@@ -125,6 +124,7 @@
       padding: 8px 20px;
       border-radius: 5px;
       cursor: pointer;
+      font-size: 14px;
     }
 
     button:hover {
@@ -263,14 +263,6 @@ let throwPower = 0;
 let powerInterval;
 let throwStartTime;
 
-// Helper functions
-function calculateBezierPoint(t, p0, p1, p2) {
-  const oneMinusT = 1 - t;
-  return Math.pow(oneMinusT, 2) * p0 + 
-         2 * oneMinusT * t * p1 + 
-         Math.pow(t, 2) * p2;
-}
-
 function updatePlanetInfo(planetKey) {
   currentPlanet = planets[planetKey];
   document.getElementById('planet-name').textContent = currentPlanet.name;
@@ -310,84 +302,54 @@ function throwBag(power) {
   const angleRad = angleDeg * Math.PI / 180;
   const g = currentPlanet.gravity;
 
-  // Calculate throw parameters
-  const startPoint = { x: bag.offsetLeft, y: bag.offsetTop };
-  const boardDistance = 800; // Distance to board
+  // Initial conditions
+  const maxHeight = window.innerHeight * 0.4; // Maximum height constraint
+  const boardDist = window.innerHeight * 0.6; // Distance to board
   
-  // Calculate target based on power and angle
-  const velocity = power * 4 * (1 / currentPlanet.throwAdjustment);
-  const targetPoint = {
-    x: startPoint.x,
-    y: startPoint.y - 50 // Slight elevation for landing spot
-  };
+  // Initial velocity components (scaled by power)
+  const v0 = power * 2 * (1 / currentPlanet.throwAdjustment);
+  const v0x = v0 * Math.cos(angleRad);
+  const v0y = v0 * Math.sin(angleRad);
 
-  // Higher control point for better arc visibility
-  const controlPoint = {
-    x: startPoint.x + (targetPoint.x - startPoint.x) / 2,
-    y: startPoint.y - (velocity * Math.sin(angleRad)) // Arc height based on throw power
-  };
+  // Time of flight calculation
+  const flightTime = (2 * v0y) / g;
+  const animationDuration = 2000; // 2 seconds
 
   let startTime = null;
-  const duration = 2000;
 
   function animate(currentTime) {
     if (!startTime) startTime = currentTime;
-    let progress = (currentTime - startTime) / duration;
+    const elapsedTime = Math.min((currentTime - startTime) / 1000, flightTime); // Time in seconds
+    const progress = elapsedTime / (animationDuration / 1000);
 
     if (progress >= 1) {
       isAnimating = false;
-      // Landing animation
-      const finalTransform = `
-        translate3d(0, -50px, ${boardDistance}px)
+      bag.style.transform = `
+        translate3d(0, ${-10}px, ${boardDist}px)
         scale(0.3)
         rotateX(0deg)
       `;
-      bag.style.transform = finalTransform;
-      
       setTimeout(() => {
         bag.style.transform = 'translate3d(0, 0, 0)';
       }, 1000);
       return;
     }
 
-    // Calculate position using modified Bezier curve
-    const x = calculateBezierPoint(
-      progress, 
-      startPoint.x,
-      controlPoint.x,
-      targetPoint.x
-    );
+    // Calculate position with real physics
+    const x = boardDist * progress; // Linear horizontal movement
+    const y = (v0y * elapsedTime) - (0.5 * g * elapsedTime * elapsedTime);
+    const screenY = Math.min(Math.max(y * 30, -maxHeight), maxHeight); // Constrain and scale Y position
 
-    const y = calculateBezierPoint(
-      progress,
-      startPoint.y,
-      controlPoint.y,
-      targetPoint.y
-    );
-
-    // Enhanced gravity effect
-    const flightTime = progress * duration / 1000;
-    const gravityEffect = 0.5 * g * Math.pow(flightTime, 2);
-    const flightHeight = -gravityEffect + (velocity * Math.sin(angleRad) * flightTime);
-    const adjustedY = y + flightHeight;
-
-    // Improved scaling and rotation
+    // Scale and rotation
     const scale = Math.max(0.3, 1 - (progress * 0.7));
-    const rotation = progress * 720;
+    const rotation = progress * 720; // Two complete rotations during flight
 
-    // Z-distance follows an arc pattern
-    const zProgress = Math.sin(Math.PI * progress);
-    const zDistance = zProgress * 300 + (progress * boardDistance);
-
-    // Apply transform with smoother arc
-    const transform = `
-      translate3d(${x - startPoint.x}px, ${adjustedY - startPoint.y}px, ${zDistance}px)
+    bag.style.transform = `
+      translate3d(0, ${-screenY}px, ${x}px)
       scale(${scale})
       rotateX(${rotation}deg)
       rotateY(${rotation * 0.5}deg)
     `;
-    
-    bag.style.transform = transform;
 
     requestAnimationFrame(animate);
   }
