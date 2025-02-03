@@ -8,13 +8,14 @@
       margin: 0;
       padding: 0;
       font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
     }
 
     #game-container {
       width: 100vw;
       height: 100vh;
       position: relative;
-      perspective: 2000px;
+      perspective: 1500px;
       background: linear-gradient(#87CEEB, #90EE90);
       overflow: hidden;
     }
@@ -24,7 +25,7 @@
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
-      transform: rotateX(65deg);
+      transform: rotateX(60deg);
     }
 
     #board {
@@ -32,7 +33,7 @@
       width: 120px;
       height: 240px;
       left: 50%;
-      top: 10%;
+      top: 8%;
       transform: translate(-50%, 0);
       background: #8B4513;
       border: 4px solid #654321;
@@ -56,10 +57,17 @@
       width: 40px;
       height: 40px;
       left: calc(50% - 20px);
-      bottom: 150px;
+      bottom: 200px;
       background: #c41e3a;
       border-radius: 5px;
       transform-style: preserve-3d;
+    }
+
+    #trajectory-preview {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
     }
 
     #controls {
@@ -86,30 +94,52 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 
-    select, button {
-      padding: 8px;
-      border-radius: 5px;
+    .throw-meter {
+      position: absolute;
+      left: 50%;
+      bottom: 160px;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 20px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 10px;
+      overflow: hidden;
+      display: none;
     }
 
-    button {
-      background: #c41e3a;
-      color: white;
-      border: none;
-      cursor: pointer;
-      padding: 8px 20px;
+    .throw-meter-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #FFC107, #F44336);
+      transition: width 0.1s linear;
     }
 
-    button:hover {
-      background: #d42e4a;
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
 
     input[type="range"] {
       width: 120px;
     }
 
+    button {
+      background: #c41e3a;
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #d42e4a;
+    }
+
     label {
-      display: block;
-      margin-bottom: 5px;
+      font-size: 14px;
+      color: #444;
     }
 
     h3 {
@@ -118,6 +148,7 @@
 
     p {
       margin: 5px 0;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -128,6 +159,11 @@
       <div id="hole"></div>
     </div>
     <div id="bag"></div>
+    <div id="trajectory-preview"></div>
+  </div>
+
+  <div class="throw-meter">
+    <div class="throw-meter-fill"></div>
   </div>
 
   <div id="planet-info">
@@ -137,7 +173,7 @@
   </div>
 
   <div id="controls">
-    <div>
+    <div class="control-group">
       <label for="planet-select">Planet:</label>
       <select id="planet-select">
         <option value="earth">Earth (9.81)</option>
@@ -152,17 +188,12 @@
       </select>
     </div>
 
-    <div>
-      <label for="power-range">Power</label>
-      <input type="range" id="power-range" min="2" max="15" step="0.1" value="9"/>
-    </div>
-
-    <div>
+    <div class="control-group">
       <label for="angle-range">Angle (°)</label>
-      <input type="range" id="angle-range" min="20" max="75" step="1" value="35"/>
+      <input type="range" id="angle-range" min="20" max="75" step="1" value="45"/>
     </div>
 
-    <button id="throw-button">Throw!</button>
+    <button id="throw-button">Hold to Throw</button>
   </div>
 </div>
 
@@ -224,116 +255,150 @@ const planets = {
   }
 };
 
+// DOM Elements
 const bag = document.getElementById('bag');
-const planetSelect = document.getElementById('planet-select');
-const planetName = document.getElementById('planet-name');
-const planetDesc = document.getElementById('planet-description');
-const planetAdj = document.getElementById('throw-adjustment');
-const powerRange = document.getElementById('power-range');
-const angleRange = document.getElementById('angle-range');
+const throwMeter = document.querySelector('.throw-meter');
+const throwMeterFill = document.querySelector('.throw-meter-fill');
 const throwButton = document.getElementById('throw-button');
+const planetSelect = document.getElementById('planet-select');
+const angleRange = document.getElementById('angle-range');
+const trajectoryPreview = document.getElementById('trajectory-preview');
 
 let currentPlanet = planets.earth;
 let isAnimating = false;
+let throwPower = 0;
+let powerInterval;
+let throwStartTime;
+
+// Bezier curve helper functions
+function calculateBezierPoint(t, p0, p1, p2) {
+  const oneMinusT = 1 - t;
+  return Math.pow(oneMinusT, 2) * p0 + 
+         2 * oneMinusT * t * p1 + 
+         Math.pow(t, 2) * p2;
+}
 
 function updatePlanetInfo(planetKey) {
   currentPlanet = planets[planetKey];
-  planetName.textContent = currentPlanet.name;
-  planetDesc.textContent = currentPlanet.description;
-  planetAdj.textContent = `Throw force: ${currentPlanet.throwAdjustment}x`;
+  document.getElementById('planet-name').textContent = currentPlanet.name;
+  document.getElementById('planet-description').textContent = currentPlanet.description;
+  document.getElementById('throw-adjustment').textContent = 
+    `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
 }
 
-function throwBag() {
+function startThrow() {
+  if (isAnimating) return;
+  throwMeter.style.display = 'block';
+  throwPower = 0;
+  throwStartTime = Date.now();
+  
+  powerInterval = setInterval(() => {
+    throwPower = Math.min(100, (Date.now() - throwStartTime) / 20);
+    throwMeterFill.style.width = `${throwPower}%`;
+  }, 16);
+}
+
+function releaseThrow() {
+  if (!powerInterval) return;
+  
+  clearInterval(powerInterval);
+  throwMeter.style.display = 'none';
+  throwBag(throwPower);
+}
+
+function throwBag(power) {
   if (isAnimating) return;
   isAnimating = true;
 
-  const power = parseFloat(powerRange.value);
   const angleDeg = parseFloat(angleRange.value);
   const angleRad = angleDeg * Math.PI / 180;
   const g = currentPlanet.gravity;
 
-  // Much smaller scaling factors to keep everything in view
-  const METERS_TO_PIXELS = 20; // Reduced from 50
-  const REAL_DISTANCE = 8.23;  // ~27 feet in meters
-  const TIME_SCALE = 2;        // Slowed down more
-  const MAX_HEIGHT = 300;      // Maximum pixels for vertical movement
-  
-  // Reduced initial velocity
-  const v0 = power * 0.3 * (7 / currentPlanet.throwAdjustment);
+  // Calculate throw parameters
+  const startPoint = { x: bag.offsetLeft, y: bag.offsetTop };
+  const distance = power * 5 * (1 / currentPlanet.throwAdjustment);
+  const targetPoint = {
+    x: startPoint.x,
+    y: startPoint.y - distance * Math.sin(angleRad)
+  };
+
+  // Control point for the arc
+  const controlPoint = {
+    x: startPoint.x + (targetPoint.x - startPoint.x) / 2,
+    y: startPoint.y - distance * 0.8
+  };
 
   let startTime = null;
+  const duration = 2000; // Animation duration in ms
 
   function animate(currentTime) {
     if (!startTime) startTime = currentTime;
-    let t = (currentTime - startTime) / 1000 * TIME_SCALE;
+    let progress = (currentTime - startTime) / duration;
 
-    // Calculate position using physics equations
-    const x = 0;
-    const z = v0 * Math.cos(angleRad) * t;
-    const y = v0 * Math.sin(angleRad) * t - (0.5 * g * t * t);
-
-    // Scale and constrain positions to screen space
-    const screenZ = Math.min(z * METERS_TO_PIXELS, REAL_DISTANCE * METERS_TO_PIXELS);
-    const screenY = Math.min(Math.max(y * METERS_TO_PIXELS, -MAX_HEIGHT), MAX_HEIGHT);
-
-    // Calculate board position
-    const boardZ = REAL_DISTANCE * METERS_TO_PIXELS;
-    
-    // End conditions: hit ground, reached board, or timeout
-    if (y < 0 || z > REAL_DISTANCE || t > 3) {
+    if (progress >= 1) {
       isAnimating = false;
-      
-      // If near the board, show landing animation
-      if (Math.abs(z - REAL_DISTANCE) < 0.5) {
-        // Slide slightly on landing
-        let finalY = 0;
-        let finalZ = boardZ;
-        let finalScale = 0.3;
-        
-        bag.style.transform = `translate3d(${x}px, ${-finalY}px, ${finalZ}px) 
-                             scale(${finalScale}) rotateX(0deg)`;
-                             
-        // Add a small bounce/slide effect
-        setTimeout(() => {
-          finalY = 5;
-          bag.style.transform = `translate3d(${x}px, ${-finalY}px, ${finalZ}px) 
-                               scale(${finalScale}) rotateX(10deg)`;
-        }, 100);
-      }
-      
-      // Reset after delay
       setTimeout(() => {
         bag.style.transform = 'translate3d(0, 0, 0)';
-      }, 2000);
-      
+      }, 1000);
       return;
     }
 
-    // Improved scaling calculation with tighter constraints
-    const distanceRatio = screenZ / boardZ;
-    const scale = Math.max(0.3, 1 - (distanceRatio * 0.7));
-    
-    // Slower rotation
-    const rotationSpeed = 180; // reduced from 360
-    const rotation = t * rotationSpeed;
-    
-    // Apply transforms with constrained values
-    bag.style.transform = `translate3d(${x}px, ${-screenY}px, ${screenZ}px) 
-                          scale(${scale}) 
-                          rotateX(${rotation}deg) 
-                          rotateY(${rotation * 0.5}deg)`;
+    // Calculate current position using Bezier curve
+    const x = calculateBezierPoint(
+      progress, 
+      startPoint.x,
+      controlPoint.x,
+      targetPoint.x
+    );
 
-    if (isAnimating) {
-      requestAnimationFrame(animate);
-    }
+    const y = calculateBezierPoint(
+      progress,
+      startPoint.y,
+      controlPoint.y,
+      targetPoint.y
+    );
+
+    // Add gravity effect
+    const gravityEffect = 0.5 * g * Math.pow(progress * duration / 1000, 2);
+    const adjustedY = y + gravityEffect;
+
+    // Scale and rotation based on progress
+    const scale = Math.max(0.3, 1 - progress * 0.5);
+    const rotation = progress * 720; // Two full rotations
+
+    // Apply transform
+    bag.style.transform = `
+      translate3d(${x - startPoint.x}px, ${adjustedY - startPoint.y}px, ${progress * 500}px)
+      scale(${scale})
+      rotateX(${rotation}deg)
+      rotateY(${rotation * 0.5}deg)
+    `;
+
+    requestAnimationFrame(animate);
   }
 
   requestAnimationFrame(animate);
 }
 
-planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
-throwButton.addEventListener('click', throwBag);
+// Event Listeners
+throwButton.addEventListener('mousedown', startThrow);
+throwButton.addEventListener('mouseup', releaseThrow);
+throwButton.addEventListener('touchstart', startThrow);
+throwButton.addEventListener('touchend', releaseThrow);
+planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
 
+// Touch events for mobile
+throwButton.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  startThrow();
+});
+
+throwButton.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  releaseThrow();
+});
+
+// Initialize
 updatePlanetInfo('earth');
 </script>
 </body>
