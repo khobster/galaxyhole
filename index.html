@@ -430,14 +430,13 @@ function throwBag(power) {
 
         // Update bag position
         const bag = document.getElementById('bag');
-        bag.style.left = `${currentX}px`;
-        bag.style.top = `${y}px`;
-        bag.style.transform = `rotate(${
-        bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
+bag.style.left = `${currentX}px`;
+bag.style.top = `${y}px`;
+bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
 
-        if (isAnimating) {
-            requestAnimationFrame(animate);
-        }
+if (isAnimating) {
+    requestAnimationFrame(animate);
+}
     }
 
     requestAnimationFrame(animate);
