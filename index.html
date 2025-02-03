@@ -57,21 +57,23 @@
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
         }
 
-        .trajectory-trail {
+        #trajectory {
             position: absolute;
             width: 100%;
             height: 100%;
             pointer-events: none;
+            z-index: 1;
         }
 
         .trail-particle {
             position: absolute;
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            filter: blur(2px);
+            filter: blur(3px);
             opacity: 0;
-            animation: fadeOut 1s forwards;
+            animation: fadeOut 0.5s forwards;
+            pointer-events: none;
         }
 
         @keyframes fadeOut {
@@ -143,6 +145,7 @@
             gap: 20px;
             align-items: center;
             backdrop-filter: blur(5px);
+            z-index: 2;
         }
 
         #planet-info {
@@ -154,6 +157,7 @@
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             backdrop-filter: blur(5px);
+            z-index: 2;
         }
 
         button {
@@ -187,15 +191,15 @@
         }
 
         @keyframes land {
-            0% { transform: scale(1) }
-            50% { transform: scale(1.2) }
-            100% { transform: scale(1) }
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.2) rotate(180deg); }
+            100% { transform: scale(1) rotate(360deg); }
         }
 
         @keyframes slide {
-            0% { transform: translateX(0) }
-            50% { transform: translateX(20px) }
-            100% { transform: translateX(0) }
+            0% { transform: translateX(0) rotate(0deg); }
+            50% { transform: translateX(20px) rotate(180deg); }
+            100% { transform: translateX(0) rotate(360deg); }
         }
 
         .landing {
@@ -209,7 +213,7 @@
 </head>
 <body>
 <div id="game-container">
-    <div id="trajectory" class="trajectory-trail"></div>
+    <div id="trajectory"></div>
     <div id="board">
         <div id="hole"></div>
     </div>
@@ -249,63 +253,63 @@ const planets = {
         name: "Earth",
         description: "Standard cornhole - your baseline experience",
         throwAdjustment: 1.0,
-        color: "#4CAF50"  // Green
+        color: "#4CAF50"
     },
     mercury: {
         gravity: 3.7,
         name: "Mercury",
         description: "Similar to Mars, requires less force than Earth",
         throwAdjustment: 0.38,
-        color: "#FF9800"  // Orange
+        color: "#FF9800"
     },
     moon: {
         gravity: 1.62,
         name: "Moon",
         description: "Low gravity means gentle tosses go much further",
         throwAdjustment: 0.16,
-        color: "#BDBDBD"  // Silver
+        color: "#BDBDBD"
     },
     mars: {
         gravity: 3.72,
         name: "Mars",
         description: "About 1/3 of Earth's gravity - requires less force",
         throwAdjustment: 0.38,
-        color: "#F44336"  // Red
+        color: "#F44336"
     },
     venus: {
         gravity: 8.87,
         name: "Venus",
         description: "Similar to Earth, slightly easier throws",
         throwAdjustment: 0.90,
-        color: "#FFC107"  // Amber
+        color: "#FFC107"
     },
     jupiter: {
         gravity: 24.79,
         name: "Jupiter",
         description: "Extreme gravity requires much more force",
         throwAdjustment: 2.53,
-        color: "#795548"  // Brown
+        color: "#795548"
     },
     titan: {
         gravity: 1.352,
         name: "Titan",
         description: "Similar to Moon gameplay",
         throwAdjustment: 0.14,
-        color: "#9C27B0"  // Purple
+        color: "#9C27B0"
     },
     pluto: {
         gravity: 0.62,
         name: "Pluto",
         description: "Ultra-low gravity for extreme distance",
         throwAdjustment: 0.06,
-        color: "#2196F3"  // Blue
+        color: "#2196F3"
     },
     kepler: {
         gravity: 18.3,
         name: "Kepler-16b",
         description: "High-gravity exoplanet orbiting two stars",
         throwAdjustment: 1.87,
-        color: "#E91E63"  // Pink
+        color: "#E91E63"
     }
 };
 
@@ -314,6 +318,7 @@ let isAnimating = false;
 let throwPower = 0;
 let powerInterval;
 let throwStartTime;
+
 const FIXED_ANGLE = 45;
 const ANGLE_RAD = FIXED_ANGLE * Math.PI / 180;
 
@@ -329,7 +334,7 @@ function createTrailParticle(x, y) {
     const particle = document.createElement('div');
     particle.className = 'trail-particle';
     const hue = (performance.now() / 20) % 360;
-    particle.style.background = `hsl(${hue}, 80%, 60%)`;
+    particle.style.background = `linear-gradient(${currentPlanet.color}, hsl(${hue}, 80%, 60%))`;
     particle.style.boxShadow = `0 0 10px ${currentPlanet.color}`;
     particle.style.left = `${x}px`;
     particle.style.top = `${y}px`;
@@ -369,42 +374,45 @@ function throwBag(power) {
     const startY = window.innerHeight * 0.8;
     const boardY = window.innerHeight * 0.3;
 
-    // Calculate landing position variation based on power
-    const powerVariance = (power - 50) / 50; // -1 to 1 based on power
-    const gravityEffect = currentPlanet.gravity / planets.earth.gravity;
-    const landingVariance = powerVariance * 100 * (1 / gravityEffect);
-    const targetX = startX + landingVariance;
+    // Make landing position more variable based on power
+    const powerFactor = (power - 50) / 50; // -1 to 1
+    const gravityEffect = planets.earth.gravity / currentPlanet.gravity; // Inverse for proper effect
+    const maxSpread = 200; // Maximum pixel spread from center
+    const targetX = startX + (powerFactor * maxSpread * gravityEffect);
 
-    const v0 = power * 3 * (1 / currentPlanet.throwAdjustment);
+    // Make velocity affected by gravity too
+    const v0 = power * 4 * gravityEffect;
     const v0x = v0 * Math.cos(ANGLE_RAD);
     const v0y = v0 * Math.sin(ANGLE_RAD);
 
     let startTime = performance.now();
-    let trailInterval = setInterval(() => {
-        const currentTime = performance.now();
-        const elapsedTime = (currentTime - startTime) / 1000;
-        const progress = Math.min(elapsedTime / 2, 1);
-        const currentX = startX + (targetX - startX) * progress;
-        const y = startY - (v0y * elapsedTime * 50) + (0.5 * currentPlanet.gravity * Math.pow(elapsedTime, 2) * 25);
-        createTrailParticle(currentX, y);
-    }, 20);
+    let lastParticleTime = 0;
+    const particleInterval = 16; // ms between particles
 
     function animate(currentTime) {
         const elapsedTime = (currentTime - startTime) / 1000;
-        const progress = Math.min(elapsedTime / 2, 1);
-        const currentX = startX + (targetX - startX) * progress;
-        const y = startY - (v0y * elapsedTime * 50) + (0.5 * currentPlanet.gravity * Math.pow(elapsedTime, 2) * 25);
+        
+        // Calculate current position with proper arc
+        const currentX = startX + (targetX - startX) * (elapsedTime / 2);
+        const y = startY - (v0y * elapsedTime * 50) + 
+                 (0.5 * currentPlanet.gravity * Math.pow(elapsedTime, 2) * 25);
 
+        // Create trail particles
+        if (currentTime - lastParticleTime > particleInterval) {
+            createTrailParticle(currentX, y);
+            lastParticleTime = currentTime;
+        }
+
+        // Check for landing
         if (y <= boardY) {
-            isAnimating = false;
-            clearInterval(trailInterval);
-            
-            // Check if it's a hole-in
-            const isHoleIn = Math.abs(currentX - startX) < 20;
+            const distanceFromCenter = Math.abs(currentX - startX);
+            const isHoleIn = distanceFromCenter < 15; // Smaller radius for actual hole
+
             if (isHoleIn) {
                 showScorePopup(currentX, boardY);
             }
-            
+
+            isAnimating = false;
             const bag = document.getElementById('bag');
             bag.style.left = `${currentX}px`;
             bag.style.top = `${boardY}px`;
@@ -420,28 +428,11 @@ function throwBag(power) {
             return;
         }
 
-        if (y >= window.innerHeight * 0.9) {
-            isAnimating = false;
-            clearInterval(trailInterval);
-            const bag = document.getElementById('bag');
-            bag.style.left = `${currentX}px`;
-            bag.style.top = `${window.innerHeight * 0.9}px`;
-            bag.classList.add('landing');
-            
-            setTimeout(() => {
-                clearTrajectory();
-                bag.style.left = `${startX}px`;
-                bag.style.top = `${startY}px`;
-                bag.style.transform = 'none';
-                bag.classList.remove('landing');
-            }, 2000);
-            return;
-        }
-
-        // Update bag position and rotation
+        // Update bag position
         const bag = document.getElementById('bag');
         bag.style.left = `${currentX}px`;
         bag.style.top = `${y}px`;
+        bag.style.transform = `rotate(${
         bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
 
         if (isAnimating) {
