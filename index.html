@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8"/>
-    <title>Space Cornhole</title>
+    <title>Space Cornhole - First Person</title>
     <style>
         body {
             margin: 0;
@@ -10,38 +10,49 @@
             overflow: hidden;
         }
 
-        /* Container with a mild 3D perspective, 
-           so the board looks slightly tilted. */
+        /* Container with perspective => we see in "first-person" style */
         #game-container {
             width: 100vw;
             height: 100vh;
             background: linear-gradient(#87CEEB, #90EE90);
             position: relative;
             overflow: hidden;
-            perspective: 800px;
-            perspective-origin: 50% 70%;
+
+            /* The camera's perspective */
+            perspective: 1000px;
+            perspective-origin: 50% 50%;
             transition: transform 0.1s;
         }
 
-        /* The cornhole board near the top center, 
-           tilted by rotateX(20deg). */
+        /* Our 3D scene where we place the board & bag at different Z positions */
+        #scene {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+        /* Board: same color, size, etc. 
+           But now we place it with a 3D transform (Z ~ 700) 
+           so it's "in front" of the camera. */
         #board {
             position: absolute;
             width: 120px;
             height: 240px;
-            left: 50%;
-            top: 30%;
-            transform: translate(-50%, -50%);
             background: #8B4513;
             border: 4px solid #654321;
             border-radius: 4px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.3);
 
-            /* The 3D tilt */
-            transform-style: preserve-3d;
-            transform: translate(-50%, -50%) rotateX(20deg);
+            /* We'll center it horizontally by shifting X -60 (half width),
+               shift Y -120 (half height), then push it "away" at z=700. */
+            transform: translate3d(-60px, -120px, 700px);
             transform-origin: center bottom;
         }
+
+        /* Hole at 25% from top, 50% from left. 
+           (Same as your original: 30×30, black, circle) */
         #hole {
             position: absolute;
             width: 30px;
@@ -53,21 +64,20 @@
             border-radius: 50%;
         }
 
-        /* The bag at bottom center, bigger than the hole. */
+        /* The bag: 40×40, placed in 3D. 
+           We'll set its transform from JS (start near z=50, y=0). */
         #bag {
             position: absolute;
             width: 40px;
             height: 40px;
-            left: 50%;
-            bottom: 10%;
-            transform: translateX(-50%);
             background: #c41e3a;
             border-radius: 5px;
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
-            pointer-events: none; 
+            pointer-events: none;
+            transform-origin: center;
         }
 
-        /* For the trailing effect behind the bag. */
+        /* Trajectory for particles (we’ll do a rough approach—2D or pseudo-3D). */
         #trajectory {
             position: absolute;
             width: 100%;
@@ -90,7 +100,7 @@
             100% { opacity: 0;   }
         }
 
-        /* Popup text when you score. */
+        /* Score popup if you land in the hole. */
         .score-popup {
             position: absolute;
             font-family: 'Impact', sans-serif;
@@ -120,7 +130,7 @@
             }
         }
 
-        /* The throw meter that appears while the user holds the button. */
+        /* Throw meter for "Hold to Throw" */
         .throw-meter {
             position: absolute;
             left: 50%;
@@ -141,7 +151,7 @@
             transition: width 0.1s linear;
         }
 
-        /* Controls at the bottom center. */
+        /* Controls at bottom center, Planet Info at top-left (same as original) */
         #controls {
             position: fixed;
             bottom: 20px;
@@ -157,8 +167,6 @@
             backdrop-filter: blur(5px);
             z-index: 2;
         }
-
-        /* Planet info at the top-left. */
         #planet-info {
             position: fixed;
             top: 20px;
@@ -171,7 +179,7 @@
             z-index: 2;
         }
 
-        /* Basic button styling. */
+        /* Buttons & selects (same style) */
         button {
             background: #c41e3a;
             color: white;
@@ -187,7 +195,6 @@
         }
         button:hover { background: #d42e4a; }
         button:active { transform: scale(0.95); }
-
         select {
             padding: 8px;
             border-radius: 5px;
@@ -199,11 +206,17 @@
 </head>
 <body>
 <div id="game-container">
-    <div id="trajectory"></div>
-    <div id="board">
-        <div id="hole"></div>
+    <div id="scene">
+        <div id="trajectory"></div>
+
+        <!-- The board in 3D space -->
+        <div id="board">
+            <div id="hole"></div>
+        </div>
+
+        <!-- The bag in 3D space -->
+        <div id="bag"></div>
     </div>
-    <div id="bag"></div>
 
     <div class="throw-meter">
         <div class="throw-meter-fill"></div>
@@ -227,14 +240,13 @@
             <option value="pluto">Pluto (0.62)</option>
             <option value="kepler">Kepler-16b (18.3)</option>
         </select>
-
         <button id="throw-button">Hold to Throw</button>
     </div>
 </div>
 
 <script>
 /********************************************************
- * Planet Data
+ * PLANETS
  ********************************************************/
 const planets = {
     earth: {
@@ -305,50 +317,52 @@ const planets = {
 let currentPlanet = planets.earth;
 function updatePlanetInfo(planetKey) {
     currentPlanet = planets[planetKey];
-    document.getElementById('planet-name').textContent        = currentPlanet.name;
+    document.getElementById('planet-name').textContent = currentPlanet.name;
     document.getElementById('planet-description').textContent = currentPlanet.description;
-    document.getElementById('throw-adjustment').textContent   =
+    document.getElementById('throw-adjustment').textContent =
         `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
 }
 
 /********************************************************
- * Throw Mechanic
+ * 3D Bag Positioning
  ********************************************************/
-let isAnimating   = false;
-let throwPower    = 0;
-let powerInterval = null;
-let throwStartTime = 0;
+const bagEl = document.getElementById('bag');
+function setBagPosition(x, y, z) {
+    // In CSS 3D:
+    //  translate3d( X_px, -Y_px, Z_px )
+    // We do -y because in CSS, Y+ is downward, but we want up=+y.
+    bagEl.style.transform = `translate3d(${x}px, ${-y}px, ${z}px)`;
+}
 
-/** 
- * We'll use a bigger angle (65° from horizontal), so the bag arcs more 
- * like a "C" shape in 2D. 
- * (Angle=90 would be straight up.)
- */
-const FIXED_ANGLE_DEG = 65; 
-const FIXED_ANGLE_RAD = (FIXED_ANGLE_DEG * Math.PI) / 180;
+/** Reset bag near the camera at z=50, y=0. */
+function resetBag() {
+    setBagPosition(0, 0, 50);
+}
 
-/** 
- * We scale speeds/positions by some factor so the motion
- * looks good in pixels on the screen.
- */
-const PIXEL_SCALE = 2;
+/********************************************************
+ * THROW MECHANIC
+ ********************************************************/
+let isAnimating = false;
+let throwPower  = 0;
+let powerInterval, throwStartTime;
 
-/** 
- * "Hold to Throw": the user holds the button => we fill the meter => 
- * that sets throwPower(0..100).
- */
+const THROW_ANGLE_DEG = 45;  // angle from horizontal
+const THROW_ANGLE_RAD = THROW_ANGLE_DEG * Math.PI / 180;
+
+/** We'll scale speeds so they look decent in px. Tweak if needed. */
+const SPEED_SCALE = 50;
+
+/** "Hold to Throw" => power ramp */
 function startThrow(e) {
     e.preventDefault();
     if (isAnimating) return;
-
-    const throwMeter = document.querySelector('.throw-meter');
-    throwMeter.style.display = 'block';
+    
+    document.querySelector('.throw-meter').style.display = 'block';
     throwPower = 0;
     throwStartTime = performance.now();
 
-    // Increase throwPower up to 100 over time
     powerInterval = setInterval(() => {
-        throwPower = Math.min(100, ((performance.now() - throwStartTime) / 10));
+        throwPower = Math.min(100, (performance.now() - throwStartTime)/10);
         document.querySelector('.throw-meter-fill').style.width = `${throwPower}%`;
     }, 16);
 }
@@ -359,119 +373,95 @@ function releaseThrow(e) {
     clearInterval(powerInterval);
     document.querySelector('.throw-meter').style.display = 'none';
 
-    // Convert throwPower(0..100) => an initial velocity
-    const initialVelocity = throwPower * 8; 
-    doThrow(initialVelocity);
+    // Convert 0..100 => initial velocity
+    const v0 = throwPower * 0.2; 
+    doThrow(v0);
 }
 
 /********************************************************
- * Projectile Animation
+ * doThrow: 3D Projectile
  ********************************************************/
 function doThrow(v0) {
     if (isAnimating) return;
     isAnimating = true;
 
-    // Start at bottom center
-    const startX = window.innerWidth * 0.5;
-    const startY = window.innerHeight * 0.8;
+    // Start bag at (x=0, y=0, z=50)
+    let x = 0;
+    let y = 0;
+    let z = 50;
 
-    const bagEl    = document.getElementById('bag');
-    const holeEl   = document.getElementById('hole');
-    const holeRect = holeEl.getBoundingClientRect();
-    const holeCenterX = holeRect.left + holeRect.width / 2;
-    const holeCenterY = holeRect.top  + holeRect.height / 2;
+    // Planet-based gravity
+    const g = currentPlanet.gravity * 10; // px/s^2
 
-    // We'll interpret angle=65° as from the horizontal. So:
-    //   v0x = v0 * cos(65°)
-    //   v0y = v0 * sin(65°)
-    // Then gravity is downward => we define y(t) = ...
-    // We'll do collision detection on every frame.
+    // Decompose velocity in z (forward) & y (vertical)
+    const v0z = v0 * Math.cos(THROW_ANGLE_RAD) * SPEED_SCALE;
+    const v0y = v0 * Math.sin(THROW_ANGLE_RAD) * SPEED_SCALE;
 
-    const gPx = currentPlanet.gravity * 5;  // scale gravity in px/s^2
-    const v0x = v0 * Math.cos(FIXED_ANGLE_RAD);
-    const v0y = v0 * Math.sin(FIXED_ANGLE_RAD);
+    const startTime = performance.now();
 
-    // The full flight time, ignoring hitting the ground, is about 2*v0y / g:
-    // but we let it animate until it hits the board region or times out, etc.
-    const flightTime = (2 * v0y) / currentPlanet.gravity;
-    let startTime = performance.now();
-
-    clearTrajectory();
-
+    // The board is at z=700. We'll do a quick collision check when z≥700.
+    // The hole is 25% from top => ~ 60px down from top in board local coords,
+    // but let's do a simple approach: if z≥700, check if y is near ~ ??? px.
     function animateFrame(now) {
-        const elapsed = (now - startTime) / 1000; // seconds
+        const t = (now - startTime)/1000;
 
-        if (elapsed > flightTime) {
-            // Bag has "landed"
-            endThrow(bagEl, holeCenterX, holeCenterY);
+        // z(t) = z0 + v0z * t
+        // y(t) = y0 + v0y*t - 0.5*g*t^2
+        z = 50 + v0z * t;
+        y = 0  + v0y * t - 0.5*g * t * t;
+
+        if (z >= 700) {
+            endThrow(x, y, z, true);
+            return;
+        }
+        // If bag goes below y< -100 => also end
+        if (y < -100) {
+            endThrow(x, y, z, false);
             return;
         }
 
-        // x(t), y(t) in standard projectile form:
-        const xPos = startX + (v0x * elapsed) * PIXEL_SCALE;
-        const yPos = startY - (
-            (v0y * elapsed) - 0.5 * gPx * elapsed * elapsed
-        ) * PIXEL_SCALE;
-
-        // Scale bag so it looks smaller as it moves "forward/up."
-        // We'll base it on elapsed vs flightTime.
-        // ex: at t=0 => scale=1, at t=flightTime => scale=0.7
-        const ratio    = elapsed / flightTime;
-        const bagScale = 1 - 0.3 * ratio; 
-        const finalBagScale = (bagScale < 0.7) ? 0.7 : bagScale;
-
-        // Move & transform the bag
-        bagEl.style.left     = `${xPos}px`;
-        bagEl.style.top      = `${yPos}px`;
-        bagEl.style.transform= `rotate(${elapsed * 360}deg) scale(${finalBagScale})`;
-
-        // Make a little trail particle
-        createTrailParticle(xPos, yPos, currentPlanet.color);
-
-        // Check hole collision
-        const dx = xPos - holeCenterX;
-        const dy = yPos - holeCenterY;
-        if (Math.sqrt(dx*dx + dy*dy) < 20) {
-            // It's in the hole => score
-            showScorePopup(xPos, yPos);
-            endThrow(bagEl, holeCenterX, holeCenterY, true);
-            return;
-        }
+        setBagPosition(x, y, z);
+        createTrailParticle(x, y, z, currentPlanet.color);
 
         requestAnimationFrame(animateFrame);
     }
-
     requestAnimationFrame(animateFrame);
 }
 
-/********************************************************
- * End of Throw
- ********************************************************/
-function endThrow(bagEl, holeX, holeY, cornhole=false) {
+function endThrow(x, y, z, maybeHole) {
     isAnimating = false;
-    // Freeze for a second, then reset
+    // Rough check for hole collision if z≥700
+    // The hole is 30px diameter, top=25% => let's say y ~ 60 px?
+    // If y is near 60 ±some range => cornhole
+    if (maybeHole) {
+        const holeY = 60;  // from #hole, top=25% of 240 => 60
+        const distY = Math.abs(y - holeY);
+        if (distY < 20) {
+            showScorePopup(window.innerWidth/2, window.innerHeight/2);
+        }
+    }
+
     setTimeout(() => {
         clearTrajectory();
-        bagEl.style.left = "50%";
-        bagEl.style.bottom = "10%";
-        bagEl.style.top = "";
-        bagEl.style.transform = 'translateX(-50%)';
+        resetBag();
     }, 1500);
 }
 
 /********************************************************
- * Trail & Score
+ * TRAIL & SCORE
  ********************************************************/
-function createTrailParticle(x, y, color) {
-    const trajectory = document.getElementById('trajectory');
-    const particle = document.createElement('div');
-    particle.className = 'trail-particle';
-    particle.style.background = color;
-    particle.style.boxShadow  = `0 0 10px ${color}`;
-    particle.style.left = `${x}px`;
-    particle.style.top  = `${y}px`;
-    trajectory.appendChild(particle);
-    setTimeout(() => particle.remove(), 1000);
+function createTrailParticle(x, y, z, color) {
+    const p = document.createElement('div');
+    p.className = 'trail-particle';
+    p.style.background = color;
+    p.style.boxShadow  = `0 0 10px ${color}`;
+    // We'll place it with a simple 2D offset (no real 3D projection).
+    // For a fully accurate 3D->2D, you'd do perspective math. 
+    // This is just to show something behind the bag.
+    p.style.left = (window.innerWidth/2 + x*0.2) + 'px'; 
+    p.style.top  = (window.innerHeight*0.7 - y*0.2) + 'px'; 
+    document.getElementById('trajectory').appendChild(p);
+    setTimeout(() => p.remove(), 1000);
 }
 
 function clearTrajectory() {
@@ -492,8 +482,8 @@ function showScorePopup(x, y) {
  * INIT
  ********************************************************/
 document.addEventListener('DOMContentLoaded', () => {
-    const throwButton = document.getElementById('throw-button');
-    const planetSelect= document.getElementById('planet-select');
+    const throwButton  = document.getElementById('throw-button');
+    const planetSelect = document.getElementById('planet-select');
 
     planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
 
@@ -502,7 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
     throwButton.addEventListener('touchstart',startThrow);
     throwButton.addEventListener('touchend',  releaseThrow);
 
-    updatePlanetInfo('earth'); // default
+    updatePlanetInfo('earth');
+    resetBag(); 
 });
 </script>
 </body>
