@@ -1,30 +1,80 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8"/>
-  <title>3D Test</title>
+  <meta charset="UTF-8">
+  <title>3D Cornhole Minimal Debug</title>
   <style>
-    #container {
-      width: 100vw; height: 100vh;
-      perspective: 600px;
-      display: flex; align-items: center; justify-content: center;
+    /* Basic reset/background */
+    html, body {
+      margin: 0; 
+      padding: 0;
       background: #333;
+      overflow: hidden;
     }
-    #box {
-      width: 100px; height: 100px;
-      background: red;
+
+    /* The container is our camera with perspective */
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      perspective: 600px;  /* moderate perspective distance */
+      perspective-origin: 50% 50%;
+      background: #222;    /* dark gray so shapes stand out */
+    }
+
+    /* The scene inside the container. We won't rotate it. */
+    #scene {
+      width: 100%; 
+      height: 100%;
       transform-style: preserve-3d;
-      animation: spin 3s infinite linear;
+      position: absolute;
+      top: 0; left: 0;
     }
-    @keyframes spin {
-      0%   { transform: rotateY(0deg);   }
-      100% { transform: rotateY(360deg); }
+
+    /* The board: bright green (lime) with a yellow outline for visibility */
+    #board {
+      position: absolute;
+      width: 200px;
+      height: 300px;
+      background: lime;
+      outline: 5px solid yellow;
+      /* Center it by half width/height => (x=-100, y=-150).
+         Push it forward at z=300 => in front of the camera. */
+      transform: translate3d(-100px, -150px, 300px);
+    }
+
+    /* The hole: bright magenta circle, big enough to see easily */
+    #hole {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background: magenta;
+      border-radius: 50%;
+      left: 50%; 
+      top: 30%; /* ~30% down from top of board */
+      transform: translate(-50%, -50%);
+    }
+
+    /* The bag: a cyan square with a red outline, placed closer (z=100) */
+    #bag {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      background: cyan;
+      outline: 4px solid red;
+      /* Center it => (x=-30, y=-30), at z=100 => closer to camera than the board. */
+      transform: translate3d(-30px, -30px, 100px);
     }
   </style>
 </head>
 <body>
-  <div id="container">
-    <div id="box"></div>
+  <div id="game-container">
+    <div id="scene">
+      <div id="board">
+        <div id="hole"></div>
+      </div>
+      <div id="bag"></div>
+    </div>
   </div>
 </body>
 </html>
