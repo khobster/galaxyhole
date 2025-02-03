@@ -122,6 +122,8 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         button:hover {
@@ -136,6 +138,19 @@
             padding: 15px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        #debug-info {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
         }
     </style>
 </head>
@@ -156,6 +171,8 @@
             <p id="planet-description">Standard cornhole - your baseline experience</p>
             <p id="throw-adjustment">Throw force: 1.0x</p>
         </div>
+
+        <div id="debug-info"></div>
 
         <div id="controls">
             <div class="control-group">
@@ -183,6 +200,16 @@
     </div>
 
     <script>
+        const DEBUG = true;
+
+        function debug(info) {
+            if (!DEBUG) return;
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.style.display = 'block';
+            debugInfo.textContent = JSON.stringify(info, null, 2);
+            console.log(info);
+        }
+
         const planets = {
             earth: { gravity: 9.81, name: "Earth", description: "Standard cornhole - your baseline experience", throwAdjustment: 1.0 },
             mercury: { gravity: 3.7, name: "Mercury", description: "Similar to Mars, requires less force than Earth", throwAdjustment: 0.38 },
@@ -231,46 +258,63 @@
         }
 
         function throwBag(power) {
+            debug({ event: 'throwStart', power });
+            
             if (isAnimating) return;
             isAnimating = true;
             clearTrajectory();
 
+            // Get initial positions
+            const startX = window.innerWidth / 2;
+            const startY = window.innerHeight * 0.8;
+            const boardY = window.innerHeight * 0.2;
+
+            // Get throw parameters
             const angleDeg = parseFloat(angleRange.value);
             const angleRad = angleDeg * Math.PI / 180;
             const g = currentPlanet.gravity;
-            
-            const startX = bag.offsetLeft;
-            const startY = bag.offsetTop;
-            const boardTop = board.offsetTop;
-            
-            // Initial velocity adjusted for screen space
-            const v0 = power * 1.2 * (1 / currentPlanet.throwAdjustment);
+
+            // Calculate initial velocity based on power
+            const v0 = power * 5;
             const v0x = v0 * Math.cos(angleRad);
             const v0y = v0 * Math.sin(angleRad);
+
+            debug({ velocities: { v0, v0x, v0y }, angle: angleDeg, gravity: g });
+
+            // Set initial position
+            bag.style.left = `${startX}px`;
+            bag.style.top = `${startY}px`;
+
+            let startTime = performance.now();
             
-            let startTime = null;
-            const frameRate = 60;
-            const frameInterval = 1000 / frameRate;
-
             function animate(currentTime) {
-                if (!startTime) startTime = currentTime;
                 const elapsedTime = (currentTime - startTime) / 1000;
+                
+                // Calculate new position
+                const x = startX + (v0x * elapsedTime * 50);
+                const y = startY - (v0y * elapsedTime * 50) + (0.5 * g * Math.pow(elapsedTime, 2) * 25);
 
-                // Calculate position
-                const x = startX + (v0x * elapsedTime * 60);
-                const y = startY - (v0y * elapsedTime * 60) + (0.5 * g * Math.pow(elapsedTime, 2) * 30);
+                debug({ 
+                    animation: { 
+                        time: elapsedTime, 
+                        x, 
+                        y,
+                        startX,
+                        startY 
+                    }
+                });
 
                 // Add trajectory point
                 addTrajectoryPoint(x, y);
 
                 // Update bag position and rotation
-                const rotation = elapsedTime * 360;
                 bag.style.left = `${x}px`;
                 bag.style.top = `${y}px`;
-                bag.style.transform = `rotate(${rotation}deg)`;
+                bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
 
-                // Check for landing
-                if (y >= boardTop || y >= window.innerHeight * 0.8) {
+                // Check if bag has reached the board or ground
+                if (y <= boardY || y >= window.innerHeight * 0.9) {
+                    debug({ event: 'throwEnd', finalPosition: { x, y } });
                     isAnimating = false;
                     setTimeout(() => {
                         clearTrajectory();
@@ -293,13 +337,15 @@
             if (e) e.preventDefault();
             if (isAnimating) return;
             
+            debug({ event: 'powerMeterStart' });
             throwMeter.style.display = 'block';
             throwPower = 0;
-            throwStartTime = Date.now();
+            throwStartTime = performance.now();
             
             powerInterval = setInterval(() => {
-                throwPower = Math.min(100, (Date.now() - throwStartTime) / 20);
+                throwPower = Math.min(100, ((performance.now() - throwStartTime) / 20));
                 throwMeterFill.style.width = `${throwPower}%`;
+                debug({ powerMeter: throwPower });
             }, 16);
         }
 
@@ -307,20 +353,22 @@
             if (e) e.preventDefault();
             if (!powerInterval) return;
             
+            debug({ event: 'powerMeterRelease', finalPower: throwPower });
             clearInterval(powerInterval);
             throwMeter.style.display = 'none';
             throwBag(throwPower);
         }
 
-        // Event Listeners
-        throwButton.addEventListener('mousedown', startThrow);
-        throwButton.addEventListener('mouseup', releaseThrow);
-        throwButton.addEventListener('touchstart', startThrow);
-        throwButton.addEventListener('touchend', releaseThrow);
-        planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
-
-        // Initialize
-        updatePlanetInfo('earth');
+        document.addEventListener('DOMContentLoaded', () => {
+            debug({ event: 'init' });
+            throwButton.addEventListener('mousedown', startThrow);
+            throwButton.addEventListener('mouseup', releaseThrow);
+            throwButton.addEventListener('touchstart', startThrow);
+            throwButton.addEventListener('touchend', releaseThrow);
+            planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
+            
+            updatePlanetInfo('earth');
+        });
     </script>
 </body>
 </html>
