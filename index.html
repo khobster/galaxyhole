@@ -57,21 +57,56 @@
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
         }
 
-        #trajectory {
+        .trajectory-trail {
             position: absolute;
             width: 100%;
             height: 100%;
             pointer-events: none;
         }
 
-        .trajectory-point {
+        .trail-particle {
             position: absolute;
-            width: 4px;
-            height: 4px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            transform: translate(-50%, -50%);
-            opacity: 0.5;
-            transition: opacity 0.3s;
+            filter: blur(2px);
+            opacity: 0;
+            animation: fadeOut 1s forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+
+        .score-popup {
+            position: absolute;
+            font-family: 'Impact', sans-serif;
+            font-size: 48px;
+            color: gold;
+            text-shadow: 
+                2px 2px 0 #000,
+                -2px 2px 0 #000,
+                2px -2px 0 #000,
+                -2px -2px 0 #000;
+            pointer-events: none;
+            z-index: 1000;
+            animation: scorePopup 1s ease-out forwards;
+        }
+
+        @keyframes scorePopup {
+            0% { 
+                transform: translate(-50%, 0) scale(0.5);
+                opacity: 0;
+            }
+            50% { 
+                transform: translate(-50%, -50px) scale(1.5);
+                opacity: 1;
+            }
+            100% { 
+                transform: translate(-50%, -100px) scale(1);
+                opacity: 0;
+            }
         }
 
         .throw-meter {
@@ -174,7 +209,7 @@
 </head>
 <body>
 <div id="game-container">
-    <div id="trajectory"></div>
+    <div id="trajectory" class="trajectory-trail"></div>
     <div id="board">
         <div id="hole"></div>
     </div>
@@ -279,8 +314,7 @@ let isAnimating = false;
 let throwPower = 0;
 let powerInterval;
 let throwStartTime;
-
-const FIXED_ANGLE = 45; // Fixed optimal angle in degrees
+const FIXED_ANGLE = 45;
 const ANGLE_RAD = FIXED_ANGLE * Math.PI / 180;
 
 function updatePlanetInfo(planetKey) {
@@ -291,13 +325,16 @@ function updatePlanetInfo(planetKey) {
         `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
 }
 
-function addTrajectoryPoint(x, y) {
-    const point = document.createElement('div');
-    point.className = 'trajectory-point';
-    point.style.left = `${x}px`;
-    point.style.top = `${y}px`;
-    point.style.background = currentPlanet.color;
-    trajectory.appendChild(point);
+function createTrailParticle(x, y) {
+    const particle = document.createElement('div');
+    particle.className = 'trail-particle';
+    const hue = (performance.now() / 20) % 360;
+    particle.style.background = `hsl(${hue}, 80%, 60%)`;
+    particle.style.boxShadow = `0 0 10px ${currentPlanet.color}`;
+    particle.style.left = `${x}px`;
+    particle.style.top = `${y}px`;
+    trajectory.appendChild(particle);
+    setTimeout(() => particle.remove(), 1000);
 }
 
 function clearTrajectory() {
@@ -312,22 +349,15 @@ function shakeScreen(intensity) {
     }, 100);
 }
 
-function landBag(x, y, isOnBoard) {
-    const bag = document.getElementById('bag');
-    bag.style.left = `${x}px`;
-    bag.style.top = `${y}px`;
-    
-    if (isOnBoard) {
-        bag.classList.add('sliding');
-        setTimeout(() => bag.classList.remove('sliding'), 500);
-    } else {
-        bag.classList.add('landing');
-        setTimeout(() => bag.classList.remove('landing'), 300);
-    }
-
-    // Screen shake based on planet gravity
-    const shakeIntensity = Math.min(currentPlanet.gravity * 2, 50);
-    shakeScreen(shakeIntensity);
+function showScorePopup(x, y) {
+    const popup = document.createElement('div');
+    popup.className = 'score-popup';
+    popup.textContent = 'CORNHOLE! +3';
+    popup.style.left = `${x}px`;
+    popup.style.top = `${y}px`;
+    document.body.appendChild(popup);
+    shakeScreen(20);
+    setTimeout(() => popup.remove(), 1000);
 }
 
 function throwBag(power) {
@@ -339,53 +369,80 @@ function throwBag(power) {
     const startY = window.innerHeight * 0.8;
     const boardY = window.innerHeight * 0.3;
 
-    // Calculate initial velocity based on power
+    // Calculate landing position variation based on power
+    const powerVariance = (power - 50) / 50; // -1 to 1 based on power
+    const gravityEffect = currentPlanet.gravity / planets.earth.gravity;
+    const landingVariance = powerVariance * 100 * (1 / gravityEffect);
+    const targetX = startX + landingVariance;
+
     const v0 = power * 3 * (1 / currentPlanet.throwAdjustment);
     const v0x = v0 * Math.cos(ANGLE_RAD);
     const v0y = v0 * Math.sin(ANGLE_RAD);
 
     let startTime = performance.now();
-    
+    let trailInterval = setInterval(() => {
+        const currentTime = performance.now();
+        const elapsedTime = (currentTime - startTime) / 1000;
+        const progress = Math.min(elapsedTime / 2, 1);
+        const currentX = startX + (targetX - startX) * progress;
+        const y = startY - (v0y * elapsedTime * 50) + (0.5 * currentPlanet.gravity * Math.pow(elapsedTime, 2) * 25);
+        createTrailParticle(currentX, y);
+    }, 20);
+
     function animate(currentTime) {
         const elapsedTime = (currentTime - startTime) / 1000;
-        
-        // Calculate new position
-        const x = startX;  // Keep x centered
+        const progress = Math.min(elapsedTime / 2, 1);
+        const currentX = startX + (targetX - startX) * progress;
         const y = startY - (v0y * elapsedTime * 50) + (0.5 * currentPlanet.gravity * Math.pow(elapsedTime, 2) * 25);
 
-        // Add trajectory point
-        addTrajectoryPoint(x, y);
-
-        // Update bag position and rotation
-        const bag = document.getElementById('bag');
-        bag.style.left = `${x}px`;
-        bag.style.top = `${y}px`;
-        bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
-
-        // Check if bag has reached the board or ground
         if (y <= boardY) {
             isAnimating = false;
-            landBag(x, boardY, true);
+            clearInterval(trailInterval);
+            
+            // Check if it's a hole-in
+            const isHoleIn = Math.abs(currentX - startX) < 20;
+            if (isHoleIn) {
+                showScorePopup(currentX, boardY);
+            }
+            
+            const bag = document.getElementById('bag');
+            bag.style.left = `${currentX}px`;
+            bag.style.top = `${boardY}px`;
+            bag.classList.add(isHoleIn ? 'landing' : 'sliding');
+            
             setTimeout(() => {
                 clearTrajectory();
                 bag.style.left = `${startX}px`;
                 bag.style.top = `${startY}px`;
                 bag.style.transform = 'none';
+                bag.classList.remove('landing', 'sliding');
             }, 2000);
             return;
         }
 
         if (y >= window.innerHeight * 0.9) {
             isAnimating = false;
-            landBag(x, window.innerHeight * 0.9, false);
+            clearInterval(trailInterval);
+            const bag = document.getElementById('bag');
+            bag.style.left = `${currentX}px`;
+            bag.style.top = `${window.innerHeight * 0.9}px`;
+            bag.classList.add('landing');
+            
             setTimeout(() => {
                 clearTrajectory();
                 bag.style.left = `${startX}px`;
                 bag.style.top = `${startY}px`;
                 bag.style.transform = 'none';
+                bag.classList.remove('landing');
             }, 2000);
             return;
         }
+
+        // Update bag position and rotation
+        const bag = document.getElementById('bag');
+        bag.style.left = `${currentX}px`;
+        bag.style.top = `${y}px`;
+        bag.style.transform = `rotate(${elapsedTime * 360}deg)`;
 
         if (isAnimating) {
             requestAnimationFrame(animate);
@@ -428,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
     throwButton.addEventListener('mouseup', releaseThrow);
     throwButton.addEventListener('touchstart', startThrow);
     throwButton.addEventListener('touchend', releaseThrow);
-    planetSelect.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
+    planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
     
     // Initialize
     updatePlanetInfo('earth');
