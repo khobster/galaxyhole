@@ -4,6 +4,7 @@
     <meta charset="UTF-8"/>
     <title>Space Cornhole</title>
     <style>
+        /* Keep all existing styles */
         body {
             margin: 0;
             font-family: system-ui, sans-serif;
@@ -58,6 +59,7 @@
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
             transform-style: preserve-3d;
             transition: transform 0.05s linear;
+            will-change: transform;
         }
 
         #trajectory {
@@ -76,6 +78,7 @@
             filter: blur(3px);
             opacity: 0;
             animation: fadeOut 0.5s forwards;
+            pointer-events: none;
         }
 
         @keyframes fadeOut {
@@ -212,6 +215,7 @@
 </div>
 
 <script>
+// Keep planets data
 const planets = {
     earth: {
         gravity: 9.81,
@@ -317,80 +321,92 @@ function showScorePopup(x, y) {
     setTimeout(() => popup.remove(), 1000);
 }
 
-function doThrow(initialVelocity) {
+function doThrow(power) {
     if (isAnimating) return;
     isAnimating = true;
-
-    const startX = window.innerWidth * 0.5;
-    const startY = window.innerHeight * 0.85;
-    const boardY = window.innerHeight * 0.25;
-    const distanceToBoard = 800;
-    const maxHeight = 300;
-    const flightTime = 1.5;
+    clearTrajectory();
 
     const bag = document.getElementById('bag');
     const board = document.getElementById('board');
-    const boardRect = board.getBoundingClientRect();
-    const holeCenterX = boardRect.left + boardRect.width / 2;
-    const holeCenterY = boardRect.top + boardRect.height / 2;
+    const hole = document.getElementById('hole');
+    
+    // Initial positions
+    const startX = window.innerWidth * 0.5;
+    const startY = window.innerHeight * 0.85;
+    const boardY = hole.getBoundingClientRect().top;
+    
+    // Bezier control points for the arc
+    const controlX = startX;
+    const controlY = startY - 400; // Height of arc peak
+    const targetY = boardY;
+    
+    // Add slight left/right variation based on power
+    const variance = (power - 50) / 50; // -1 to 1
+    const spread = 100 * variance;
+    const targetX = startX + spread;
 
+    const duration = 1500; // 1.5 seconds
     let startTime = performance.now();
-    clearTrajectory();
 
     function animate(currentTime) {
-        const elapsed = (currentTime - startTime) / 1000;
-        const progress = elapsed / flightTime;
-
-        if (progress >= 1) {
-            endThrow(bag, startX, boardY);
-            return;
-        }
-
-        // Calculate 3D position
-        const z = progress * distanceToBoard;
-        const scale = Math.max(0.3, 1 - (z / distanceToBoard) * 0.7);
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
         
-        // Parabolic arc
-        const heightProgress = Math.sin(progress * Math.PI);
-        const y = startY - (heightProgress * maxHeight * (1 - progress * 0.3));
+        // Bezier interpolation for smooth arc
+        const t = progress;
+        const x = Math.pow(1-t, 2) * startX + 
+                 2 * (1-t) * t * controlX + 
+                 Math.pow(t, 2) * targetX;
+                 
+        const y = Math.pow(1-t, 2) * startY + 
+                 2 * (1-t) * t * controlY + 
+                 Math.pow(t, 2) * targetY;
 
-        // Add gravity effect based on planet
-        const gravityEffect = (0.5 * currentPlanet.gravity * Math.pow(elapsed, 2)) * 25;
-        const finalY = y + (gravityEffect * currentPlanet.throwAdjustment);
+        // Add gravity effect
+        const gravityEffect = 0.5 * currentPlanet.gravity * Math.pow(progress, 2);
+        const adjustedY = y + (gravityEffect * 25 * currentPlanet.throwAdjustment);
+
+        // Scale and rotate based on progress
+        const scale = 1 - (progress * 0.4); // Bag gets slightly smaller
+        const rotation = progress * 720; // Two full rotations
+
+        // Update bag position
+        bag.style.transform = `translate3d(${x - bag.offsetWidth/2}px, ${adjustedY}px, ${progress * 400}px) 
+                             scale(${scale}) rotate(${rotation}deg)`;
 
         // Create trail
-        createTrailParticle(startX, finalY, currentPlanet.color);
+        createTrailParticle(x, adjustedY, currentPlanet.color);
 
-        // Move bag
-        bag.style.transform = `translate3d(${startX - bag.offsetWidth/2}px, ${finalY}px, ${z}px) scale(${scale}) rotate(${elapsed * 360}deg)`;
-
-        // Check for scoring
-        if (progress > 0.8 && Math.abs(startX - holeCenterX) < 20) {
-            showScorePopup(startX, finalY);
-            endThrow(bag, startX, boardY, true);
+        // Check for landing
+        if (progress >= 1) {
+            const holeRect = hole.getBoundingClientRect();
+            const isInHole = Math.abs(x - (holeRect.left + holeRect.width/2)) < 20;
+            
+            if (isInHole) {
+                showScorePopup(x, adjustedY);
+            }
+            
+            // Add landing animation
+            bag.style.transition = 'transform 0.3s ease-out';
+            isAnimating = false;
+            
+            setTimeout(() => resetBag(bag), 1000);
             return;
         }
 
-        if (isAnimating) {
-            requestAnimationFrame(animate);
-        }
+        requestAnimationFrame(animate);
     }
 
     requestAnimationFrame(animate);
 }
 
-function endThrow(bag, x, y, isScore = false) {
-    isAnimating = false;
-    
+function resetBag(bag) {
+    bag.style.transition = 'transform 0.5s ease-out';
+    bag.style.transform = 'translate(-50%, 0)';
     setTimeout(() => {
+        bag.style.transition = 'none';
         clearTrajectory();
-        bag.style.transition = 'transform 0.5s ease-out';
-        bag.style.transform = 'translate(-50%, 0)';
-        
-        setTimeout(() => {
-            bag.style.transition = 'none';
-        }, 500);
-    }, 1000);
+    }, 500);
 }
 
 function startThrow(e) {
