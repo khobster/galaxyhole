@@ -4,7 +4,6 @@
     <meta charset="UTF-8"/>
     <title>Space Cornhole</title>
     <style>
-        /* Keep all existing styles */
         body {
             margin: 0;
             font-family: system-ui, sans-serif;
@@ -58,8 +57,22 @@
             border-radius: 5px;
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
             transform-style: preserve-3d;
-            transition: transform 0.05s linear;
+            visibility: visible;
+            opacity: 1;
             will-change: transform;
+            z-index: 10;
+        }
+
+        #angle-indicator {
+            position: absolute;
+            left: 50%;
+            bottom: 20%;
+            width: 100px;
+            height: 2px;
+            background: rgba(255,255,255,0.5);
+            transform-origin: left center;
+            pointer-events: none;
+            z-index: 5;
         }
 
         #trajectory {
@@ -215,7 +228,6 @@
 </div>
 
 <script>
-// Keep planets data
 const planets = {
     earth: {
         gravity: 9.81,
@@ -286,6 +298,9 @@ let currentPlanet = planets.earth;
 let isAnimating = false;
 let throwPower = 0;
 let powerInterval;
+let throwAngle = 45;
+let touchStartY = 0;
+let lastTouchY = 0;
 
 function updatePlanetInfo(planetKey) {
     currentPlanet = planets[planetKey];
@@ -293,6 +308,25 @@ function updatePlanetInfo(planetKey) {
     document.getElementById('planet-description').textContent = currentPlanet.description;
     document.getElementById('throw-adjustment').textContent = 
         `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
+}
+
+function handleTouchStart(e) {
+    touchStartY = e.touches[0].clientY;
+    lastTouchY = touchStartY;
+}
+
+function handleTouchMove(e) {
+    const currentY = e.touches[0].clientY;
+    const deltaY = lastTouchY - currentY;
+    lastTouchY = currentY;
+    
+    throwAngle = Math.min(75, Math.max(20, throwAngle + (deltaY * 0.2)));
+    updateAngleIndicator();
+}
+
+function updateAngleIndicator() {
+    const indicator = document.getElementById('angle-indicator');
+    indicator.style.transform = `rotate(${-throwAngle}deg)`;
 }
 
 function createTrailParticle(x, y, color) {
@@ -335,24 +369,28 @@ function doThrow(power) {
     const startY = window.innerHeight * 0.85;
     const boardY = hole.getBoundingClientRect().top;
     
-    // Bezier control points for the arc
-    const controlX = startX;
-    const controlY = startY - 400; // Height of arc peak
-    const targetY = boardY;
+    // Increased power scaling
+    const v0 = power * 1.5; // Increased multiplier
+    const angleRad = (throwAngle * Math.PI) / 180;
     
-    // Add slight left/right variation based on power
-    const variance = (power - 50) / 50; // -1 to 1
-    const spread = 100 * variance;
-    const targetX = startX + spread;
+    // Add variation based on both power and angle
+    const lateralVariance = ((power - 50) / 50) * 200;
+    const angleVariance = ((throwAngle - 45) / 30) * 100;
+    const targetX = startX + lateralVariance + angleVariance;
+    const targetY = boardY + (power * 0.5);
 
-    const duration = 1500; // 1.5 seconds
+    // Control points for arc
+    const controlY = startY - (power * 4); // Arc height varies with power
+    const controlX = startX + (lateralVariance * 0.5);
+
+    const duration = 2000; // Increased duration for smoother animation
     let startTime = performance.now();
 
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
         
-        // Bezier interpolation for smooth arc
+        // Bezier curve calculation
         const t = progress;
         const x = Math.pow(1-t, 2) * startX + 
                  2 * (1-t) * t * controlX + 
@@ -366,35 +404,42 @@ function doThrow(power) {
         const gravityEffect = 0.5 * currentPlanet.gravity * Math.pow(progress, 2);
         const adjustedY = y + (gravityEffect * 25 * currentPlanet.throwAdjustment);
 
-        // Scale and rotate based on progress
-        const scale = 1 - (progress * 0.4); // Bag gets slightly smaller
-        const rotation = progress * 720; // Two full rotations
+        // Scale and rotation
+        const scale = 1 - (progress * 0.4);
+        const rotation = progress * 720;
 
-        // Update bag position
+        // Create trail less frequently for better visibility
+        if (elapsed % 32 < 16) {
+            createTrailParticle(x, adjustedY, currentPlanet.color);
+        }
+
+        // Update bag position with improved visibility
+        bag.style.visibility = 'visible';
+        bag.style.opacity = '1';
         bag.style.transform = `translate3d(${x - bag.offsetWidth/2}px, ${adjustedY}px, ${progress * 400}px) 
                              scale(${scale}) rotate(${rotation}deg)`;
-
-        // Create trail
-        createTrailParticle(x, adjustedY, currentPlanet.color);
 
         // Check for landing
         if (progress >= 1) {
             const holeRect = hole.getBoundingClientRect();
-            const isInHole = Math.abs(x - (holeRect.left + holeRect.width/2)) < 20;
+            const distance = Math.sqrt(
+                Math.pow(x - (holeRect.left + holeRect.width/2), 2) +
+                Math.pow(adjustedY - (holeRect.top + holeRect.height/2), 2)
+            );
+            const isInHole = distance < 20;
             
             if (isInHole) {
                 showScorePopup(x, adjustedY);
             }
             
-            // Add landing animation
-            bag.style.transition = 'transform 0.3s ease-out';
             isAnimating = false;
-            
             setTimeout(() => resetBag(bag), 1000);
             return;
         }
 
-        requestAnimationFrame(animate);
+        if (isAnimating) {
+            requestAnimationFrame(animate);
+        }
     }
 
     requestAnimationFrame(animate);
@@ -412,6 +457,11 @@ function resetBag(bag) {
 function startThrow(e) {
     if (e) e.preventDefault();
     if (isAnimating) return;
+    
+    if (e.type.includes('touch')) {
+        touchStartY = e.touches[0].clientY;
+        lastTouchY = touchStartY;
+    }
     
     const throwMeter = document.querySelector('.throw-meter');
     throwMeter.style.display = 'block';
@@ -438,9 +488,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const throwButton = document.getElementById('throw-button');
     const planetSelect = document.getElementById('planet-select');
     
+    // Add angle indicator
+    const indicator = document.createElement('div');
+    indicator.id = 'angle-indicator';
+    document.getElementById('game-container').appendChild(indicator);
+    updateAngleIndicator();
+    
     throwButton.addEventListener('mousedown', startThrow);
     throwButton.addEventListener('mouseup', releaseThrow);
     throwButton.addEventListener('touchstart', startThrow);
+    throwButton.addEventListener('touchmove', handleTouchMove);
     throwButton.addEventListener('touchend', releaseThrow);
     planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
     
