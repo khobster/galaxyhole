@@ -55,12 +55,12 @@
       background: #000;
       border-radius: 50%;
     }
-    /* Each bag element – note we create new ones per throw */
+    /* Each bag element – we create new ones per throw.
+       Its default color is overridden when created. */
     .bag {
       position: absolute;
       width: 40px;
       height: 40px;
-      background: #c41e3a;
       border-radius: 5px;
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
@@ -135,6 +135,18 @@
       border: 1px solid #ddd;
       font-size: 14px;
     }
+    /* The game link container */
+    #gameLink {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 10px 15px;
+      border-radius: 5px;
+      font-size: 16px;
+      z-index: 100;
+    }
   </style>
   <!-- Firebase scripts (v8) from the CDN -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -158,6 +170,7 @@
       <input type="text" id="gameIdInput" placeholder="Game ID">
       <button id="join-game">Join Game</button>
     </div>
+    <div id="gameLink"></div>
   </div>
 
 <script>
@@ -190,6 +203,7 @@ const tryCounterEl = document.getElementById('tryCounter');
 const createGameBtn = document.getElementById('create-game');
 const joinGameBtn = document.getElementById('join-game');
 const gameIdInput = document.getElementById('gameIdInput');
+const gameLinkEl = document.getElementById('gameLink');
 
 // Create a new game: local player becomes Player 1.
 function createNewGame() {
@@ -203,7 +217,10 @@ function createNewGame() {
   }).then(docRef => {
     gameId = docRef.id;
     localPlayerNum = 1;
-    alert("Game created. Share this Game ID with your friend: " + gameId);
+    // Instead of alerting, generate a sharable link.
+    const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+    gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}">${shareLink}</a>`;
+    hideGameControls();
     startGameListener();
   }).catch(err => {
     console.error("Error creating game", err);
@@ -223,11 +240,13 @@ function joinGame(gameIdToJoin) {
           gameStatus: 'started'
         }).then(() => {
           localPlayerNum = 2;
+          hideGameControls();
           startGameListener();
         });
       } else if (data.player1Id === playerId || data.player2Id === playerId) {
         // Already in this game.
         localPlayerNum = (data.player1Id === playerId) ? 1 : 2;
+        hideGameControls();
         startGameListener();
       } else {
         alert("Unable to join game. It may already be full.");
@@ -254,7 +273,7 @@ function startGameListener() {
       } else {
         throwBtn.disabled = true;
       }
-      // Optionally, you could update on-screen bag positions from other players here.
+      // (You might also update remote bag positions here.)
     }
   });
 }
@@ -265,6 +284,22 @@ function updateTryCounter() {
   tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
 }
 
+// Hide the game creation/joining controls.
+function hideGameControls() {
+  createGameBtn.style.display = "none";
+  joinGameBtn.style.display = "none";
+  gameIdInput.style.display = "none";
+}
+
+// If a gameId is present in the URL, auto-join that game and hide creation controls.
+(function autoJoinGameFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has("gameId")) {
+    const joinId = urlParams.get("gameId");
+    joinGame(joinId);
+  }
+})();
+
 /********************************************************
  * Cornhole Simulation Code (Physics, Trail, Bag Creation)
  ********************************************************/
@@ -274,11 +309,23 @@ const holeEl = document.getElementById('hole');
 let isAnimating = false;
 let throwStartTime = 0;
 let currentBagEl = null;
+// Define colors for each player’s bag.
+const player1Color = "#c41e3a"; // red
+const player2Color = "#4287f5"; // blue
 
-// Create a new bag element and position it at the "player's hand."
+// Create a new bag element, set its color based on local player, and position it at the "player's hand."
 function createBagElement() {
   const bag = document.createElement('div');
   bag.classList.add('bag');
+  // Set bag color based on localPlayerNum.
+  if (localPlayerNum === 1) {
+    bag.style.background = player1Color;
+  } else if (localPlayerNum === 2) {
+    bag.style.background = player2Color;
+  } else {
+    // Default color if not set.
+    bag.style.background = "#c41e3a";
+  }
   sceneEl.appendChild(bag);
   setBagStartPosition(bag);
   return bag;
@@ -415,8 +462,9 @@ function finishThrow() {
 function createTrailParticle(x, y, z) {
   const p = document.createElement('div');
   p.className = 'trail-particle';
-  p.style.background = '#c41e3a';
-  p.style.boxShadow = '0 0 8px #c41e3a';
+  // Use the same color as the current bag.
+  p.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
+  p.style.boxShadow = `0 0 8px ${(localPlayerNum === 1) ? player1Color : player2Color}`;
   p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
   p.style.zIndex = 5;
   trajectoryContainer.appendChild(p);
@@ -426,7 +474,7 @@ function createTrailParticle(x, y, z) {
 /********************************************************
  * Event Listeners and Utility Functions
  ********************************************************/
-// Initialize the first bag (but note: the throw button is enabled only on our turn)
+// Initialize the first bag (note: the throw button is enabled only on our turn)
 currentBagEl = createBagElement();
 throwBtn.addEventListener('mousedown', startThrow);
 throwBtn.addEventListener('mouseup', releaseThrow);
