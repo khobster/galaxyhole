@@ -55,8 +55,8 @@
       background: #000;
       border-radius: 50%;
     }
-    /* Each bag element – we create new ones per throw.
-       Its default color is overridden when created. */
+    /* Each bag element – new ones are created per throw.
+       The color is set based on the player. */
     .bag {
       position: absolute;
       width: 40px;
@@ -99,7 +99,7 @@
       border-radius: 5px;
       z-index: 100;
     }
-    /* Controls for Firebase game creation/joining & throwing */
+    /* Controls for game creation, joining, throwing, and planet selection */
     #controls {
       position: fixed;
       bottom: 20px;
@@ -110,6 +110,7 @@
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       align-items: center;
       z-index: 100;
@@ -135,7 +136,13 @@
       border: 1px solid #ddd;
       font-size: 14px;
     }
-    /* The game link container */
+    select {
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+    }
+    /* The game link container with a copy button */
     #gameLink {
       position: fixed;
       bottom: 90px;
@@ -146,6 +153,12 @@
       border-radius: 5px;
       font-size: 16px;
       z-index: 100;
+      display: none;
+    }
+    #gameLink a {
+      color: #4287f5;
+      text-decoration: underline;
+      cursor: pointer;
     }
   </style>
   <!-- Firebase scripts (v8) from the CDN -->
@@ -164,6 +177,14 @@
     </div>
     <div id="tryCounter">Waiting for game...</div>
     <div id="controls">
+      <!-- Planet selection: Choose the planet to affect gravity. -->
+      <label for="planet-select">Planet:</label>
+      <select id="planet-select">
+        <option value="earth">Earth (9.81)</option>
+        <option value="moon">Moon (1.62)</option>
+        <option value="mars">Mars (3.72)</option>
+        <option value="jupiter">Jupiter (24.79)</option>
+      </select>
       <!-- The throw button is enabled only on the local player's turn -->
       <button id="throw-button" disabled>Hold to Throw</button>
       <button id="create-game">Create Game</button>
@@ -204,7 +225,26 @@ const createGameBtn = document.getElementById('create-game');
 const joinGameBtn = document.getElementById('join-game');
 const gameIdInput = document.getElementById('gameIdInput');
 const gameLinkEl = document.getElementById('gameLink');
+const planetSelect = document.getElementById('planet-select');
 
+/********************************************************
+ * Planet Settings
+ ********************************************************/
+const planets = {
+  earth: { gravity: 9.81, throwAdjustment: 1.0 },
+  moon:  { gravity: 1.62, throwAdjustment: 0.16 },
+  mars:  { gravity: 3.72, throwAdjustment: 0.38 },
+  jupiter: { gravity: 24.79, throwAdjustment: 2.53 }
+};
+let currentPlanet = planets.earth;
+planetSelect.addEventListener('change', (e) => {
+  const val = e.target.value;
+  currentPlanet = planets[val];
+});
+
+/********************************************************
+ * Game Creation/Joining Functions
+ ********************************************************/
 // Create a new game: local player becomes Player 1.
 function createNewGame() {
   db.collection('cornholeGames').add({
@@ -217,9 +257,16 @@ function createNewGame() {
   }).then(docRef => {
     gameId = docRef.id;
     localPlayerNum = 1;
-    // Instead of alerting, generate a sharable link.
+    // Generate a sharable link
     const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
-    gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}">${shareLink}</a>`;
+    gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}" target="_blank">${shareLink}</a> <button id="copyLink">Copy Link</button>`;
+    gameLinkEl.style.display = "block";
+    // Set up copy link functionality
+    document.getElementById('copyLink').addEventListener('click', () => {
+      navigator.clipboard.writeText(shareLink)
+        .then(() => alert("Link copied to clipboard!"))
+        .catch(err => alert("Failed to copy link."));
+    });
     hideGameControls();
     startGameListener();
   }).catch(err => {
@@ -291,7 +338,7 @@ function hideGameControls() {
   gameIdInput.style.display = "none";
 }
 
-// If a gameId is present in the URL, auto-join that game and hide creation controls.
+// Auto-join game from URL if gameId parameter exists.
 (function autoJoinGameFromURL() {
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.has("gameId")) {
@@ -305,7 +352,10 @@ function hideGameControls() {
  ********************************************************/
 const sceneEl = document.getElementById('scene');
 const trajectoryContainer = document.getElementById('trajectory');
-const holeEl = document.getElementById('hole');
+const boardEl = document.getElementById('board');
+// We assume the board's y coordinate is the “floor” level.
+let floorY = window.innerHeight * 0.40;
+
 let isAnimating = false;
 let throwStartTime = 0;
 let currentBagEl = null;
@@ -313,7 +363,7 @@ let currentBagEl = null;
 const player1Color = "#c41e3a"; // red
 const player2Color = "#4287f5"; // blue
 
-// Create a new bag element, set its color based on local player, and position it at the "player's hand."
+// Create a new bag element, set its color, and position it at the "player's hand."
 function createBagElement() {
   const bag = document.createElement('div');
   bag.classList.add('bag');
@@ -323,7 +373,6 @@ function createBagElement() {
   } else if (localPlayerNum === 2) {
     bag.style.background = player2Color;
   } else {
-    // Default color if not set.
     bag.style.background = "#c41e3a";
   }
   sceneEl.appendChild(bag);
@@ -362,38 +411,41 @@ function doThrow(power) {
   isAnimating = true;
   
   const gameW = window.innerWidth;
-  const gameH = window.innerHeight;
   const bagWidth = 40, bagHeight = 40;
   
   // Starting position (player's hand)
   const startX = gameW * 0.5;
-  const startY = gameH - bagHeight - 20;
+  const startY = window.innerHeight - bagHeight - 20;
   const startZ = 0;
   // Target on (or near) the board. Adjust these values as needed.
   const targetX = gameW * 0.5;
-  const targetY = gameH * 0.40;
+  const targetY = floorY; // Use the board/floor level.
   const targetZ = -280;
   
   const optimalPower = 50;
   const baseArc = 100;
-  const arcHeight = baseArc * (power / optimalPower);
+  // Incorporate planet throwAdjustment for gravity effect.
+  const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
   const flightTime = 2000; // milliseconds
   const startTime = performance.now();
   
   function animateFrame(now) {
     let t = (now - startTime) / flightTime;
     if (t > 1) t = 1;
-    // Scale the normalized time (u) based on power so that too little/much force changes the landing.
+    // Scale u based on power.
     let u = t * (power / optimalPower);
     const x = startX + (targetX - startX) * u;
     const z = startZ + (targetZ - startZ) * u;
     const linearY = startY + (targetY - startY) * u;
-    // A parabolic adjustment in y (peak at u = 0.5)
-    const y = linearY - arcHeight * 4 * u * (1 - u);
+    // Parabolic adjustment in y; if the computed y goes below floorY, clamp it.
+    let y = linearY - arcHeight * 4 * u * (1 - u);
+    if (y > targetY) {
+      y = targetY;
+    }
     
     currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - bagHeight/2}px, ${z}px)`;
     
-    // Create trail particles (using the current x,y,z)
+    // Create trail particles (using current x,y,z)
     if ((now - startTime) % 40 < 20) {
       createTrailParticle(x, y, z);
     }
@@ -401,7 +453,6 @@ function doThrow(power) {
     if (t < 1) {
       requestAnimationFrame(animateFrame);
     } else {
-      // When done, update the game state.
       finishThrow();
       isAnimating = false;
     }
@@ -416,9 +467,7 @@ function finishThrow() {
     gameRef.update({
       player1Throws: firebase.firestore.FieldValue.increment(1)
     }).then(() => {
-      // After incrementing, check if player 1 is done.
       if (player1Throws + 1 >= totalThrows) {
-        // If player 2 is already done, end the game; otherwise, switch turn.
         gameRef.get().then(doc => {
           const data = doc.data();
           if (data.player2Throws >= totalThrows) {
@@ -474,7 +523,7 @@ function createTrailParticle(x, y, z) {
 /********************************************************
  * Event Listeners and Utility Functions
  ********************************************************/
-// Initialize the first bag (note: the throw button is enabled only on our turn)
+// Initialize the first bag (the throw button is enabled only on our turn)
 currentBagEl = createBagElement();
 throwBtn.addEventListener('mousedown', startThrow);
 throwBtn.addEventListener('mouseup', releaseThrow);
