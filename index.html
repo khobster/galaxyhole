@@ -1,424 +1,425 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8"/>
-    <title>Space Cornhole - 2D Bag</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: system-ui, sans-serif;
-            overflow: hidden;
-            background: linear-gradient(#87CEEB, #90EE90);
-        }
+  <meta charset="UTF-8"/>
+  <title>Space Cornhole - 2D Parabola + Visible Bag</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(#87CEEB, #90EE90);
+    }
+    #game-container {
+      width: 100vw; 
+      height: 100vh; 
+      position: relative;
+    }
+    /* Board near the top, scaled smaller to look "far away" */
+    #board {
+      position: absolute;
+      width: 120px;
+      height: 240px;
+      left: 50%;
+      top: 10%; /* pinned near top => "far" */
+      transform: translate(-50%, 0) scale(0.8);
+      background: #8B4513;
+      border: 4px solid #654321;
+      border-radius: 4px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    #hole {
+      position: absolute;
+      width: 30px; height: 30px;
+      left: 50%; top: 25%;
+      transform: translate(-50%, -50%);
+      background: black;
+      border-radius: 50%;
+    }
+    /* Bag absolutely in 2D. We start near bottom center. */
+    #bag {
+      position: absolute;
+      width: 40px; 
+      height: 40px;
+      background: #c41e3a;
+      border-radius: 5px;
+      box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+      left: calc(50% - 20px);
+      top: calc(85% - 20px);
+    }
+    /* The trajectory layer + particles */
+    #trajectory {
+      position: absolute; 
+      width: 100%; 
+      height: 100%;
+      pointer-events: none;
+      top: 0; left: 0;
+    }
+    .trail-particle {
+      position: absolute;
+      width: 8px; 
+      height: 8px;
+      border-radius: 50%;
+      opacity: 0;
+      animation: fadeOut 0.5s forwards;
+      pointer-events: none;
+    }
+    @keyframes fadeOut {
+      0%   { opacity: 0.8; }
+      100% { opacity: 0;   }
+    }
 
-        /* The container can keep perspective styles if you want,
-           but we'll remove them to avoid confusion. */
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative; /* so children can absolutely position in 2D */
-            overflow: hidden;
-        }
+    .score-popup {
+      position: absolute;
+      font-family: 'Impact', sans-serif;
+      font-size: 48px;
+      color: gold;
+      text-shadow: 
+          2px 2px 0 #000,
+          -2px 2px 0 #000,
+          2px -2px 0 #000,
+          -2px -2px 0 #000;
+      pointer-events: none;
+      animation: scorePopup 1s ease-out forwards;
+      z-index: 9999;
+    }
+    @keyframes scorePopup {
+      0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+      50% { transform: translate(-50%, -50px) scale(1.5); opacity: 1; }
+      100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
+    }
 
-        /* The board:
-           We'll fake an angle by using skew or a trapezoid effect in 2D.
-           For example, skewY(-20deg) to simulate a tilt. */
-        #board {
-            position: absolute;
-            width: 120px;
-            height: 240px;
-            left: 50%;
-            top: 25%;
-            transform: translate(-50%, -50%) skewY(-20deg);
-            background: #8B4513;
-            border: 4px solid #654321;
-            border-radius: 4px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        /* The hole: place it 25% from top of the original board rectangle.
-           Because of the skew, it won't be a perfect circle visually, but that's okay. */
-        #hole {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            left: 50%;
-            top: 25%;
-            transform: translate(-50%, -50%);
-            background: #000;
-            border-radius: 50%;
-        }
-
-        /*
-          The bag: rendered in pure 2D with absolute left/top,
-          no 3D transform. We’ll place it near bottom center initially.
-        */
-        #bag {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            background: #c41e3a;
-            border-radius: 5px;
-            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
-            left: calc(50% - 20px); /* center horizontally */
-            top: calc(85% - 20px);  /* near bottom */
-        }
-
-        /* 2D absolute trail container */
-        #trajectory {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            top: 0;
-            left: 0;
-        }
-        .trail-particle {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-            opacity: 0;
-            animation: fadeOut 0.5s forwards;
-            pointer-events: none;
-        }
-        @keyframes fadeOut {
-            0%   { opacity: 0.8; }
-            100% { opacity: 0;   }
-        }
-
-        .score-popup {
-            position: absolute;
-            font-family: 'Impact', sans-serif;
-            font-size: 48px;
-            color: gold;
-            text-shadow:
-                2px 2px 0 #000,
-                -2px 2px 0 #000,
-                2px -2px 0 #000,
-                -2px -2px 0 #000;
-            pointer-events: none;
-            animation: scorePopup 1s ease-out forwards;
-            z-index: 1000;
-        }
-        @keyframes scorePopup {
-            0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
-            50% { transform: translate(-50%, -50px) scale(1.5); opacity: 1; }
-            100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
-        }
-
-        #controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px 25px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            z-index: 2;
-        }
-        #planet-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 2;
-        }
-        button {
-            background: #c41e3a;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            user-select: none;
-            transition: transform 0.1s, background 0.2s;
-        }
-        button:hover { background: #d42e4a; }
-        button:active { transform: scale(0.95); }
-        select {
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            font-size: 14px;
-            background: white;
-        }
-    </style>
+    /* Controls & planet info boxes */
+    #controls {
+      position: absolute;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+    #planet-info {
+      position: absolute;
+      top: 20px; left: 20px;
+      background: rgba(255,255,255,0.9);
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+    select {
+      padding: 8px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      background: white;
+    }
+    button {
+      background: #c41e3a;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      text-transform: uppercase;
+      user-select: none;
+      transition: transform 0.1s, background 0.2s;
+    }
+    button:hover { background: #d42e4a; }
+    button:active { transform: scale(0.95); }
+  </style>
 </head>
 <body>
 <div id="game-container">
-    <div id="trajectory"></div>
-    <div id="board">
-        <div id="hole"></div>
-    </div>
-    <div id="bag"></div>
+  <div id="trajectory"></div>
 
-    <div id="planet-info">
-        <h3 id="planet-name">Earth</h3>
-        <p id="planet-description">Standard cornhole - your baseline experience</p>
-        <p id="throw-adjustment">Throw force: 1.0x</p>
-    </div>
+  <div id="board">
+    <div id="hole"></div>
+  </div>
 
-    <div id="controls">
-        <select id="planet-select">
-            <option value="earth">Earth (9.81)</option>
-            <option value="mercury">Mercury (3.7)</option>
-            <option value="moon">Moon (1.62)</option>
-            <option value="mars">Mars (3.72)</option>
-            <option value="venus">Venus (8.87)</option>
-            <option value="jupiter">Jupiter (24.79)</option>
-            <option value="titan">Titan (1.352)</option>
-            <option value="pluto">Pluto (0.62)</option>
-            <option value="kepler">Kepler-16b (18.3)</option>
-        </select>
+  <div id="bag"></div>
 
-        <button id="throw-button">Hold to Throw</button>
-    </div>
+  <div id="planet-info">
+    <h3 id="planet-name">Earth</h3>
+    <p id="planet-description">Standard cornhole - your baseline experience</p>
+    <p id="throw-adjustment">Throw force: 1.0x</p>
+  </div>
+
+  <div id="controls">
+    <select id="planet-select">
+      <option value="earth">Earth (9.81)</option>
+      <option value="mercury">Mercury (3.7)</option>
+      <option value="moon">Moon (1.62)</option>
+      <option value="mars">Mars (3.72)</option>
+      <option value="venus">Venus (8.87)</option>
+      <option value="jupiter">Jupiter (24.79)</option>
+      <option value="titan">Titan (1.352)</option>
+      <option value="pluto">Pluto (0.62)</option>
+      <option value="kepler">Kepler-16b (18.3)</option>
+    </select>
+    <button id="throw-button">Hold to Throw</button>
+  </div>
 </div>
 
 <script>
 /********************************************************
- * Planet Data (unchanged)
+ * Planet Data
  ********************************************************/
 const planets = {
-    earth: {
-        gravity: 9.81,
-        name: "Earth",
-        description: "Standard cornhole - your baseline experience",
-        throwAdjustment: 1.0,
-        color: "#4CAF50"
-    },
-    mercury: {
-        gravity: 3.7,
-        name: "Mercury",
-        description: "Similar to Mars, requires less force than Earth",
-        throwAdjustment: 0.38,
-        color: "#FF9800"
-    },
-    moon: {
-        gravity: 1.62,
-        name: "Moon",
-        description: "Low gravity means gentle tosses go much further",
-        throwAdjustment: 0.16,
-        color: "#BDBDBD"
-    },
-    mars: {
-        gravity: 3.72,
-        name: "Mars",
-        description: "About 1/3 of Earth's gravity - requires less force",
-        throwAdjustment: 0.38,
-        color: "#F44336"
-    },
-    venus: {
-        gravity: 8.87,
-        name: "Venus",
-        description: "Similar to Earth, slightly easier throws",
-        throwAdjustment: 0.90,
-        color: "#FFC107"
-    },
-    jupiter: {
-        gravity: 24.79,
-        name: "Jupiter",
-        description: "Extreme gravity requires much more force",
-        throwAdjustment: 2.53,
-        color: "#795548"
-    },
-    titan: {
-        gravity: 1.352,
-        name: "Titan",
-        description: "Similar to Moon gameplay",
-        throwAdjustment: 0.14,
-        color: "#9C27B0"
-    },
-    pluto: {
-        gravity: 0.62,
-        name: "Pluto",
-        description: "Ultra-low gravity for extreme distance",
-        throwAdjustment: 0.06,
-        color: "#2196F3"
-    },
-    kepler: {
-        gravity: 18.3,
-        name: "Kepler-16b",
-        description: "High-gravity exoplanet orbiting two stars",
-        throwAdjustment: 1.87,
-        color: "#E91E63"
-    }
+  earth: {
+    gravity: 9.81,
+    name: "Earth",
+    description: "Standard cornhole - your baseline experience",
+    throwAdjustment: 1.0,
+    color: "#4CAF50"
+  },
+  mercury: {
+    gravity: 3.7,
+    name: "Mercury",
+    description: "Similar to Mars, requires less force than Earth",
+    throwAdjustment: 0.38,
+    color: "#FF9800"
+  },
+  moon: {
+    gravity: 1.62,
+    name: "Moon",
+    description: "Low gravity means gentle tosses go much further",
+    throwAdjustment: 0.16,
+    color: "#BDBDBD"
+  },
+  mars: {
+    gravity: 3.72,
+    name: "Mars",
+    description: "About 1/3 of Earth's gravity - requires less force",
+    throwAdjustment: 0.38,
+    color: "#F44336"
+  },
+  venus: {
+    gravity: 8.87,
+    name: "Venus",
+    description: "Similar to Earth, slightly easier throws",
+    throwAdjustment: 0.90,
+    color: "#FFC107"
+  },
+  jupiter: {
+    gravity: 24.79,
+    name: "Jupiter",
+    description: "Extreme gravity requires much more force",
+    throwAdjustment: 2.53,
+    color: "#795548"
+  },
+  titan: {
+    gravity: 1.352,
+    name: "Titan",
+    description: "Similar to Moon gameplay",
+    throwAdjustment: 0.14,
+    color: "#9C27B0"
+  },
+  pluto: {
+    gravity: 0.62,
+    name: "Pluto",
+    description: "Ultra-low gravity for extreme distance",
+    throwAdjustment: 0.06,
+    color: "#2196F3"
+  },
+  kepler: {
+    gravity: 18.3,
+    name: "Kepler-16b",
+    description: "High-gravity exoplanet orbiting two stars",
+    throwAdjustment: 1.87,
+    color: "#E91E63"
+  }
 };
 
 let currentPlanet = planets.earth;
 function updatePlanetInfo(planetKey) {
-    currentPlanet = planets[planetKey];
-    document.getElementById('planet-name').textContent = currentPlanet.name;
-    document.getElementById('planet-description').textContent = currentPlanet.description;
-    document.getElementById('throw-adjustment').textContent =
-        `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
+  currentPlanet = planets[planetKey];
+  document.getElementById('planet-name').textContent        = currentPlanet.name;
+  document.getElementById('planet-description').textContent = currentPlanet.description;
+  document.getElementById('throw-adjustment').textContent   =
+      `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
 }
 
 /********************************************************
- * "Hold to Throw" mechanic
+ * THROW MECHANIC
  ********************************************************/
 let isAnimating = false;
 let throwPower  = 0;
-let throwStartTime= 0;
+let throwStartTime = 0;
 
-const bagEl = document.getElementById('bag');
+const bag = document.getElementById('bag');
+const hole= document.getElementById('hole');
+const board= document.getElementById('board');
 
 function startThrow(e) {
-    if (e) e.preventDefault();
-    if (isAnimating) return;
+  if (e) e.preventDefault();
+  if (isAnimating) return;
 
-    throwStartTime = performance.now();
+  throwStartTime = performance.now();
 }
-
 function releaseThrow(e) {
-    if (e) e.preventDefault();
-    if (isAnimating || throwStartTime === 0) return;
+  if (e) e.preventDefault();
+  if (isAnimating || throwStartTime===0) return;
 
-    const duration = (performance.now() - throwStartTime);
-    throwPower = Math.min(100, duration / 20);
-    doThrow(throwPower);
-    throwStartTime = 0;
+  const duration = performance.now() - throwStartTime;
+  throwPower = Math.min(100, duration/20);
+  doThrow(throwPower);
+  throwStartTime=0;
 }
 
 /********************************************************
- * 2D Arc: We animate the bag with absolute (x,y),
- * just like the trail. No 3D transforms at all.
+ * Parabolic Arc in 2D
+ *
+ * We'll do a standard projectile with planet gravity:
+ *   x(t) = x0 + v0 * cos(θ) * t
+ *   y(t) = y0 - [v0 * sin(θ)*t - 0.5*g*t^2]
+ *
+ * We'll guess an angle (like 60°) or let power influence angle.
+ * We'll also scale times so it fits the screen well.
  ********************************************************/
 function doThrow(power) {
-    isAnimating = true;
+  if (isAnimating) return;
+  isAnimating = true;
+  
+  // Start near bottom center
+  const gameW = document.getElementById('game-container').offsetWidth;
+  const gameH = document.getElementById('game-container').offsetHeight;
+  
+  const startX = gameW*0.5;
+  const startY = gameH*0.85;
 
-    const gameW = document.getElementById('game-container').offsetWidth;
-    const gameH = document.getElementById('game-container').offsetHeight;
+  // We pick an angle or let it vary. Let's just do 60°:
+  const angleDeg = 60;
+  const angleRad = angleDeg*Math.PI/180;
+  
+  // velocity depends on power
+  const v0 = power*0.2; // scale so max power => decent velocity
+  
+  // gravity in px/s^2
+  const g = currentPlanet.gravity*5; // tweak scale
+  
+  // We'll animate for 2 seconds max (maybe less).
+  const totalTime = 2; // seconds
+  const startTime= performance.now();
 
-    const startX = gameW * 0.5;
-    const startY = gameH * 0.85;
-
-    // let's aim for board's hole area:
-    const hole = document.getElementById('hole');
-    const holeRect = hole.getBoundingClientRect();
-    const holeCenterX = holeRect.left + holeRect.width  / 2;
-    const holeCenterY = holeRect.top  + holeRect.height / 2;
-
-    // We'll do a simple quadratic Bezier from (startX,startY) to (holeCenterX,holeCenterY).
-    // The control point is somewhere between.
-    // The bigger the power, the higher the arc.
-    const ctrlX = (startX + holeCenterX)/2; 
-    const ctrlY = (startY + holeCenterY)/2 - (power * 4);
-
-    // We'll animate over 1.5s:
-    const duration = 1500;
-    const startTime = performance.now();
-
-    function animateFrame(now) {
-        let t = (now - startTime)/duration;
-        if (t>1) t=1;
-
-        // Quadratic Bezier:
-        // x(t)= (1-t)^2*startX + 2*(1-t)*t*ctrlX + t^2*(holeCenterX)
-        const x = (1-t)*(1-t)*startX + 2*(1-t)*t*ctrlX + t*t*holeCenterX;
-        const y = (1-t)*(1-t)*startY + 2*(1-t)*t*ctrlY + t*t*holeCenterY;
-
-        // Gravity: let's do a small vertical offset ~ planet gravity
-        const gravityOffset = 0.5 * currentPlanet.gravity * t*t * currentPlanet.throwAdjustment * 20;
-        const finalY = y + gravityOffset;
-
-        bagEl.style.left = (x - bagEl.offsetWidth/2) + "px";
-        bagEl.style.top  = (finalY - bagEl.offsetHeight/2) + "px";
-
-        // Trail:
-        if ((now - startTime) % 30 < 16) {
-            createTrailParticle(x, finalY, currentPlanet.color);
-        }
-
-        if (t<1) {
-            requestAnimationFrame(animateFrame);
-        } else {
-            // end
-            isAnimating = false;
-            checkHoleCollision(x, finalY);
-            setTimeout(() => resetBag(), 1000);
-        }
+  function animateFrame(now) {
+    let t = (now - startTime)/1000; // in seconds
+    if (t>totalTime) t=totalTime;
+    
+    const vx = v0*Math.cos(angleRad);
+    const vy = v0*Math.sin(angleRad);
+    
+    const xPos = startX + vx*t*50; // multiply by 50 for bigger distance
+    // y(t)= startY - [vy*t - 0.5*g*t^2]*SCALE
+    const yPos = startY - ((vy*t)-(0.5*g*t*t))*50;
+    
+    // scale the bag so it shrinks as it goes "farther"
+    // from t=0..2 => scale from 1..0.7
+    let scale = 1 - 0.3*(t/totalTime);
+    if (scale<0.7) scale=0.7;
+    
+    bag.style.left = (xPos - bag.offsetWidth/2) + "px";
+    bag.style.top  = (yPos - bag.offsetHeight/2) + "px";
+    bag.style.transform = `scale(${scale})`;
+    
+    // create a trail particle
+    if ((now - startTime)%50 < 25) {
+      createTrailParticle(xPos, yPos, currentPlanet.color);
     }
-    requestAnimationFrame(animateFrame);
+    
+    if (t>=totalTime) {
+      // done
+      checkHoleCollision(xPos, yPos);
+      isAnimating=false;
+      setTimeout(()=>resetBag(), 1500);
+      return;
+    }
+    if (isAnimating) requestAnimationFrame(animateFrame);
+  }
+  requestAnimationFrame(animateFrame);
 }
 
 /********************************************************
- * Check hole collision in 2D
+ * Check if bag hits the hole
  ********************************************************/
 function checkHoleCollision(x, y) {
-    const hole = document.getElementById('hole');
-    const holeRect = hole.getBoundingClientRect();
-    const hx = holeRect.left + holeRect.width/2;
-    const hy = holeRect.top  + holeRect.height/2;
-
-    const dx = x - hx;
-    const dy = y - hy;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < 20) {
-        // cornhole
-        showScorePopup(x, y);
-    }
-}
-
-function resetBag() {
-    bagEl.style.left = "calc(50% - 20px)";
-    bagEl.style.top  = "calc(85% - 20px)";
-    clearTrajectory();
+  const holeRect = hole.getBoundingClientRect();
+  const hx = holeRect.left + holeRect.width/2;
+  const hy = holeRect.top  + holeRect.height/2;
+  
+  const dx = x - hx;
+  const dy = y - hy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist<20) {
+    showScorePopup(x,y);
+  }
 }
 
 /********************************************************
- * Particle & Score
+ * Reset Bag to bottom center
+ ********************************************************/
+function resetBag() {
+  bag.style.left = "calc(50% - 20px)";
+  bag.style.top  = "calc(85% - 20px)";
+  bag.style.transform = "none";
+  clearTrajectory();
+}
+
+/********************************************************
+ * Trail Particle
  ********************************************************/
 function createTrailParticle(x, y, color) {
-    const trajectory = document.getElementById('trajectory');
-    const particle = document.createElement('div');
-    particle.className = 'trail-particle';
-    particle.style.background = color;
-    particle.style.boxShadow  = `0 0 5px ${color}`;
-    particle.style.left = x + "px";
-    particle.style.top  = y + "px";
-    trajectory.appendChild(particle);
-    setTimeout(() => particle.remove(), 1000);
+  const trajectory= document.getElementById('trajectory');
+  const p= document.createElement('div');
+  p.className='trail-particle';
+  p.style.background = color;
+  p.style.boxShadow  = `0 0 10px ${color}`;
+  p.style.left= x+"px";
+  p.style.top=  y+"px";
+  trajectory.appendChild(p);
+  setTimeout(()=>p.remove(), 800);
 }
 
 function clearTrajectory() {
-    document.getElementById('trajectory').innerHTML = '';
+  document.getElementById('trajectory').innerHTML='';
 }
 
-function showScorePopup(x, y) {
-    const popup = document.createElement('div');
-    popup.className = 'score-popup';
-    popup.textContent = 'CORNHOLE! +3';
-    popup.style.left = x + "px";
-    popup.style.top  = y + "px";
-    document.body.appendChild(popup);
-    setTimeout(() => popup.remove(), 1000);
+/********************************************************
+ * Score Popup
+ ********************************************************/
+function showScorePopup(x,y) {
+  const popup = document.createElement('div');
+  popup.className='score-popup';
+  popup.textContent='CORNHOLE! +3';
+  popup.style.left=x+"px";
+  popup.style.top =y+"px";
+  document.body.appendChild(popup);
+  setTimeout(()=> popup.remove(), 1000);
 }
 
 /********************************************************
  * INIT
  ********************************************************/
-document.addEventListener('DOMContentLoaded', () => {
-    const throwButton   = document.getElementById('throw-button');
-    const planetSelect  = document.getElementById('planet-select');
-
-    throwButton.addEventListener('mousedown', startThrow);
-    throwButton.addEventListener('mouseup',   releaseThrow);
-    throwButton.addEventListener('touchstart',startThrow);
-    throwButton.addEventListener('touchend',  releaseThrow);
-
-    planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
-    updatePlanetInfo('earth');
+document.addEventListener('DOMContentLoaded', ()=>{
+  const throwBtn= document.getElementById('throw-button');
+  const planetSel= document.getElementById('planet-select');
+  
+  throwBtn.addEventListener('mousedown', startThrow);
+  throwBtn.addEventListener('mouseup', releaseThrow);
+  throwBtn.addEventListener('touchstart', startThrow);
+  throwBtn.addEventListener('touchend', releaseThrow);
+  
+  planetSel.addEventListener('change', e=> updatePlanetInfo(e.target.value));
+  updatePlanetInfo('earth');
 });
 </script>
 </body>
