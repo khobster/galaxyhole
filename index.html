@@ -107,8 +107,6 @@
             100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
         }
 
-        /* REMOVED .throw-meter styles */
-
         #controls {
             position: fixed;
             bottom: 20px;
@@ -209,7 +207,7 @@ let isAnimating = false;
 let throwPower = 0;
 let throwAngle = 45;
 let startYPosition = 0;
-let throwStartTime = 0; // To store the time when the throw started
+let throwStartTime = 0;
 
 function updatePlanetInfo(planetKey) {
     currentPlanet = planets[planetKey];
@@ -221,13 +219,14 @@ function updatePlanetInfo(planetKey) {
 function createTrailParticle(x, y, color) {
     const particle = document.createElement('div');
     particle.className = 'trail-particle';
-    particle.style.background = color; // Use planet color directly
-    particle.style.boxShadow = `0 0 5px ${color}`; // Smaller shadow
+    particle.style.background = color;
+    particle.style.boxShadow = `0 0 5px ${color}`;
     particle.style.left = `${x}px`;
     particle.style.top = `${y}px`;
     document.getElementById('trajectory').appendChild(particle);
     setTimeout(() => particle.remove(), 1000);
 }
+
 function clearTrajectory() {
     document.getElementById('trajectory').innerHTML = '';
 }
@@ -250,23 +249,19 @@ function doThrow() {
     const bag = document.getElementById('bag');
     const board = document.getElementById('board');
     const hole = document.getElementById('hole');
-    const gameContainer = document.getElementById('game-container'); // Get the container
+    const gameContainer = document.getElementById('game-container');
 
-    // Get container dimensions for accurate positioning
-    const containerRect = gameContainer.getBoundingClientRect();
+    // Initial positions (relative to the container)
+    const startX = gameContainer.offsetWidth * 0.5;
+    const startY = gameContainer.offsetHeight * 0.85;
+    const boardY = hole.getBoundingClientRect().top - gameContainer.getBoundingClientRect().top;
 
-    // Initial positions (RELATIVE TO THE CONTAINER)
-    const startX = containerRect.width * 0.5;
-    const startY = containerRect.height * 0.85;
-    const boardY = hole.getBoundingClientRect().top - containerRect.top; // Relative to container
-
-    // Calculate angle based on *initial* touch/click position.
-    throwAngle = 90 - (startYPosition / containerRect.height) * 90;
+    // Calculate angle and power
+    throwAngle = 90 - (startYPosition / gameContainer.offsetHeight) * 90;
     throwAngle = Math.max(20, Math.min(75, throwAngle));
 
-    // Calculate power based on *duration* of press.
     const throwDuration = performance.now() - throwStartTime;
-    throwPower = Math.min(100, throwDuration / 20); //  power based on duration
+    throwPower = Math.min(100, throwDuration / 20);
 
     const v0 = throwPower * 2.5;
     const angleRad = (throwAngle * Math.PI) / 180;
@@ -307,23 +302,21 @@ function doThrow() {
             createTrailParticle(x, adjustedY, currentPlanet.color);
         }
 
-        // *** CRITICAL FIX:  Use containerRect for positioning ***
+        // Update bag position
         bag.style.visibility = 'visible';
         bag.style.opacity = '1';
-        bag.style.transform = `translate3d(${x - containerRect.left - bag.offsetWidth / 2}px, ${adjustedY - containerRect.top}px, ${progress * 400}px) scale(${scale}) rotate(${rotation}deg)`;
-
+        bag.style.transform = `translate3d(${x - bag.offsetWidth / 2}px, ${adjustedY}px, ${progress * 400}px) scale(${scale}) rotate(${rotation}deg)`;
 
         if (progress >= 1) {
             const holeRect = hole.getBoundingClientRect();
             const distance = Math.sqrt(
-                // Calculate distance relative to the *window*, not the container
-                Math.pow(x + containerRect.left - (holeRect.left + holeRect.width / 2), 2) +
-                Math.pow(adjustedY + containerRect.top - (holeRect.top + holeRect.height / 2), 2)
+                Math.pow(x + gameContainer.getBoundingClientRect().left - (holeRect.left + holeRect.width / 2), 2) +
+                Math.pow(adjustedY + gameContainer.getBoundingClientRect().top - (holeRect.top + holeRect.height / 2), 2)
             );
             const isInHole = distance < 20;
 
             if (isInHole) {
-                showScorePopup(x, adjustedY); // Use x and adjustedY (relative to container)
+                showScorePopup(x, adjustedY);
             }
 
             isAnimating = false;
@@ -338,6 +331,7 @@ function doThrow() {
 
     requestAnimationFrame(animate);
 }
+
 function resetBag(bag) {
     bag.style.transition = 'transform 0.5s ease-out';
     bag.style.transform = 'translate(-50%, 0)';
@@ -352,15 +346,15 @@ function startThrow(e) {
     if (isAnimating) return;
 
     startYPosition = e.type.startsWith('touch') ? e.touches[0].clientY : e.pageY;
-    throwStartTime = performance.now(); // Record the start time
+    throwStartTime = performance.now();
 }
 
 function releaseThrow(e) {
     if (e) e.preventDefault();
-    if (isAnimating || throwStartTime === 0) return; // Prevent double throws
+    if (isAnimating || throwStartTime === 0) return;
 
-    doThrow(); // Call doThrow directly, power is calculated in doThrow
-    throwStartTime = 0; // Reset for next throw
+    doThrow();
+    throwStartTime = 0;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
