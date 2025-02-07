@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8"/>
-  <title>Space Cornhole - 2D Parabola + Visible Bag</title>
+  <meta charset="UTF-8">
+  <title>2D Parabolic Cornhole - Up/Forward Arc</title>
   <style>
     html, body {
       margin: 0; padding: 0;
+      background: linear-gradient(#87CEEB, #90EE90);
       overflow: hidden;
       font-family: system-ui, sans-serif;
-      background: linear-gradient(#87CEEB, #90EE90);
     }
+    /* Main container for the game */
     #game-container {
-      width: 100vw; 
-      height: 100vh; 
+      width: 100vw;
+      height: 100vh;
       position: relative;
     }
-    /* Board near the top, scaled smaller to look "far away" */
+
+    /* Board pinned near top center */
     #board {
       position: absolute;
       width: 120px;
       height: 240px;
-      left: 50%;
-      top: 10%; /* pinned near top => "far" */
-      transform: translate(-50%, 0) scale(0.8);
+      left: 50%; 
+      top: 10%;   /* near top => looks “far” */
+      transform: translate(-50%, 0);
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -30,13 +32,16 @@
     }
     #hole {
       position: absolute;
-      width: 30px; height: 30px;
-      left: 50%; top: 25%;
+      width: 30px; 
+      height: 30px;
+      left: 50%; 
+      top: 25%;
       transform: translate(-50%, -50%);
       background: black;
       border-radius: 50%;
     }
-    /* Bag absolutely in 2D. We start near bottom center. */
+
+    /* Bag at bottom center. We’ll animate its left/top in JS. */
     #bag {
       position: absolute;
       width: 40px; 
@@ -44,21 +49,21 @@
       background: #c41e3a;
       border-radius: 5px;
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
-      left: calc(50% - 20px);
-      top: calc(85% - 20px);
+      left: calc(50% - 20px);  /* center horizontally */
+      top: calc(85% - 20px);   /* near bottom */
     }
-    /* The trajectory layer + particles */
+
+    /* Trail layer + particles */
     #trajectory {
-      position: absolute; 
-      width: 100%; 
-      height: 100%;
+      position: absolute;
+      width: 100%; height: 100%;
       pointer-events: none;
       top: 0; left: 0;
     }
     .trail-particle {
       position: absolute;
-      width: 8px; 
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       opacity: 0;
       animation: fadeOut 0.5s forwards;
@@ -69,12 +74,13 @@
       100% { opacity: 0;   }
     }
 
+    /* Score popup animation */
     .score-popup {
       position: absolute;
       font-family: 'Impact', sans-serif;
       font-size: 48px;
       color: gold;
-      text-shadow: 
+      text-shadow:
           2px 2px 0 #000,
           -2px 2px 0 #000,
           2px -2px 0 #000,
@@ -89,7 +95,7 @@
       100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
     }
 
-    /* Controls & planet info boxes */
+    /* Controls & planet info UI */
     #controls {
       position: absolute;
       bottom: 20px; left: 50%;
@@ -102,7 +108,6 @@
       gap: 20px;
       align-items: center;
       z-index: 10;
-      backdrop-filter: blur(4px);
     }
     #planet-info {
       position: absolute;
@@ -112,7 +117,6 @@
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       z-index: 10;
-      backdrop-filter: blur(4px);
     }
     select {
       padding: 8px;
@@ -141,11 +145,9 @@
 <body>
 <div id="game-container">
   <div id="trajectory"></div>
-
   <div id="board">
     <div id="hole"></div>
   </div>
-
   <div id="bag"></div>
 
   <div id="planet-info">
@@ -172,7 +174,7 @@
 
 <script>
 /********************************************************
- * Planet Data
+ * Planet data
  ********************************************************/
 const planets = {
   earth: {
@@ -250,15 +252,14 @@ function updatePlanetInfo(planetKey) {
 }
 
 /********************************************************
- * THROW MECHANIC
+ * "Hold to Throw" logic
  ********************************************************/
-let isAnimating = false;
-let throwPower  = 0;
-let throwStartTime = 0;
+let isAnimating   = false;
+let throwPower    = 0;
+let throwStartTime= 0;
 
-const bag = document.getElementById('bag');
-const hole= document.getElementById('hole');
-const board= document.getElementById('board');
+const bagEl  = document.getElementById('bag');
+const holeEl = document.getElementById('hole');
 
 function startThrow(e) {
   if (e) e.preventDefault();
@@ -266,81 +267,75 @@ function startThrow(e) {
 
   throwStartTime = performance.now();
 }
+
 function releaseThrow(e) {
   if (e) e.preventDefault();
   if (isAnimating || throwStartTime===0) return;
 
-  const duration = performance.now() - throwStartTime;
+  const duration = (performance.now() - throwStartTime);
   throwPower = Math.min(100, duration/20);
   doThrow(throwPower);
   throwStartTime=0;
 }
 
 /********************************************************
- * Parabolic Arc in 2D
- *
- * We'll do a standard projectile with planet gravity:
- *   x(t) = x0 + v0 * cos(θ) * t
- *   y(t) = y0 - [v0 * sin(θ)*t - 0.5*g*t^2]
- *
- * We'll guess an angle (like 60°) or let power influence angle.
- * We'll also scale times so it fits the screen well.
+ * doThrow: parabolic arc going up+forward toward the board
  ********************************************************/
 function doThrow(power) {
   if (isAnimating) return;
   isAnimating = true;
-  
-  // Start near bottom center
+
   const gameW = document.getElementById('game-container').offsetWidth;
   const gameH = document.getElementById('game-container').offsetHeight;
-  
+
+  // Start near bottom center
   const startX = gameW*0.5;
   const startY = gameH*0.85;
 
-  // We pick an angle or let it vary. Let's just do 60°:
-  const angleDeg = 60;
-  const angleRad = angleDeg*Math.PI/180;
-  
+  // We'll pick ~75° angle from horizontal to get that big upward arc
+  const angleDeg = 75;
+  const angleRad = angleDeg * Math.PI/180;
+
   // velocity depends on power
-  const v0 = power*0.2; // scale so max power => decent velocity
-  
-  // gravity in px/s^2
-  const g = currentPlanet.gravity*5; // tweak scale
-  
-  // We'll animate for 2 seconds max (maybe less).
-  const totalTime = 2; // seconds
+  const v0 = power*0.25; // scale to taste
+
+  // planet gravity in px/s^2
+  const g = currentPlanet.gravity * 5;  // scale factor
+
   const startTime= performance.now();
+  const flightTime= 2; // 2s max in our animation
 
   function animateFrame(now) {
-    let t = (now - startTime)/1000; // in seconds
-    if (t>totalTime) t=totalTime;
-    
+    let t = (now - startTime)/1000; 
+    if (t>flightTime) t=flightTime;
+
+    // x(t)= x0 + v0 cos(75°)* t * scale
     const vx = v0*Math.cos(angleRad);
+    const xPos = startX + vx*t*40; // multiply by ~40 to go horizontally
+
+    // y(t)= y0 - [v0 sin(75°)* t - 0.5*g*t^2 ] * scale
     const vy = v0*Math.sin(angleRad);
-    
-    const xPos = startX + vx*t*50; // multiply by 50 for bigger distance
-    // y(t)= startY - [vy*t - 0.5*g*t^2]*SCALE
-    const yPos = startY - ((vy*t)-(0.5*g*t*t))*50;
-    
-    // scale the bag so it shrinks as it goes "farther"
-    // from t=0..2 => scale from 1..0.7
-    let scale = 1 - 0.3*(t/totalTime);
-    if (scale<0.7) scale=0.7;
-    
-    bag.style.left = (xPos - bag.offsetWidth/2) + "px";
-    bag.style.top  = (yPos - bag.offsetHeight/2) + "px";
-    bag.style.transform = `scale(${scale})`;
-    
-    // create a trail particle
-    if ((now - startTime)%50 < 25) {
+    let yPos = startY - ((vy*t) - 0.5*g*(t*t))*40;
+
+    // scale bag so it shrinks slightly as it goes up
+    let s= 1 - 0.3*(t/flightTime);
+    if (s<0.7) s=0.7;
+
+    // Move bag
+    bagEl.style.left = (xPos - bagEl.offsetWidth/2)+"px";
+    bagEl.style.top  = (yPos - bagEl.offsetHeight/2)+"px";
+    bagEl.style.transform = `scale(${s})`;
+
+    // trail
+    if ((now - startTime)%40 < 20) {
       createTrailParticle(xPos, yPos, currentPlanet.color);
     }
-    
-    if (t>=totalTime) {
-      // done
+
+    if (t>=flightTime) {
+      // end
       checkHoleCollision(xPos, yPos);
       isAnimating=false;
-      setTimeout(()=>resetBag(), 1500);
+      setTimeout(()=>resetBag(), 1000);
       return;
     }
     if (isAnimating) requestAnimationFrame(animateFrame);
@@ -349,59 +344,57 @@ function doThrow(power) {
 }
 
 /********************************************************
- * Check if bag hits the hole
+ * Collison check with hole
  ********************************************************/
 function checkHoleCollision(x, y) {
-  const holeRect = hole.getBoundingClientRect();
-  const hx = holeRect.left + holeRect.width/2;
-  const hy = holeRect.top  + holeRect.height/2;
-  
-  const dx = x - hx;
-  const dy = y - hy;
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  if (dist<20) {
+  const holeRect= holeEl.getBoundingClientRect();
+  const hx= holeRect.left + holeRect.width/2;
+  const hy= holeRect.top  + holeRect.height/2;
+
+  const dx= x - hx;
+  const dy= y - hy;
+  if (Math.sqrt(dx*dx + dy*dy)<20) {
     showScorePopup(x,y);
   }
 }
 
 /********************************************************
- * Reset Bag to bottom center
+ * Reset bag
  ********************************************************/
 function resetBag() {
-  bag.style.left = "calc(50% - 20px)";
-  bag.style.top  = "calc(85% - 20px)";
-  bag.style.transform = "none";
+  bagEl.style.left= "calc(50% - 20px)";
+  bagEl.style.top = "calc(85% - 20px)";
+  bagEl.style.transform="none";
   clearTrajectory();
 }
 
 /********************************************************
- * Trail Particle
+ * Trail
  ********************************************************/
 function createTrailParticle(x, y, color) {
-  const trajectory= document.getElementById('trajectory');
+  const tr= document.getElementById('trajectory');
   const p= document.createElement('div');
   p.className='trail-particle';
-  p.style.background = color;
-  p.style.boxShadow  = `0 0 10px ${color}`;
-  p.style.left= x+"px";
-  p.style.top=  y+"px";
-  trajectory.appendChild(p);
-  setTimeout(()=>p.remove(), 800);
+  p.style.background=color;
+  p.style.boxShadow=`0 0 10px ${color}`;
+  p.style.left=(x)+"px";
+  p.style.top =(y)+"px";
+  tr.appendChild(p);
+  setTimeout(()=> p.remove(), 800);
 }
-
 function clearTrajectory() {
   document.getElementById('trajectory').innerHTML='';
 }
 
 /********************************************************
- * Score Popup
+ * Score popup
  ********************************************************/
 function showScorePopup(x,y) {
-  const popup = document.createElement('div');
+  const popup= document.createElement('div');
   popup.className='score-popup';
   popup.textContent='CORNHOLE! +3';
-  popup.style.left=x+"px";
-  popup.style.top =y+"px";
+  popup.style.left=(x)+"px";
+  popup.style.top =(y)+"px";
   document.body.appendChild(popup);
   setTimeout(()=> popup.remove(), 1000);
 }
@@ -412,12 +405,12 @@ function showScorePopup(x,y) {
 document.addEventListener('DOMContentLoaded', ()=>{
   const throwBtn= document.getElementById('throw-button');
   const planetSel= document.getElementById('planet-select');
-  
+
   throwBtn.addEventListener('mousedown', startThrow);
-  throwBtn.addEventListener('mouseup', releaseThrow);
-  throwBtn.addEventListener('touchstart', startThrow);
-  throwBtn.addEventListener('touchend', releaseThrow);
-  
+  throwBtn.addEventListener('mouseup',   releaseThrow);
+  throwBtn.addEventListener('touchstart',startThrow);
+  throwBtn.addEventListener('touchend',  releaseThrow);
+
   planetSel.addEventListener('change', e=> updatePlanetInfo(e.target.value));
   updatePlanetInfo('earth');
 });
