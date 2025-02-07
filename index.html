@@ -4,7 +4,6 @@
     <meta charset="UTF-8"/>
     <title>Space Cornhole</title>
     <style>
-        /* (Same CSS as before, but with the #angle-indicator styles REMOVED) */
         body {
             margin: 0;
             font-family: system-ui, sans-serif;
@@ -58,10 +57,10 @@
             border-radius: 5px;
             box-shadow: 0 5px 10px rgba(0,0,0,0.2);
             transform-style: preserve-3d;
-            visibility: visible;
+            visibility: visible; /* Ensure it starts visible */
             opacity: 1;
             will-change: transform;
-            z-index: 10; /* Ensure bag is on top */
+            z-index: 10;  /* Keep it on top */
         }
 
         #trajectory {
@@ -74,10 +73,9 @@
 
         .trail-particle {
             position: absolute;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            filter: blur(3px);
+            width: 10px; /* Slightly larger */
+            height: 10px; /* Slightly larger */
+            border-radius: 3px; /* Square-ish, like a tiny bag */
             opacity: 0;
             animation: fadeOut 0.5s forwards;
             pointer-events: none;
@@ -109,27 +107,7 @@
             100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
         }
 
-        .throw-meter {
-            position: absolute;
-            left: 50%;
-            bottom: 15%;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 20px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            overflow: hidden;
-            display: none;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            z-index: 11;
-        }
-
-        .throw-meter-fill {
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #FFC107, #F44336);
-            transition: width 0.1s linear;
-        }
+        /* REMOVED .throw-meter styles */
 
         #controls {
             position: fixed;
@@ -191,10 +169,6 @@
     </div>
     <div id="bag"></div>
 
-    <div class="throw-meter">
-        <div class="throw-meter-fill"></div>
-    </div>
-
     <div id="planet-info">
         <h3 id="planet-name">Earth</h3>
         <p id="planet-description">Standard cornhole - your baseline experience</p>
@@ -233,10 +207,9 @@ const planets = {
 let currentPlanet = planets.earth;
 let isAnimating = false;
 let throwPower = 0;
-let powerInterval;
-let throwAngle = 45; // Initial angle
-let startYPosition = 0; // Store initial Y position of touch/click
-
+let throwAngle = 45;
+let startYPosition = 0;
+let throwStartTime = 0; // To store the time when the throw started
 
 function updatePlanetInfo(planetKey) {
     currentPlanet = planets[planetKey];
@@ -248,15 +221,13 @@ function updatePlanetInfo(planetKey) {
 function createTrailParticle(x, y, color) {
     const particle = document.createElement('div');
     particle.className = 'trail-particle';
-    const hue = (performance.now() / 20) % 360;
-    particle.style.background = `linear-gradient(<span class="math-inline">\{color\}, hsl\(</span>{hue}, 80%, 60%))`;
-    particle.style.boxShadow = `0 0 10px ${color}`;
+    particle.style.background = color; // Use planet color directly
+    particle.style.boxShadow = `0 0 5px ${color}`; // Smaller shadow
     particle.style.left = `${x}px`;
     particle.style.top = `${y}px`;
     document.getElementById('trajectory').appendChild(particle);
     setTimeout(() => particle.remove(), 1000);
 }
-
 function clearTrajectory() {
     document.getElementById('trajectory').innerHTML = '';
 }
@@ -271,7 +242,7 @@ function showScorePopup(x, y) {
     setTimeout(() => popup.remove(), 1000);
 }
 
-function doThrow(power) {
+function doThrow() { // No power argument needed
     if (isAnimating) return;
     isAnimating = true;
     clearTrajectory();
@@ -280,37 +251,37 @@ function doThrow(power) {
     const board = document.getElementById('board');
     const hole = document.getElementById('hole');
 
-    // Initial positions
     const startX = window.innerWidth * 0.5;
-    const startY = window.innerHeight * 0.85;  // Consistent starting Y
+    const startY = window.innerHeight * 0.85;
     const boardY = hole.getBoundingClientRect().top;
 
-    // Calculate angle based on initial touch/click position.  Higher = steeper.
+    // Calculate angle based on *initial* touch/click position.
     throwAngle = 90 - (startYPosition / window.innerHeight) * 90;
-    throwAngle = Math.max(20, Math.min(75, throwAngle)); // Clamp to reasonable angles
+    throwAngle = Math.max(20, Math.min(75, throwAngle));
 
-    const v0 = power * 2.5; // Increased multiplier for more power
+    // Calculate power based on *duration* of press.
+    const throwDuration = performance.now() - throwStartTime;
+    throwPower = Math.min(100, throwDuration / 20); //  power based on duration
+
+    const v0 = throwPower * 2.5;
     const angleRad = (throwAngle * Math.PI) / 180;
 
-    // Deterministic variance based on power and angle deviation from "ideal"
     const idealPower = 75;
-    const lateralVariance = ((power - idealPower) / idealPower) * 200;  // Up to +/- 200px based on power
-    const angleVariance = ((throwAngle - 45) / 30) * 100; // Additional variance based on angle
+    const lateralVariance = ((throwPower - idealPower) / idealPower) * 200;
+    const angleVariance = ((throwAngle - 45) / 30) * 100;
     let targetX = startX + lateralVariance + angleVariance;
-    const targetY = boardY + (power * 0.5); // Adjust target Y based on power
+    const targetY = boardY + (throwPower * 0.5);
 
-    // Control points for arc
-    const controlY = startY - (power * 4); // Arc height varies with power
+    const controlY = startY - (throwPower * 4);
     const controlX = startX + (lateralVariance * 0.5);
 
-    const duration = 2000; // Increased duration for smoother animation
+    const duration = 2000;
     let startTime = performance.now();
 
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
 
-        // Bezier curve calculation
         const t = progress;
         const x = Math.pow(1 - t, 2) * startX +
                  2 * (1 - t) * t * controlX +
@@ -320,26 +291,23 @@ function doThrow(power) {
                  2 * (1 - t) * t * controlY +
                  Math.pow(t, 2) * targetY;
 
-        // Add gravity effect.  CRITICAL: Apply throwAdjustment to the gravity effect, not the overall Y.
         const gravityEffect = 0.5 * currentPlanet.gravity * Math.pow(progress, 2) * currentPlanet.throwAdjustment;
         const adjustedY = y + (gravityEffect * 25);
 
-        // Scale and rotation
         const scale = 1 - (progress * 0.4);
         const rotation = progress * 720;
 
-        // Create trail less frequently for better visibility
-        if (elapsed % 32 < 16) {
+        // Trail particles - more frequent, but smaller and square-ish
+        if (elapsed % 16 < 8) { // More frequent
             createTrailParticle(x, adjustedY, currentPlanet.color);
         }
 
-        // Update bag position with improved visibility
+        // *** KEY VISIBILITY FIX: Ensure bag is visible AND its transform is updated. ***
         bag.style.visibility = 'visible';
         bag.style.opacity = '1';
-        bag.style.transform = `translate3d(${x - bag.offsetWidth / 2}px, ${adjustedY}px, ${progress * 400}px) 
-                             scale(${scale}) rotate(${rotation}deg)`;
+        bag.style.transform = `translate3d(${x - bag.offsetWidth / 2}px, ${adjustedY}px, <span class="math-inline">\{progress \* 400\}px\) scale\(</span>{scale}) rotate(${rotation}deg)`;
 
-        // Check for landing
+
         if (progress >= 1) {
             const holeRect = hole.getBoundingClientRect();
             const distance = Math.sqrt(
@@ -364,10 +332,9 @@ function doThrow(power) {
 
     requestAnimationFrame(animate);
 }
-
 function resetBag(bag) {
     bag.style.transition = 'transform 0.5s ease-out';
-    bag.style.transform = 'translate(-50%, 0)';  // Reset to initial position
+    bag.style.transform = 'translate(-50%, 0)';
     setTimeout(() => {
         bag.style.transition = 'none';
         clearTrajectory();
@@ -378,37 +345,22 @@ function startThrow(e) {
     if (e) e.preventDefault();
     if (isAnimating) return;
 
-    // Get starting Y position for angle calculation (works for touch and mouse)
     startYPosition = e.type.startsWith('touch') ? e.touches[0].clientY : e.pageY;
-
-
-    const throwMeter = document.querySelector('.throw-meter');
-    throwMeter.style.display = 'block';
-    throwPower = 0;
-    const startTime = performance.now();
-
-    powerInterval = setInterval(() => {
-        //throwPower = Math.min(100, ((performance.now() - startTime) / 20)); // Original
-        throwPower = Math.min(100, Math.floor((performance.now() - startTime) / 20)); //now goes up incrementally by integers
-
-        document.querySelector('.throw-meter-fill').style.width = `${throwPower}%`;
-    }, 16); // ~60 FPS
+    throwStartTime = performance.now(); // Record the start time
 }
+
 function releaseThrow(e) {
     if (e) e.preventDefault();
-    if (!powerInterval) return;
+    if (isAnimating || throwStartTime === 0) return; // Prevent double throws
 
-    clearInterval(powerInterval);
-    document.querySelector('.throw-meter').style.display = 'none';
-    doThrow(throwPower);
-    powerInterval = null; // Reset powerInterval
+    doThrow(); // Call doThrow directly, power is calculated in doThrow
+    throwStartTime = 0; // Reset for next throw
 }
-// Event Listeners
+
 document.addEventListener('DOMContentLoaded', () => {
     const throwButton = document.getElementById('throw-button');
     const planetSelect = document.getElementById('planet-select');
 
-    // Unified event handling for touch and mouse
     throwButton.addEventListener('mousedown', startThrow);
     throwButton.addEventListener('mouseup', releaseThrow);
     throwButton.addEventListener('touchstart', startThrow);
@@ -418,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updatePlanetInfo('earth');
 });
-
 </script>
 </body>
 </html>
