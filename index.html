@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8"/>
-  <title>Space Cornhole - Angled Board + Baseball-Like Arc</title>
+  <title>Space Cornhole - Fixed Trajectory</title>
   <style>
     body {
       margin: 0; 
@@ -322,12 +322,12 @@ function doThrow(power) {
   const startX= gameW*0.5;
   const startY= gameH*0.85;
   
-  // Angle ~ 70° => big upward arc
-  const angleDeg= 70;
+  // Angle ~ 45° => balanced arc
+  const angleDeg= 45;
   const angleRad= angleDeg*Math.PI/180;
 
   // velocity scaled by power
-  const v0= power*0.3;
+  const v0= power*0.5; // Adjusted for better scaling
   const gPx= currentPlanet.gravity*5; // scale gravity in px/s^2
 
   // We'll animate for ~2 seconds
