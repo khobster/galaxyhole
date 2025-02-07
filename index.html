@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8"/>
-  <title>Space Cornhole - Fixed Trajectory</title>
+  <meta charset="UTF-8">
+  <title>Space Cornhole - 2 Player</title>
   <style>
+    /* Basic reset */
     body {
       margin: 0;
       font-family: system-ui, sans-serif;
       overflow: hidden;
     }
-    /* The "camera" with perspective */
+    /* The main game container uses perspective */
     #game-container {
       width: 100vw;
       height: 100vh;
@@ -19,16 +20,17 @@
       perspective: 1000px;
       perspective-origin: 50% 75%;
     }
-    /* The scene holds board and bag elements in 3D, rotated for a “player’s view” */
+    /* The 3D scene holding board and bags */
     #scene {
       width: 100%;
       height: 100%;
       transform-style: preserve-3d;
       position: absolute;
-      top: 0; left: 0;
+      top: 0;
+      left: 0;
       transform: rotateX(45deg);
     }
-    /* Place the board further back (z = –300px) */
+    /* The board – now placed further back */
     #board {
       position: absolute;
       width: 120px;
@@ -53,7 +55,7 @@
       background: #000;
       border-radius: 50%;
     }
-    /* Bags now use a class so we can have multiples */
+    /* Each bag element – note we create new ones per throw */
     .bag {
       position: absolute;
       width: 40px;
@@ -63,7 +65,7 @@
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
     }
-    /* 2D layer for trajectory particles – note that we now update the z-position as well */
+    /* The trail particles follow in the same 3D space */
     #trajectory {
       position: absolute;
       width: 100%;
@@ -86,48 +88,31 @@
       0%   { opacity: 0.8; }
       100% { opacity: 0; }
     }
-    .score-popup {
-      position: absolute;
-      font-family: 'Impact', sans-serif;
-      font-size: 48px;
-      color: gold;
-      text-shadow:
-          2px 2px 0 #000,
-          -2px 2px 0 #000,
-          2px -2px 0 #000,
-          -2px -2px 0 #000;
-      pointer-events: none;
-      z-index: 1000;
-      animation: scorePopup 1s ease-out forwards;
+    /* A visible counter for the throw number */
+    #tryCounter {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      background: rgba(255,255,255,0.8);
+      padding: 10px 15px;
+      border-radius: 5px;
+      z-index: 100;
     }
-    @keyframes scorePopup {
-      0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
-      50% { transform: translate(-50%, -50px) scale(1.5); opacity: 1; }
-      100% { transform: translate(-50%, -100px) scale(1); opacity: 0; }
-    }
+    /* Controls for Firebase game creation/joining & throwing */
     #controls {
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.9);
+      background: rgba(255,255,255,0.9);
       padding: 15px 25px;
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       display: flex;
-      gap: 20px;
+      gap: 10px;
       align-items: center;
-      z-index: 2;
-    }
-    #planet-info {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      z-index: 2;
+      z-index: 100;
     }
     button {
       background: #c41e3a;
@@ -144,145 +129,153 @@
     }
     button:hover { background: #d42e4a; }
     button:active { transform: scale(0.95); }
-    select {
+    input[type="text"] {
       padding: 8px;
       border-radius: 5px;
       border: 1px solid #ddd;
       font-size: 14px;
-      background: white;
     }
   </style>
+  <!-- Firebase scripts (v8) from the CDN -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
-<div id="game-container">
-  <div id="scene">
-    <!-- Our trail particles will be appended here: -->
-    <div id="trajectory"></div>
-    <div id="board">
-      <div id="hole"></div>
+  <div id="game-container">
+    <div id="scene">
+      <!-- Trail particles will be appended here -->
+      <div id="trajectory"></div>
+      <div id="board">
+        <div id="hole"></div>
+      </div>
+      <!-- Bags will be added dynamically into the scene -->
     </div>
-    <!-- Bags get added dynamically into this scene -->
+    <div id="tryCounter">Waiting for game...</div>
+    <div id="controls">
+      <!-- The throw button is enabled only on the local player's turn -->
+      <button id="throw-button" disabled>Hold to Throw</button>
+      <button id="create-game">Create Game</button>
+      <input type="text" id="gameIdInput" placeholder="Game ID">
+      <button id="join-game">Join Game</button>
+    </div>
   </div>
-
-  <div id="planet-info">
-    <h3 id="planet-name">Earth</h3>
-    <p id="planet-description">Standard cornhole - your baseline experience</p>
-    <p id="throw-adjustment">Throw force: 1.0x</p>
-  </div>
-
-  <div id="controls">
-    <select id="planet-select">
-      <option value="earth">Earth (9.81)</option>
-      <option value="mercury">Mercury (3.7)</option>
-      <option value="moon">Moon (1.62)</option>
-      <option value="mars">Mars (3.72)</option>
-      <option value="venus">Venus (8.87)</option>
-      <option value="jupiter">Jupiter (24.79)</option>
-      <option value="titan">Titan (1.352)</option>
-      <option value="pluto">Pluto (0.62)</option>
-      <option value="kepler">Kepler-16b (18.3)</option>
-    </select>
-    <button id="throw-button">Hold to Throw</button>
-  </div>
-</div>
 
 <script>
 /********************************************************
- * Planet data
+ * Firebase Initialization and Two-Player Game Logic
  ********************************************************/
-const planets = {
-  earth: {
-    gravity: 9.81,
-    name: "Earth",
-    description: "Standard cornhole - your baseline experience",
-    throwAdjustment: 1.0,
-    color: "#4CAF50"
-  },
-  mercury: {
-    gravity: 3.7,
-    name: "Mercury",
-    description: "Similar to Mars, requires less force than Earth",
-    throwAdjustment: 0.38,
-    color: "#FF9800"
-  },
-  moon: {
-    gravity: 1.62,
-    name: "Moon",
-    description: "Low gravity means gentle tosses go much further",
-    throwAdjustment: 0.16,
-    color: "#BDBDBD"
-  },
-  mars: {
-    gravity: 3.72,
-    name: "Mars",
-    description: "About 1/3 of Earth's gravity - requires less force",
-    throwAdjustment: 0.38,
-    color: "#F44336"
-  },
-  venus: {
-    gravity: 8.87,
-    name: "Venus",
-    description: "Similar to Earth, slightly easier throws",
-    throwAdjustment: 0.90,
-    color: "#FFC107"
-  },
-  jupiter: {
-    gravity: 24.79,
-    name: "Jupiter",
-    description: "Extreme gravity requires much more force",
-    throwAdjustment: 2.53,
-    color: "#795548"
-  },
-  titan: {
-    gravity: 1.352,
-    name: "Titan",
-    description: "Similar to Moon gameplay",
-    throwAdjustment: 0.14,
-    color: "#9C27B0"
-  },
-  pluto: {
-    gravity: 0.62,
-    name: "Pluto",
-    description: "Ultra-low gravity for extreme distance",
-    throwAdjustment: 0.06,
-    color: "#2196F3"
-  },
-  kepler: {
-    gravity: 18.3,
-    name: "Kepler-16b",
-    description: "High-gravity exoplanet orbiting two stars",
-    throwAdjustment: 1.87,
-    color: "#E91E63"
-  }
+const firebaseConfig = {
+  apiKey: "AIzaSyDicI1nKcrMDaaYkL_8q70yj1mM05tW5Ak",
+  authDomain: "mookie-pig-challenge.firebaseapp.com",
+  projectId: "mookie-pig-challenge",
+  storageBucket: "mookie-pig-challenge.appspot.com",
+  messagingSenderId: "96530997300",
+  appId: "1:96530997300:web:96400cf87b98c8e19eaa61",
+  measurementId: "G-NJQ84VFPYK"
 };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-let currentPlanet = planets.earth;
-function updatePlanetInfo(planetKey) {
-  currentPlanet = planets[planetKey];
-  document.getElementById('planet-name').textContent = currentPlanet.name;
-  document.getElementById('planet-description').textContent = currentPlanet.description;
-  document.getElementById('throw-adjustment').textContent =
-      `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
+// Global game state variables
+let gameId = null;
+let currentPlayer; // Indicates whose turn it is: 1 or 2.
+let localPlayerNum = null; // 1 or 2 for the local client.
+const totalThrows = 4;  // Each player gets four throws.
+let player1Throws = 0, player2Throws = 0;
+const playerId = generatePlayerId();
+
+// UI elements for game control and try counter
+const throwBtn = document.getElementById('throw-button');
+const tryCounterEl = document.getElementById('tryCounter');
+const createGameBtn = document.getElementById('create-game');
+const joinGameBtn = document.getElementById('join-game');
+const gameIdInput = document.getElementById('gameIdInput');
+
+// Create a new game: local player becomes Player 1.
+function createNewGame() {
+  db.collection('cornholeGames').add({
+    player1Id: playerId,
+    player2Id: null,
+    currentPlayer: 1,
+    player1Throws: 0,
+    player2Throws: 0,
+    gameStatus: 'waiting'
+  }).then(docRef => {
+    gameId = docRef.id;
+    localPlayerNum = 1;
+    alert("Game created. Share this Game ID with your friend: " + gameId);
+    startGameListener();
+  }).catch(err => {
+    console.error("Error creating game", err);
+  });
+}
+
+// Join an existing game: local player becomes Player 2.
+function joinGame(gameIdToJoin) {
+  gameId = gameIdToJoin;
+  const gameRef = db.collection('cornholeGames').doc(gameId);
+  gameRef.get().then(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      if (!data.player2Id && data.player1Id !== playerId) {
+        return gameRef.update({
+          player2Id: playerId,
+          gameStatus: 'started'
+        }).then(() => {
+          localPlayerNum = 2;
+          startGameListener();
+        });
+      } else if (data.player1Id === playerId || data.player2Id === playerId) {
+        // Already in this game.
+        localPlayerNum = (data.player1Id === playerId) ? 1 : 2;
+        startGameListener();
+      } else {
+        alert("Unable to join game. It may already be full.");
+      }
+    } else {
+      alert("Game not found.");
+    }
+  }).catch(err => console.error("Error joining game", err));
+}
+
+// Listen to game document updates and update the UI accordingly.
+function startGameListener() {
+  const gameRef = db.collection('cornholeGames').doc(gameId);
+  gameRef.onSnapshot(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      currentPlayer = data.currentPlayer;
+      player1Throws = data.player1Throws;
+      player2Throws = data.player2Throws;
+      updateTryCounter();
+      // Enable the throw button only if it’s our turn and the game is active.
+      if (localPlayerNum === currentPlayer && data.gameStatus === 'started') {
+        throwBtn.disabled = false;
+      } else {
+        throwBtn.disabled = true;
+      }
+      // Optionally, you could update on-screen bag positions from other players here.
+    }
+  });
+}
+
+// Update the try counter display.
+function updateTryCounter() {
+  let myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
+  tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
 }
 
 /********************************************************
- * Bag and Throw Mechanic for Four Tries
+ * Cornhole Simulation Code (Physics, Trail, Bag Creation)
  ********************************************************/
-let isAnimating = false;
-let throwStartTime = 0;
-let throwPower = 0;
-let throwCount = 0;
-const totalThrows = 4;
-let currentBagEl = null;
-
 const sceneEl = document.getElementById('scene');
 const trajectoryContainer = document.getElementById('trajectory');
 const holeEl = document.getElementById('hole');
+let isAnimating = false;
+let throwStartTime = 0;
+let currentBagEl = null;
 
-/**
- * Create a new bag element, append it to the scene,
- * and position it at the player's “hand” (bottom center).
- */
+// Create a new bag element and position it at the "player's hand."
 function createBagElement() {
   const bag = document.createElement('div');
   bag.classList.add('bag');
@@ -290,11 +283,9 @@ function createBagElement() {
   setBagStartPosition(bag);
   return bag;
 }
-
 function setBagStartPosition(bag) {
   const gameW = window.innerWidth;
   const gameH = window.innerHeight;
-  // Bag is 40x40
   const bagWidth = 40, bagHeight = 40;
   const startX = gameW * 0.5;
   const startY = gameH - bagHeight - 20;
@@ -302,36 +293,26 @@ function setBagStartPosition(bag) {
   bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY - bagHeight/2}px, ${startZ}px)`;
 }
 
-/**
- * On mousedown/touchstart, record the time.
- */
+// Start timing the throw (on mousedown/touchstart).
 function startThrow(e) {
-  if (e) e.preventDefault();
+  e.preventDefault();
   if (isAnimating || !currentBagEl) return;
   throwStartTime = performance.now();
 }
-
-/**
- * On mouseup/touchend, calculate the throw power (capped at 100)
- * and animate the bag.
- */
+// Release the throw (on mouseup/touchend) and calculate throw power.
 function releaseThrow(e) {
-  if (e) e.preventDefault();
+  e.preventDefault();
   if (isAnimating || throwStartTime === 0) return;
   const holdTime = performance.now() - throwStartTime;
-  throwPower = Math.min(100, holdTime / 20);
+  const throwPower = Math.min(100, holdTime / 20);
   doThrow(throwPower);
   throwStartTime = 0;
 }
 
-/**
- * Animate the current bag along a 3D parabolic path from the player's hand
- * to the board. The bag stays at its landing spot.
- */
+// Animate the bag along a 3D parabolic path.
 function doThrow(power) {
   if (isAnimating || !currentBagEl) return;
   isAnimating = true;
-  // We leave the trail from previous throws visible
   
   const gameW = window.innerWidth;
   const gameH = window.innerHeight;
@@ -341,119 +322,135 @@ function doThrow(power) {
   const startX = gameW * 0.5;
   const startY = gameH - bagHeight - 20;
   const startZ = 0;
-  
-  // Target position on (or near) the board.
-  // Adjust these values until the bag appears to land on the board.
+  // Target on (or near) the board. Adjust these values as needed.
   const targetX = gameW * 0.5;
-  const targetY = gameH * 0.40;  // tweak as needed so it “lands” on the board
-  const targetZ = -280;         // board is at -300px; we use -280 so the bag appears in front
+  const targetY = gameH * 0.40;
+  const targetZ = -280;
   
   const optimalPower = 50;
-  const baseArc = 100; // base arc height at optimal power
-  const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
-  
-  const flightTime = 2000; // in ms
+  const baseArc = 100;
+  const arcHeight = baseArc * (power / optimalPower);
+  const flightTime = 2000; // milliseconds
   const startTime = performance.now();
   
   function animateFrame(now) {
     let t = (now - startTime) / flightTime;
     if (t > 1) t = 1;
-    // Scale the normalized time by (power / optimalPower) so that too little/much power lands short/long.
+    // Scale the normalized time (u) based on power so that too little/much force changes the landing.
     let u = t * (power / optimalPower);
-    
-    // Linear interpolation in x and z plus a parabolic arc in y:
     const x = startX + (targetX - startX) * u;
     const z = startZ + (targetZ - startZ) * u;
     const linearY = startY + (targetY - startY) * u;
+    // A parabolic adjustment in y (peak at u = 0.5)
     const y = linearY - arcHeight * 4 * u * (1 - u);
     
     currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - bagHeight/2}px, ${z}px)`;
     
-    // Create a trail particle at the current 3D position.
+    // Create trail particles (using the current x,y,z)
     if ((now - startTime) % 40 < 20) {
-      createTrailParticle(x, y, z, currentPlanet.color);
+      createTrailParticle(x, y, z);
     }
     
     if (t < 1) {
       requestAnimationFrame(animateFrame);
     } else {
-      // When the animation completes, check for a “score” (if near the hole)
-      checkHoleCollision(x, y);
+      // When done, update the game state.
+      finishThrow();
       isAnimating = false;
-      throwCount++;
-      // If there are throws left, create a new bag.
-      if (throwCount < totalThrows) {
-        currentBagEl = createBagElement();
-      } else {
-        currentBagEl = null;
-        console.log("All throws completed!");
-        // (You might add end-of-game behavior here.)
-      }
     }
   }
   requestAnimationFrame(animateFrame);
 }
 
-/**
- * Check if the final (x,y) position is within 20px of the hole's center.
- */
-function checkHoleCollision(x, y) {
-  const holeRect = holeEl.getBoundingClientRect();
-  const hx = holeRect.left + holeRect.width / 2;
-  const hy = holeRect.top + holeRect.height / 2;
-  const dx = x - hx, dy = y - hy;
-  if (Math.sqrt(dx * dx + dy * dy) < 20) {
-    showScorePopup(x, y);
+// When a throw animation finishes, update Firebase and create a new bag (if needed).
+function finishThrow() {
+  const gameRef = db.collection('cornholeGames').doc(gameId);
+  if (localPlayerNum === 1) {
+    gameRef.update({
+      player1Throws: firebase.firestore.FieldValue.increment(1)
+    }).then(() => {
+      // After incrementing, check if player 1 is done.
+      if (player1Throws + 1 >= totalThrows) {
+        // If player 2 is already done, end the game; otherwise, switch turn.
+        gameRef.get().then(doc => {
+          const data = doc.data();
+          if (data.player2Throws >= totalThrows) {
+            gameRef.update({gameStatus: 'ended'});
+            alert("Game over!");
+          } else {
+            gameRef.update({currentPlayer: 2});
+          }
+        });
+      }
+    });
+  } else {
+    gameRef.update({
+      player2Throws: firebase.firestore.FieldValue.increment(1)
+    }).then(() => {
+      if (player2Throws + 1 >= totalThrows) {
+        gameRef.get().then(doc => {
+          const data = doc.data();
+          if (data.player1Throws >= totalThrows) {
+            gameRef.update({gameStatus: 'ended'});
+            alert("Game over!");
+          } else {
+            gameRef.update({currentPlayer: 1});
+          }
+        });
+      }
+    });
+  }
+  
+  // Leave the thrown bag on the board.
+  // If the local player still has throws remaining, create a new bag.
+  const myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
+  if (myThrows + 1 < totalThrows) {
+    currentBagEl = createBagElement();
+  } else {
+    currentBagEl = null;
   }
 }
 
-/**
- * Create a trail particle at the given 3D coordinates.
- * (By including the z value in the transform, it follows the bag’s flight.)
- */
-function createTrailParticle(x, y, z, color) {
+// Create a small trail particle at the given 3D position.
+function createTrailParticle(x, y, z) {
   const p = document.createElement('div');
   p.className = 'trail-particle';
-  p.style.background = color;
-  p.style.boxShadow = `0 0 8px ${color}`;
+  p.style.background = '#c41e3a';
+  p.style.boxShadow = '0 0 8px #c41e3a';
   p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-  // Lower z-index so the bag appears above the trail.
   p.style.zIndex = 5;
   trajectoryContainer.appendChild(p);
   setTimeout(() => p.remove(), 800);
 }
 
-/**
- * Display a score popup at the given screen position.
- */
-function showScorePopup(x, y) {
-  const popup = document.createElement('div');
-  popup.className = 'score-popup';
-  popup.textContent = 'CORNHOLE! +3';
-  popup.style.left = x + "px";
-  popup.style.top = y + "px";
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 1000);
-}
-
 /********************************************************
- * INIT
+ * Event Listeners and Utility Functions
  ********************************************************/
-document.addEventListener('DOMContentLoaded', () => {
-  const throwBtn = document.getElementById('throw-button');
-  const planetSel = document.getElementById('planet-select');
-  
-  throwBtn.addEventListener('mousedown', startThrow);
-  throwBtn.addEventListener('mouseup', releaseThrow);
-  throwBtn.addEventListener('touchstart', startThrow);
-  throwBtn.addEventListener('touchend', releaseThrow);
-  
-  planetSel.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
-  updatePlanetInfo('earth');
-  
-  // Create the initial bag.
-  currentBagEl = createBagElement();
+// Initialize the first bag (but note: the throw button is enabled only on our turn)
+currentBagEl = createBagElement();
+throwBtn.addEventListener('mousedown', startThrow);
+throwBtn.addEventListener('mouseup', releaseThrow);
+throwBtn.addEventListener('touchstart', startThrow);
+throwBtn.addEventListener('touchend', releaseThrow);
+
+createGameBtn.addEventListener('click', () => {
+  createNewGame();
 });
+joinGameBtn.addEventListener('click', () => {
+  const joinId = gameIdInput.value.trim();
+  if (joinId) {
+    joinGame(joinId);
+  }
+});
+
+// Utility: Generate (and store) a unique playerId.
+function generatePlayerId() {
+  let stored = localStorage.getItem('playerId');
+  if (stored) return stored;
+  let newId = Math.random().toString(36).substr(2, 9);
+  localStorage.setItem('playerId', newId);
+  return newId;
+}
 </script>
 </body>
 </html>
