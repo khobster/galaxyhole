@@ -4,6 +4,7 @@
     <meta charset="UTF-8"/>
     <title>Space Cornhole</title>
     <style>
+        /* (Same CSS as before, but with the #angle-indicator styles REMOVED) */
         body {
             margin: 0;
             font-family: system-ui, sans-serif;
@@ -60,19 +61,7 @@
             visibility: visible;
             opacity: 1;
             will-change: transform;
-            z-index: 10;
-        }
-
-        #angle-indicator {
-            position: absolute;
-            left: 50%;
-            bottom: 20%;
-            width: 100px;
-            height: 2px;
-            background: rgba(255,255,255,0.5);
-            transform-origin: left center;
-            pointer-events: none;
-            z-index: 5;
+            z-index: 10; /* Ensure bag is on top */
         }
 
         #trajectory {
@@ -104,7 +93,7 @@
             font-family: 'Impact', sans-serif;
             font-size: 48px;
             color: gold;
-            text-shadow: 
+            text-shadow:
                 2px 2px 0 #000,
                 -2px 2px 0 #000,
                 2px -2px 0 #000,
@@ -132,6 +121,7 @@
             overflow: hidden;
             display: none;
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 11;
         }
 
         .throw-meter-fill {
@@ -229,115 +219,41 @@
 
 <script>
 const planets = {
-    earth: {
-        gravity: 9.81,
-        name: "Earth",
-        description: "Standard cornhole - your baseline experience",
-        throwAdjustment: 1.0,
-        color: "#4CAF50"
-    },
-    mercury: {
-        gravity: 3.7,
-        name: "Mercury",
-        description: "Similar to Mars, requires less force than Earth",
-        throwAdjustment: 0.38,
-        color: "#FF9800"
-    },
-    moon: {
-        gravity: 1.62,
-        name: "Moon",
-        description: "Low gravity means gentle tosses go much further",
-        throwAdjustment: 0.16,
-        color: "#BDBDBD"
-    },
-    mars: {
-        gravity: 3.72,
-        name: "Mars",
-        description: "About 1/3 of Earth's gravity - requires less force",
-        throwAdjustment: 0.38,
-        color: "#F44336"
-    },
-    venus: {
-        gravity: 8.87,
-        name: "Venus",
-        description: "Similar to Earth, slightly easier throws",
-        throwAdjustment: 0.90,
-        color: "#FFC107"
-    },
-    jupiter: {
-        gravity: 24.79,
-        name: "Jupiter",
-        description: "Extreme gravity requires much more force",
-        throwAdjustment: 2.53,
-        color: "#795548"
-    },
-    titan: {
-        gravity: 1.352,
-        name: "Titan",
-        description: "Similar to Moon gameplay",
-        throwAdjustment: 0.14,
-        color: "#9C27B0"
-    },
-    pluto: {
-        gravity: 0.62,
-        name: "Pluto",
-        description: "Ultra-low gravity for extreme distance",
-        throwAdjustment: 0.06,
-        color: "#2196F3"
-    },
-    kepler: {
-        gravity: 18.3,
-        name: "Kepler-16b",
-        description: "High-gravity exoplanet orbiting two stars",
-        throwAdjustment: 1.87,
-        color: "#E91E63"
-    }
+    earth: { gravity: 9.81, name: "Earth", description: "Standard cornhole - your baseline experience", throwAdjustment: 1.0, color: "#4CAF50" },
+    mercury: { gravity: 3.7, name: "Mercury", description: "Similar to Mars, requires less force than Earth", throwAdjustment: 0.38, color: "#FF9800" },
+    moon: { gravity: 1.62, name: "Moon", description: "Low gravity means gentle tosses go much further", throwAdjustment: 0.16, color: "#BDBDBD" },
+    mars: { gravity: 3.72, name: "Mars", description: "About 1/3 of Earth's gravity - requires less force", throwAdjustment: 0.38, color: "#F44336" },
+    venus: { gravity: 8.87, name: "Venus", description: "Similar to Earth, slightly easier throws", throwAdjustment: 0.90, color: "#FFC107" },
+    jupiter: { gravity: 24.79, name: "Jupiter", description: "Extreme gravity requires much more force", throwAdjustment: 2.53, color: "#795548" },
+    titan: { gravity: 1.352, name: "Titan", description: "Similar to Moon gameplay", throwAdjustment: 0.14, color: "#9C27B0" },
+    pluto: { gravity: 0.62, name: "Pluto", description: "Ultra-low gravity for extreme distance", throwAdjustment: 0.06, color: "#2196F3" },
+    kepler: { gravity: 18.3, name: "Kepler-16b", description: "High-gravity exoplanet orbiting two stars", throwAdjustment: 1.87, color: "#E91E63" }
 };
 
 let currentPlanet = planets.earth;
 let isAnimating = false;
 let throwPower = 0;
 let powerInterval;
-let throwAngle = 45;
-let touchStartY = 0;
-let lastTouchY = 0;
+let throwAngle = 45; // Initial angle
+let startYPosition = 0; // Store initial Y position of touch/click
+
 
 function updatePlanetInfo(planetKey) {
     currentPlanet = planets[planetKey];
     document.getElementById('planet-name').textContent = currentPlanet.name;
     document.getElementById('planet-description').textContent = currentPlanet.description;
-    document.getElementById('throw-adjustment').textContent = 
-        `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
-}
-
-function handleTouchStart(e) {
-    touchStartY = e.touches[0].clientY;
-    lastTouchY = touchStartY;
-}
-
-function handleTouchMove(e) {
-    const currentY = e.touches[0].clientY;
-    const deltaY = lastTouchY - currentY;
-    lastTouchY = currentY;
-    
-    throwAngle = Math.min(75, Math.max(20, throwAngle + (deltaY * 0.2)));
-    updateAngleIndicator();
-}
-
-function updateAngleIndicator() {
-    const indicator = document.getElementById('angle-indicator');
-    indicator.style.transform = `rotate(${-throwAngle}deg)`;
+    document.getElementById('throw-adjustment').textContent = `Throw force: ${currentPlanet.throwAdjustment.toFixed(2)}x`;
 }
 
 function createTrailParticle(x, y, color) {
     const particle = document.createElement('div');
     particle.className = 'trail-particle';
     const hue = (performance.now() / 20) % 360;
-    particle.style.background = `linear-gradient(${color}, hsl(${hue}, 80%, 60%))`;
+    particle.style.background = `linear-gradient(<span class="math-inline">\{color\}, hsl\(</span>{hue}, 80%, 60%))`;
     particle.style.boxShadow = `0 0 10px ${color}`;
     particle.style.left = `${x}px`;
     particle.style.top = `${y}px`;
-    trajectory.appendChild(particle);
+    document.getElementById('trajectory').appendChild(particle);
     setTimeout(() => particle.remove(), 1000);
 }
 
@@ -363,21 +279,25 @@ function doThrow(power) {
     const bag = document.getElementById('bag');
     const board = document.getElementById('board');
     const hole = document.getElementById('hole');
-    
+
     // Initial positions
     const startX = window.innerWidth * 0.5;
-    const startY = window.innerHeight * 0.85;
+    const startY = window.innerHeight * 0.85;  // Consistent starting Y
     const boardY = hole.getBoundingClientRect().top;
-    
-    // Increased power scaling
+
+    // Calculate angle based on initial touch/click position.  Higher = steeper.
+    throwAngle = 90 - (startYPosition / window.innerHeight) * 90;
+    throwAngle = Math.max(20, Math.min(75, throwAngle)); // Clamp to reasonable angles
+
     const v0 = power * 2.5; // Increased multiplier for more power
     const angleRad = (throwAngle * Math.PI) / 180;
-    
-    // Add variation based on both power and angle
-    const lateralVariance = ((power - 50) / 50) * 200;
-    const angleVariance = ((throwAngle - 45) / 30) * 100;
-    const targetX = startX + lateralVariance + angleVariance;
-    const targetY = boardY + (power * 0.5);
+
+    // Deterministic variance based on power and angle deviation from "ideal"
+    const idealPower = 75;
+    const lateralVariance = ((power - idealPower) / idealPower) * 200;  // Up to +/- 200px based on power
+    const angleVariance = ((throwAngle - 45) / 30) * 100; // Additional variance based on angle
+    let targetX = startX + lateralVariance + angleVariance;
+    const targetY = boardY + (power * 0.5); // Adjust target Y based on power
 
     // Control points for arc
     const controlY = startY - (power * 4); // Arc height varies with power
@@ -389,20 +309,20 @@ function doThrow(power) {
     function animate(currentTime) {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        
+
         // Bezier curve calculation
         const t = progress;
-        const x = Math.pow(1-t, 2) * startX + 
-                 2 * (1-t) * t * controlX + 
+        const x = Math.pow(1 - t, 2) * startX +
+                 2 * (1 - t) * t * controlX +
                  Math.pow(t, 2) * targetX;
-                 
-        const y = Math.pow(1-t, 2) * startY + 
-                 2 * (1-t) * t * controlY + 
+
+        const y = Math.pow(1 - t, 2) * startY +
+                 2 * (1 - t) * t * controlY +
                  Math.pow(t, 2) * targetY;
 
-        // Add gravity effect
-        const gravityEffect = 0.5 * currentPlanet.gravity * Math.pow(progress, 2);
-        const adjustedY = y + (gravityEffect * 25 * currentPlanet.throwAdjustment);
+        // Add gravity effect.  CRITICAL: Apply throwAdjustment to the gravity effect, not the overall Y.
+        const gravityEffect = 0.5 * currentPlanet.gravity * Math.pow(progress, 2) * currentPlanet.throwAdjustment;
+        const adjustedY = y + (gravityEffect * 25);
 
         // Scale and rotation
         const scale = 1 - (progress * 0.4);
@@ -416,22 +336,22 @@ function doThrow(power) {
         // Update bag position with improved visibility
         bag.style.visibility = 'visible';
         bag.style.opacity = '1';
-        bag.style.transform = `translate3d(${x - bag.offsetWidth/2}px, ${adjustedY}px, ${progress * 400}px) 
+        bag.style.transform = `translate3d(${x - bag.offsetWidth / 2}px, ${adjustedY}px, ${progress * 400}px) 
                              scale(${scale}) rotate(${rotation}deg)`;
 
         // Check for landing
         if (progress >= 1) {
             const holeRect = hole.getBoundingClientRect();
             const distance = Math.sqrt(
-                Math.pow(x - (holeRect.left + holeRect.width/2), 2) +
-                Math.pow(adjustedY - (holeRect.top + holeRect.height/2), 2)
+                Math.pow(x - (holeRect.left + holeRect.width / 2), 2) +
+                Math.pow(adjustedY - (holeRect.top + holeRect.height / 2), 2)
             );
             const isInHole = distance < 20;
-            
+
             if (isInHole) {
                 showScorePopup(x, adjustedY);
             }
-            
+
             isAnimating = false;
             setTimeout(() => resetBag(bag), 1000);
             return;
@@ -447,7 +367,7 @@ function doThrow(power) {
 
 function resetBag(bag) {
     bag.style.transition = 'transform 0.5s ease-out';
-    bag.style.transform = 'translate(-50%, 0)';
+    bag.style.transform = 'translate(-50%, 0)';  // Reset to initial position
     setTimeout(() => {
         bag.style.transition = 'none';
         clearTrajectory();
@@ -457,52 +377,48 @@ function resetBag(bag) {
 function startThrow(e) {
     if (e) e.preventDefault();
     if (isAnimating) return;
-    
-    if (e.type.includes('touch')) {
-        touchStartY = e.touches[0].clientY;
-        lastTouchY = touchStartY;
-    }
-    
+
+    // Get starting Y position for angle calculation (works for touch and mouse)
+    startYPosition = e.type.startsWith('touch') ? e.touches[0].clientY : e.pageY;
+
+
     const throwMeter = document.querySelector('.throw-meter');
     throwMeter.style.display = 'block';
     throwPower = 0;
     const startTime = performance.now();
-    
-    powerInterval = setInterval(() => {
-        throwPower = Math.min(100, ((performance.now() - startTime) / 20));
-        document.querySelector('.throw-meter-fill').style.width = `${throwPower}%`;
-    }, 16);
-}
 
+    powerInterval = setInterval(() => {
+        //throwPower = Math.min(100, ((performance.now() - startTime) / 20)); // Original
+        throwPower = Math.min(100, Math.floor((performance.now() - startTime) / 20)); //now goes up incrementally by integers
+
+        document.querySelector('.throw-meter-fill').style.width = `${throwPower}%`;
+    }, 16); // ~60 FPS
+}
 function releaseThrow(e) {
     if (e) e.preventDefault();
     if (!powerInterval) return;
-    
+
     clearInterval(powerInterval);
     document.querySelector('.throw-meter').style.display = 'none';
     doThrow(throwPower);
+    powerInterval = null; // Reset powerInterval
 }
-
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     const throwButton = document.getElementById('throw-button');
     const planetSelect = document.getElementById('planet-select');
-    
-    // Add angle indicator
-    const indicator = document.createElement('div');
-    indicator.id = 'angle-indicator';
-    document.getElementById('game-container').appendChild(indicator);
-    updateAngleIndicator();
-    
+
+    // Unified event handling for touch and mouse
     throwButton.addEventListener('mousedown', startThrow);
     throwButton.addEventListener('mouseup', releaseThrow);
     throwButton.addEventListener('touchstart', startThrow);
-    throwButton.addEventListener('touchmove', handleTouchMove);
     throwButton.addEventListener('touchend', releaseThrow);
+
     planetSelect.addEventListener('change', e => updatePlanetInfo(e.target.value));
-    
+
     updatePlanetInfo('earth');
 });
+
 </script>
 </body>
 </html>
