@@ -30,7 +30,7 @@
       transform: rotateX(45deg);
     }
 
-    /* The board at z=-60 so it’s behind the bag (z=0). */
+    /* The board is now moved further away (z = –300px) */
     #board {
       position: absolute;
       width: 120px; 
@@ -39,7 +39,7 @@
       top: 25%;
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-60px);
+      transform: translate(-50%, -50%) translateZ(-300px);
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -56,8 +56,7 @@
       border-radius: 50%;
     }
 
-    /* The bag at z=0 in the same 3D scene => always in front. 
-       We'll set its (x,y) with translate3d(...) in JS. */
+    /* The bag – note that we will update its 3D transform in JS */
     #bag {
       position: absolute;
       width: 40px;
@@ -274,42 +273,45 @@ function updatePlanetInfo(planetKey) {
 }
 
 /********************************************************
- * Throw Mechanic 
+ * Throw Mechanic – Using a parametric 3D interpolation
  ********************************************************/
-let isAnimating   = false;
-let throwStartTime= 0;
-let throwPower    = 0;
+let isAnimating    = false;
+let throwStartTime = 0;
+let throwPower     = 0;
 
 const bagEl  = document.getElementById('bag');
 const holeEl = document.getElementById('hole');
 
 /** 
- * On mousedown => record startTime 
+ * On mousedown/touchstart => record startTime 
  */
 function startThrow(e) {
   if (e) e.preventDefault();
   if (isAnimating) return;
-
   throwStartTime = performance.now();
 }
 
 /** 
- * On mouseup => compute throwPower from hold duration => doThrow()
+ * On mouseup/touchend => compute throwPower from hold duration => doThrow()
  */
 function releaseThrow(e) {
   if (e) e.preventDefault();
-  if (isAnimating || throwStartTime===0) return;
-
+  if (isAnimating || throwStartTime === 0) return;
   const holdTime = performance.now() - throwStartTime;
-  throwPower = Math.min(100, holdTime/20);
+  // Let power be in the range 0–100 (clamped)
+  throwPower = Math.min(100, holdTime / 20);
   doThrow(throwPower);
-  throwStartTime=0;
+  throwStartTime = 0;
 }
 
-/********************************************************
- * doThrow: arcs upward & forward, 
- * using standard projectile logic in 2D => translate3d(x, y, 0).
- ********************************************************/
+/**
+ * doThrow: Instead of “physics” with magic multipliers, we
+ * define a starting point (the player’s hand) and a target point (the board’s hole),
+ * then animate the bag along a 3D curve with an added parabolic arc in y.
+ *
+ * We use a normalized parameter u that is scaled by (power/optimalPower)
+ * so that throwing with too little force lands short and too much force overshoots.
+ */
 function doThrow(power) {
   if (isAnimating) return;
   isAnimating = true;
@@ -317,124 +319,132 @@ function doThrow(power) {
 
   const gameW = window.innerWidth;
   const gameH = window.innerHeight;
+  const bagRect = bagEl.getBoundingClientRect();
+  const bagWidth = bagRect.width;
+  const bagHeight = bagRect.height;
 
-  // Start near bottom center
-  const startX= gameW*0.5;
-  const startY= gameH*0.85;
-  
-  // Angle ~ 45° => balanced arc
-  const angleDeg= 45;
-  const angleRad= angleDeg*Math.PI/180;
+  // Starting position (player’s hand)
+  const startX = gameW * 0.5;
+  const startY = gameH - bagHeight - 20;
+  const startZ = 0;
 
-  // velocity scaled by power
-  const v0= power*0.5; // Adjusted for better scaling
-  const gPx= currentPlanet.gravity*5; // scale gravity in px/s^2
+  // Target position (board’s hole position in our scene)
+  const targetX = gameW * 0.5;
+  const targetY = gameH * 0.25;
+  const targetZ = -300;
 
-  // We'll animate for ~2 seconds
-  const flightTime= 2;
-  const startTime= performance.now();
+  // For a throw that is “just right” (power 50) use these as baselines:
+  const optimalPower = 50;
+  const baseArc = 100; // base arc height (in pixels) at optimal power
+  // You can modulate the arc further with the planet’s throwAdjustment.
+  const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
+
+  // Total animation duration (in ms)
+  const flightTime = 2000;
+  const startTime = performance.now();
 
   function animateFrame(now) {
-    let t= (now-startTime)/1000;
-    if(t>flightTime) t=flightTime;
+    let t = (now - startTime) / flightTime; // t goes from 0 to 1 over the flight
+    // Scale the normalized parameter by (power/optimalPower)
+    let u = t * (power / optimalPower);
 
-    const vx= v0*Math.cos(angleRad);
-    const vy= v0*Math.sin(angleRad);
+    // Compute positions via linear interpolation plus a parabolic offset for y:
+    const x = startX + (targetX - startX) * u;
+    const z = startZ + (targetZ - startZ) * u;
+    const linearY = startY + (targetY - startY) * u;
+    // The term “4*u*(1-u)” produces a neat parabolic curve peaking at u=0.5.
+    const y = linearY - arcHeight * 4 * u * (1 - u);
 
-    // x(t)= x0 + vx*t*(some scale)
-    const xPos= startX + vx*t*40; // scale horizontal distance
-    // y(t)= y0 - [ vy*t - 0.5*gPx*t^2 ]*scale
-    let yPos= startY - ((vy*t)-(0.5*gPx*t*t))*40;
+    bagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - bagHeight/2}px, ${z}px)`;
 
-    // Shrink bag from 1..0.7
-    let s= 1- 0.3*(t/flightTime);
-    if(s<0.7) s=0.7;
-
-    // Move bag in 3D => z=0 so it’s in front
-    bagEl.style.transform = 
-      `translate3d(${xPos-bagEl.offsetWidth/2}px, ${yPos-bagEl.offsetHeight/2}px, 0) scale(${s})`;
-
-    // trail
-    if((now - startTime)%40<20) {
-      createTrailParticle(xPos, yPos, currentPlanet.color);
+    // Create a trail particle (we use x,y – these are “scene” coordinates that work well for our overlay)
+    if ((now - startTime) % 40 < 20) {
+      createTrailParticle(x, y, currentPlanet.color);
     }
 
-    if(t>=flightTime) {
-      // done => collision check
-      checkHoleCollision(xPos, yPos);
-      isAnimating=false;
-      setTimeout(()=> resetBag(),1000);
-      return;
+    if ((now - startTime) < flightTime) {
+      requestAnimationFrame(animateFrame);
+    } else {
+      // Final update and collision check
+      checkHoleCollision(x, y);
+      isAnimating = false;
+      setTimeout(() => resetBag(), 1000);
     }
-    if(isAnimating) requestAnimationFrame(animateFrame);
   }
   requestAnimationFrame(animateFrame);
 }
 
 /********************************************************
- * Collision with hole
+ * Collision with hole – we use the (x,y) position from our interpolation.
  ********************************************************/
-function checkHoleCollision(x,y){
-  const holeRect= holeEl.getBoundingClientRect();
-  const hx= holeRect.left + holeRect.width/2;
-  const hy= holeRect.top  + holeRect.height/2;
-  const dx= x-hx, dy= y-hy;
-  if(Math.sqrt(dx*dx+dy*dy)<20){
-    showScorePopup(x,y);
+function checkHoleCollision(x, y) {
+  const holeRect = holeEl.getBoundingClientRect();
+  const hx = holeRect.left + holeRect.width / 2;
+  const hy = holeRect.top  + holeRect.height / 2;
+  const dx = x - hx, dy = y - hy;
+  if (Math.sqrt(dx * dx + dy * dy) < 20) {
+    showScorePopup(x, y);
   }
 }
 
 /********************************************************
- * Reset bag
+ * Reset bag: return it to the “player’s hand” position.
  ********************************************************/
-function resetBag(){
-  bagEl.style.transform= "translate3d(-50%,0,0)";
+function resetBag() {
+  const gameW = window.innerWidth;
+  const gameH = window.innerHeight;
+  const bagRect = bagEl.getBoundingClientRect();
+  const bagWidth = bagRect.width;
+  const bagHeight = bagRect.height;
+  const startX = gameW * 0.5;
+  const startY = gameH - bagHeight - 20;
+  bagEl.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY - bagHeight/2}px, 0)`;
 }
 
 /********************************************************
  * Trail + Score
  ********************************************************/
-function createTrailParticle(x,y,color){
-  const container= document.getElementById('trajectory');
-  const p= document.createElement('div');
-  p.className='trail-particle';
-  p.style.background= color;
-  p.style.boxShadow=`0 0 8px ${color}`;
-  p.style.left= x+"px";
-  p.style.top = y+"px";
+function createTrailParticle(x, y, color) {
+  const container = document.getElementById('trajectory');
+  const p = document.createElement('div');
+  p.className = 'trail-particle';
+  p.style.background = color;
+  p.style.boxShadow = `0 0 8px ${color}`;
+  p.style.left = x + "px";
+  p.style.top  = y + "px";
   container.appendChild(p);
-  setTimeout(()=>p.remove(),800);
+  setTimeout(() => p.remove(), 800);
 }
-function clearTrajectory(){
-  document.getElementById('trajectory').innerHTML='';
+function clearTrajectory() {
+  document.getElementById('trajectory').innerHTML = '';
 }
-function showScorePopup(x,y){
-  const popup= document.createElement('div');
-  popup.className='score-popup';
-  popup.textContent='CORNHOLE! +3';
-  popup.style.left= x+"px";
-  popup.style.top = y+"px";
+function showScorePopup(x, y) {
+  const popup = document.createElement('div');
+  popup.className = 'score-popup';
+  popup.textContent = 'CORNHOLE! +3';
+  popup.style.left = x + "px";
+  popup.style.top  = y + "px";
   document.body.appendChild(popup);
-  setTimeout(()=> popup.remove(),1000);
+  setTimeout(() => popup.remove(), 1000);
 }
 
 /********************************************************
  * INIT
  ********************************************************/
-document.addEventListener('DOMContentLoaded', ()=>{
-  const throwBtn= document.getElementById('throw-button');
-  const planetSel= document.getElementById('planet-select');
+document.addEventListener('DOMContentLoaded', () => {
+  const throwBtn = document.getElementById('throw-button');
+  const planetSel = document.getElementById('planet-select');
 
   throwBtn.addEventListener('mousedown', startThrow);
-  throwBtn.addEventListener('mouseup',   releaseThrow);
-  throwBtn.addEventListener('touchstart',startThrow);
-  throwBtn.addEventListener('touchend',  releaseThrow);
+  throwBtn.addEventListener('mouseup', releaseThrow);
+  throwBtn.addEventListener('touchstart', startThrow);
+  throwBtn.addEventListener('touchend', releaseThrow);
 
-  planetSel.addEventListener('change', (e)=> updatePlanetInfo(e.target.value));
+  planetSel.addEventListener('change', (e) => updatePlanetInfo(e.target.value));
   updatePlanetInfo('earth');
 
-  // Position bag initially at bottom center
-  bagEl.style.transform= "translate3d(-50%, 0, 0)";
+  // Initially, position the bag at the player’s hand.
+  resetBag();
 });
 </script>
 </body>
