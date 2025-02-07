@@ -242,7 +242,7 @@ function showScorePopup(x, y) {
     setTimeout(() => popup.remove(), 1000);
 }
 
-function doThrow() { // No power argument needed
+function doThrow() {
     if (isAnimating) return;
     isAnimating = true;
     clearTrajectory();
@@ -250,13 +250,18 @@ function doThrow() { // No power argument needed
     const bag = document.getElementById('bag');
     const board = document.getElementById('board');
     const hole = document.getElementById('hole');
+    const gameContainer = document.getElementById('game-container'); // Get the container
 
-    const startX = window.innerWidth * 0.5;
-    const startY = window.innerHeight * 0.85;
-    const boardY = hole.getBoundingClientRect().top;
+    // Get container dimensions for accurate positioning
+    const containerRect = gameContainer.getBoundingClientRect();
+
+    // Initial positions (RELATIVE TO THE CONTAINER)
+    const startX = containerRect.width * 0.5;
+    const startY = containerRect.height * 0.85;
+    const boardY = hole.getBoundingClientRect().top - containerRect.top; // Relative to container
 
     // Calculate angle based on *initial* touch/click position.
-    throwAngle = 90 - (startYPosition / window.innerHeight) * 90;
+    throwAngle = 90 - (startYPosition / containerRect.height) * 90;
     throwAngle = Math.max(20, Math.min(75, throwAngle));
 
     // Calculate power based on *duration* of press.
@@ -297,27 +302,28 @@ function doThrow() { // No power argument needed
         const scale = 1 - (progress * 0.4);
         const rotation = progress * 720;
 
-        // Trail particles - more frequent, but smaller and square-ish
-        if (elapsed % 16 < 8) { // More frequent
+        // Trail particles
+        if (elapsed % 16 < 8) {
             createTrailParticle(x, adjustedY, currentPlanet.color);
         }
 
-        // *** KEY VISIBILITY FIX: Ensure bag is visible AND its transform is updated. ***
+        // *** CRITICAL FIX:  Use containerRect for positioning ***
         bag.style.visibility = 'visible';
         bag.style.opacity = '1';
-        bag.style.transform = `translate3d(${x - bag.offsetWidth / 2}px, ${adjustedY}px, <span class="math-inline">\{progress \* 400\}px\) scale\(</span>{scale}) rotate(${rotation}deg)`;
+        bag.style.transform = `translate3d(${x - containerRect.left - bag.offsetWidth / 2}px, ${adjustedY - containerRect.top}px, ${progress * 400}px) scale(${scale}) rotate(${rotation}deg)`;
 
 
         if (progress >= 1) {
             const holeRect = hole.getBoundingClientRect();
             const distance = Math.sqrt(
-                Math.pow(x - (holeRect.left + holeRect.width / 2), 2) +
-                Math.pow(adjustedY - (holeRect.top + holeRect.height / 2), 2)
+                // Calculate distance relative to the *window*, not the container
+                Math.pow(x + containerRect.left - (holeRect.left + holeRect.width / 2), 2) +
+                Math.pow(adjustedY + containerRect.top - (holeRect.top + holeRect.height / 2), 2)
             );
             const isInHole = distance < 20;
 
             if (isInHole) {
-                showScorePopup(x, adjustedY);
+                showScorePopup(x, adjustedY); // Use x and adjustedY (relative to container)
             }
 
             isAnimating = false;
