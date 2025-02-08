@@ -10,21 +10,21 @@
       font-family: system-ui, sans-serif;
       overflow: hidden;
     }
-    /* Common container style for all screens */
+    /* Common style for all screens */
     .screen {
       position: absolute;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      display: none; /* All screens are hidden by default */
+      display: none; /* hidden by default */
       flex-direction: column;
       justify-content: center;
       align-items: center;
       background: linear-gradient(#87CEEB, #90EE90);
       z-index: 100;
     }
-    /* Initially show the setup screen */
+    /* Show the setup screen initially */
     #setupScreen {
       display: flex;
     }
@@ -34,7 +34,8 @@
       font-size: 48px;
       margin-bottom: 20px;
     }
-    #setupScreen button, #setupScreen input {
+    #setupScreen button, 
+    #setupScreen input {
       font-size: 18px;
       margin: 5px;
       padding: 10px 15px;
@@ -56,7 +57,6 @@
       display: flex;
       flex-direction: column;
     }
-    /* The main game container uses perspective */
     #game-container {
       width: 100vw;
       height: 100vh;
@@ -65,7 +65,6 @@
       position: relative;
       overflow: hidden;
     }
-    /* The 3D scene holding board and bags */
     #scene {
       width: 100%;
       height: 100%;
@@ -75,7 +74,6 @@
       left: 0;
       transform: rotateX(45deg);
     }
-    /* The board – placed further back */
     #board {
       position: absolute;
       width: 120px;
@@ -100,7 +98,7 @@
       background: #000;
       border-radius: 50%;
     }
-    /* Each bag element */
+    /* Bag element style */
     .bag {
       position: absolute;
       width: 40px;
@@ -202,14 +200,14 @@
     <button id="join-game">Join Game</button>
   </div>
   
-  <!-- Waiting Screen: Show shareable link and wait for opponent -->
+  <!-- Waiting Screen: Share link and wait for opponent -->
   <div id="waitingScreen" class="screen">
     <p>Game created. Share this link with your friend:</p>
     <div id="gameLink"></div>
     <p>Waiting for opponent to join...</p>
   </div>
   
-  <!-- Game Screen: 3D game board and controls -->
+  <!-- Game Screen: 3D game board and throw controls -->
   <div id="gameScreen" class="screen">
     <div id="game-container">
       <div id="scene">
@@ -233,7 +231,7 @@
     </div>
   </div>
   
-  <!-- Result Screen: Game Over message -->
+  <!-- Result Screen: Game Over -->
   <div id="resultScreen" class="screen">
     <h2>Game Over!</h2>
     <p id="resultMessage"></p>
@@ -248,8 +246,7 @@
      * Utility: Screen Switching
      ********************************************************/
     function showScreen(screenId) {
-      const screens = document.querySelectorAll('.screen');
-      screens.forEach(screen => {
+      document.querySelectorAll('.screen').forEach(screen => {
         screen.style.display = (screen.id === screenId) ? "flex" : "none";
       });
     }
@@ -271,13 +268,13 @@
     
     // Global game state variables
     let gameId = null;
-    let currentPlayer; // 1 or 2 (whose turn it is)
-    let localPlayerNum = null; // 1 or 2 for the local client
-    const totalThrows = 4; // Each player gets four throws
+    let currentPlayer; // Whose turn it is: 1 or 2.
+    let localPlayerNum = null; // 1 or 2 for this client.
+    const totalThrows = 4;
     let player1Throws = 0, player2Throws = 0;
     const playerId = generatePlayerId();
     
-    // UI elements from setup and game screens
+    // UI elements from the setup and game screens
     const createGameBtn = document.getElementById('create-game');
     const joinGameBtn = document.getElementById('join-game');
     const gameIdInput = document.getElementById('gameIdInput');
@@ -355,7 +352,7 @@
       }).catch(err => console.error("Error joining game", err));
     }
     
-    // Auto-join game from URL if gameId parameter exists.
+    // Auto-join if URL contains a gameId parameter.
     (function autoJoinGameFromURL() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has("gameId")) {
@@ -374,7 +371,12 @@
           updateTryCounter();
           if (data.gameStatus === 'started') {
             showScreen("gameScreen");
+            // Create the bag if it hasn't been created yet.
+            if (!currentBagEl) {
+              currentBagEl = createBagElement();
+            }
           }
+          // Enable the throw button if it’s our turn.
           if (localPlayerNum === currentPlayer && data.gameStatus === 'started') {
             throwBtn.disabled = false;
           } else {
@@ -472,7 +474,7 @@
       const optimalPower = 50;
       const baseArc = 100;
       const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
-      const flightTime = 2000;
+      const flightTime = 2000; // milliseconds
       const startTime = performance.now();
       
       function animateFrame(now) {
