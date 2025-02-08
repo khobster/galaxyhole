@@ -4,21 +4,66 @@
   <meta charset="UTF-8">
   <title>Space Cornhole - 2 Player</title>
   <style>
-    /* Basic reset */
+    /* General reset */
     body {
       margin: 0;
       font-family: system-ui, sans-serif;
       overflow: hidden;
     }
+    /* Common container style for all screens */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none; /* All screens are hidden by default */
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(#87CEEB, #90EE90);
+      z-index: 100;
+    }
+    /* Initially show the setup screen */
+    #setupScreen {
+      display: flex;
+    }
+    
+    /* Setup Screen */
+    #setupScreen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+    #setupScreen button, #setupScreen input {
+      font-size: 18px;
+      margin: 5px;
+      padding: 10px 15px;
+    }
+    
+    /* Waiting Screen */
+    #waitingScreen p {
+      font-size: 20px;
+      margin: 10px;
+    }
+    #gameLink {
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    
+    /* Game Screen */
+    #gameScreen {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
     /* The main game container uses perspective */
     #game-container {
       width: 100vw;
       height: 100vh;
-      background: linear-gradient(#87CEEB, #90EE90);
-      position: relative;
-      overflow: hidden;
       perspective: 1000px;
       perspective-origin: 50% 75%;
+      position: relative;
+      overflow: hidden;
     }
     /* The 3D scene holding board and bags */
     #scene {
@@ -30,7 +75,7 @@
       left: 0;
       transform: rotateX(45deg);
     }
-    /* The board – now placed further back */
+    /* The board – placed further back */
     #board {
       position: absolute;
       width: 120px;
@@ -55,8 +100,7 @@
       background: #000;
       border-radius: 50%;
     }
-    /* Each bag element – new ones are created per throw.
-       The color is set based on the player. */
+    /* Each bag element */
     .bag {
       position: absolute;
       width: 40px;
@@ -65,7 +109,7 @@
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
     }
-    /* The trail particles follow in the same 3D space */
+    /* Trail particles */
     #trajectory {
       position: absolute;
       width: 100%;
@@ -85,23 +129,22 @@
       pointer-events: none;
     }
     @keyframes fadeOut {
-      0%   { opacity: 0.8; }
+      0% { opacity: 0.8; }
       100% { opacity: 0; }
     }
-    /* A visible counter for the throw number */
+    /* Game Screen controls */
     #tryCounter {
-      position: fixed;
+      position: absolute;
       top: 20px;
       right: 20px;
       font-size: 24px;
       background: rgba(255,255,255,0.8);
       padding: 10px 15px;
       border-radius: 5px;
-      z-index: 100;
+      z-index: 101;
     }
-    /* Controls for game creation, joining, throwing, and planet selection */
     #controls {
-      position: fixed;
+      position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
@@ -113,16 +156,34 @@
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
-      z-index: 100;
+      z-index: 101;
     }
+    #controls button, #controls select, #controls label {
+      font-size: 16px;
+      padding: 8px 12px;
+    }
+    
+    /* Result Screen */
+    #resultScreen h2 {
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    #resultScreen p {
+      font-size: 20px;
+    }
+    #resultScreen button {
+      font-size: 18px;
+      padding: 10px 15px;
+      margin-top: 20px;
+    }
+    
+    /* Common button styles */
     button {
       background: #c41e3a;
       color: white;
       border: none;
-      padding: 12px 24px;
       border-radius: 5px;
       cursor: pointer;
-      font-size: 16px;
       font-weight: bold;
       text-transform: uppercase;
       user-select: none;
@@ -130,424 +191,387 @@
     }
     button:hover { background: #d42e4a; }
     button:active { transform: scale(0.95); }
-    input[type="text"] {
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #ddd;
-      font-size: 14px;
-    }
-    select {
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #ddd;
-      font-size: 14px;
-    }
-    /* The game link container with a copy button */
-    #gameLink {
-      position: fixed;
-      bottom: 90px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255,255,255,0.95);
-      padding: 10px 15px;
-      border-radius: 5px;
-      font-size: 16px;
-      z-index: 100;
-      display: none;
-    }
-    #gameLink a {
-      color: #4287f5;
-      text-decoration: underline;
-      cursor: pointer;
-    }
   </style>
-  <!-- Firebase scripts (v8) from the CDN -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 </head>
 <body>
-  <div id="game-container">
-    <div id="scene">
-      <!-- Trail particles will be appended here -->
-      <div id="trajectory"></div>
-      <div id="board">
-        <div id="hole"></div>
-      </div>
-      <!-- Bags will be added dynamically into the scene -->
-    </div>
-    <div id="tryCounter">Waiting for game...</div>
-    <div id="controls">
-      <!-- Planet selection: Choose the planet to affect gravity. -->
-      <label for="planet-select">Planet:</label>
-      <select id="planet-select">
-        <option value="earth">Earth (9.81)</option>
-        <option value="moon">Moon (1.62)</option>
-        <option value="mars">Mars (3.72)</option>
-        <option value="jupiter">Jupiter (24.79)</option>
-      </select>
-      <!-- The throw button is enabled only on the local player's turn -->
-      <button id="throw-button" disabled>Hold to Throw</button>
-      <button id="create-game">Create Game</button>
-      <input type="text" id="gameIdInput" placeholder="Game ID">
-      <button id="join-game">Join Game</button>
-    </div>
-    <div id="gameLink"></div>
+  <!-- Setup Screen: Create/Join Game -->
+  <div id="setupScreen" class="screen">
+    <h1>Space Cornhole</h1>
+    <button id="create-game">Create Game</button>
+    <input type="text" id="gameIdInput" placeholder="Game ID">
+    <button id="join-game">Join Game</button>
   </div>
-
-<script>
-/********************************************************
- * Firebase Initialization and Two-Player Game Logic
- ********************************************************/
-const firebaseConfig = {
-  apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
-  authDomain: "galaxy-hole-53c76.firebaseapp.com",
-  projectId: "galaxy-hole-53c76",
-  storageBucket: "galaxy-hole-53c76.firebasestorage.app",
-  messagingSenderId: "592610380036",
-  appId: "1:592610380036:web:4b5c72ee181682b9262851",
-  measurementId: "G-6KWKF4T304"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// Global game state variables
-let gameId = null;
-let currentPlayer; // Indicates whose turn it is: 1 or 2.
-let localPlayerNum = null; // 1 or 2 for the local client.
-const totalThrows = 4;  // Each player gets four throws.
-let player1Throws = 0, player2Throws = 0;
-const playerId = generatePlayerId();
-
-// UI elements for game control and try counter
-const throwBtn = document.getElementById('throw-button');
-const tryCounterEl = document.getElementById('tryCounter');
-const createGameBtn = document.getElementById('create-game');
-const joinGameBtn = document.getElementById('join-game');
-const gameIdInput = document.getElementById('gameIdInput');
-const gameLinkEl = document.getElementById('gameLink');
-const planetSelect = document.getElementById('planet-select');
-
-/********************************************************
- * Planet Settings
- ********************************************************/
-const planets = {
-  earth: { gravity: 9.81, throwAdjustment: 1.0 },
-  moon:  { gravity: 1.62, throwAdjustment: 0.16 },
-  mars:  { gravity: 3.72, throwAdjustment: 0.38 },
-  jupiter: { gravity: 24.79, throwAdjustment: 2.53 }
-};
-let currentPlanet = planets.earth;
-planetSelect.addEventListener('change', (e) => {
-  const val = e.target.value;
-  currentPlanet = planets[val];
-});
-
-/********************************************************
- * Game Creation/Joining Functions
- ********************************************************/
-// Create a new game: local player becomes Player 1.
-function createNewGame() {
-  db.collection('cornholeGames').add({
-    player1Id: playerId,
-    player2Id: null,
-    currentPlayer: 1,
-    player1Throws: 0,
-    player2Throws: 0,
-    gameStatus: 'waiting'
-  }).then(docRef => {
-    gameId = docRef.id;
-    localPlayerNum = 1;
-    // Generate a sharable link
-    const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
-    gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}" target="_blank">${shareLink}</a> <button id="copyLink">Copy Link</button>`;
-    gameLinkEl.style.display = "block";
-    // Set up copy link functionality
-    document.getElementById('copyLink').addEventListener('click', () => {
-      navigator.clipboard.writeText(shareLink)
-        .then(() => alert("Link copied to clipboard!"))
-        .catch(err => alert("Failed to copy link."));
+  
+  <!-- Waiting Screen: Show shareable link and wait for opponent -->
+  <div id="waitingScreen" class="screen">
+    <p>Game created. Share this link with your friend:</p>
+    <div id="gameLink"></div>
+    <p>Waiting for opponent to join...</p>
+  </div>
+  
+  <!-- Game Screen: 3D game board and controls -->
+  <div id="gameScreen" class="screen">
+    <div id="game-container">
+      <div id="scene">
+        <div id="trajectory"></div>
+        <div id="board">
+          <div id="hole"></div>
+        </div>
+        <!-- Bags will be appended dynamically -->
+      </div>
+      <div id="tryCounter">Waiting for game...</div>
+      <div id="controls">
+        <label for="planet-select">Planet:</label>
+        <select id="planet-select">
+          <option value="earth">Earth (9.81)</option>
+          <option value="moon">Moon (1.62)</option>
+          <option value="mars">Mars (3.72)</option>
+          <option value="jupiter">Jupiter (24.79)</option>
+        </select>
+        <button id="throw-button" disabled>Hold to Throw</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Result Screen: Game Over message -->
+  <div id="resultScreen" class="screen">
+    <h2>Game Over!</h2>
+    <p id="resultMessage"></p>
+    <button id="restart-game">Play Again</button>
+  </div>
+  
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script>
+    /********************************************************
+     * Utility: Screen Switching
+     ********************************************************/
+    function showScreen(screenId) {
+      const screens = document.querySelectorAll('.screen');
+      screens.forEach(screen => {
+        screen.style.display = (screen.id === screenId) ? "flex" : "none";
+      });
+    }
+    
+    /********************************************************
+     * Firebase Initialization and Two-Player Game Logic
+     ********************************************************/
+    const firebaseConfig = {
+      apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+      authDomain: "galaxy-hole-53c76.firebaseapp.com",
+      projectId: "galaxy-hole-53c76",
+      storageBucket: "galaxy-hole-53c76.firebasestorage.app",
+      messagingSenderId: "592610380036",
+      appId: "1:592610380036:web:4b5c72ee181682b9262851",
+      measurementId: "G-6KWKF4T304"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // Global game state variables
+    let gameId = null;
+    let currentPlayer; // 1 or 2 (whose turn it is)
+    let localPlayerNum = null; // 1 or 2 for the local client
+    const totalThrows = 4; // Each player gets four throws
+    let player1Throws = 0, player2Throws = 0;
+    const playerId = generatePlayerId();
+    
+    // UI elements from setup and game screens
+    const createGameBtn = document.getElementById('create-game');
+    const joinGameBtn = document.getElementById('join-game');
+    const gameIdInput = document.getElementById('gameIdInput');
+    const gameLinkEl = document.getElementById('gameLink');
+    const throwBtn = document.getElementById('throw-button');
+    const tryCounterEl = document.getElementById('tryCounter');
+    const planetSelect = document.getElementById('planet-select');
+    const restartGameBtn = document.getElementById('restart-game');
+    
+    /********************************************************
+     * Planet Settings
+     ********************************************************/
+    const planets = {
+      earth: { gravity: 9.81, throwAdjustment: 1.0 },
+      moon:  { gravity: 1.62, throwAdjustment: 0.16 },
+      mars:  { gravity: 3.72, throwAdjustment: 0.38 },
+      jupiter: { gravity: 24.79, throwAdjustment: 2.53 }
+    };
+    let currentPlanet = planets.earth;
+    planetSelect.addEventListener('change', (e) => {
+      currentPlanet = planets[e.target.value];
     });
-    hideGameControls();
-    startGameListener();
-  }).catch(err => {
-    console.error("Error creating game", err);
-  });
-}
-
-// Join an existing game: local player becomes Player 2.
-function joinGame(gameIdToJoin) {
-  gameId = gameIdToJoin;
-  const gameRef = db.collection('cornholeGames').doc(gameId);
-  gameRef.get().then(doc => {
-    if (doc.exists) {
-      const data = doc.data();
-      if (!data.player2Id && data.player1Id !== playerId) {
-        return gameRef.update({
-          player2Id: playerId,
-          gameStatus: 'started'
-        }).then(() => {
-          localPlayerNum = 2;
-          hideGameControls();
-          startGameListener();
+    
+    /********************************************************
+     * Game Creation/Joining Functions
+     ********************************************************/
+    function createNewGame() {
+      db.collection('cornholeGames').add({
+        player1Id: playerId,
+        player2Id: null,
+        currentPlayer: 1,
+        player1Throws: 0,
+        player2Throws: 0,
+        gameStatus: 'waiting'
+      }).then(docRef => {
+        gameId = docRef.id;
+        localPlayerNum = 1;
+        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+        gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}" target="_blank">${shareLink}</a> <button id="copyLink">Copy Link</button>`;
+        document.getElementById('copyLink').addEventListener('click', () => {
+          navigator.clipboard.writeText(shareLink)
+            .then(() => alert("Link copied to clipboard!"))
+            .catch(() => alert("Failed to copy link."));
         });
-      } else if (data.player1Id === playerId || data.player2Id === playerId) {
-        // Already in this game.
-        localPlayerNum = (data.player1Id === playerId) ? 1 : 2;
-        hideGameControls();
+        showScreen("waitingScreen");
         startGameListener();
-      } else {
-        alert("Unable to join game. It may already be full.");
+      }).catch(err => console.error("Error creating game", err));
+    }
+    
+    function joinGame(gameIdToJoin) {
+      gameId = gameIdToJoin;
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      gameRef.get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          if (!data.player2Id && data.player1Id !== playerId) {
+            return gameRef.update({
+              player2Id: playerId,
+              gameStatus: 'started'
+            }).then(() => {
+              localPlayerNum = 2;
+              showScreen("gameScreen");
+              startGameListener();
+            });
+          } else if (data.player1Id === playerId || data.player2Id === playerId) {
+            localPlayerNum = (data.player1Id === playerId) ? 1 : 2;
+            showScreen("gameScreen");
+            startGameListener();
+          } else {
+            alert("Unable to join game. It may already be full.");
+          }
+        } else {
+          alert("Game not found.");
+        }
+      }).catch(err => console.error("Error joining game", err));
+    }
+    
+    // Auto-join game from URL if gameId parameter exists.
+    (function autoJoinGameFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has("gameId")) {
+        joinGame(urlParams.get("gameId"));
       }
-    } else {
-      alert("Game not found.");
+    })();
+    
+    function startGameListener() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      gameRef.onSnapshot(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          currentPlayer = data.currentPlayer;
+          player1Throws = data.player1Throws;
+          player2Throws = data.player2Throws;
+          updateTryCounter();
+          if (data.gameStatus === 'started') {
+            showScreen("gameScreen");
+          }
+          if (localPlayerNum === currentPlayer && data.gameStatus === 'started') {
+            throwBtn.disabled = false;
+          } else {
+            throwBtn.disabled = true;
+          }
+          if (data.gameStatus === 'ended') {
+            showResult();
+          }
+        }
+      });
     }
-  }).catch(err => console.error("Error joining game", err));
-}
-
-// Listen to game document updates and update the UI accordingly.
-function startGameListener() {
-  const gameRef = db.collection('cornholeGames').doc(gameId);
-  gameRef.onSnapshot(doc => {
-    if (doc.exists) {
-      const data = doc.data();
-      currentPlayer = data.currentPlayer;
-      player1Throws = data.player1Throws;
-      player2Throws = data.player2Throws;
-      updateTryCounter();
-      // Enable the throw button only if it’s our turn and the game is active.
-      if (localPlayerNum === currentPlayer && data.gameStatus === 'started') {
-        throwBtn.disabled = false;
+    
+    function updateTryCounter() {
+      let myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
+      tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
+    }
+    
+    function showResult() {
+      let resultMessage = "";
+      if (player1Throws === player2Throws) {
+        resultMessage = "It's a tie!";
+      } else if (player1Throws > player2Throws) {
+        resultMessage = (localPlayerNum === 1) ? "You win!" : "You lose!";
       } else {
-        throwBtn.disabled = true;
+        resultMessage = (localPlayerNum === 2) ? "You win!" : "You lose!";
       }
-      // (You might also update remote bag positions here.)
-    }
-  });
-}
-
-// Update the try counter display.
-function updateTryCounter() {
-  let myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
-  tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
-}
-
-// Hide the game creation/joining controls.
-function hideGameControls() {
-  createGameBtn.style.display = "none";
-  joinGameBtn.style.display = "none";
-  gameIdInput.style.display = "none";
-}
-
-// Auto-join game from URL if gameId parameter exists.
-(function autoJoinGameFromURL() {
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has("gameId")) {
-    const joinId = urlParams.get("gameId");
-    joinGame(joinId);
-  }
-})();
-
-/********************************************************
- * Cornhole Simulation Code (Physics, Trail, Bag Creation)
- ********************************************************/
-const sceneEl = document.getElementById('scene');
-const trajectoryContainer = document.getElementById('trajectory');
-const boardEl = document.getElementById('board');
-// We assume the board's y coordinate is the “floor” level.
-let floorY = window.innerHeight * 0.40;
-
-let isAnimating = false;
-let throwStartTime = 0;
-let currentBagEl = null;
-// Define colors for each player’s bag.
-const player1Color = "#c41e3a"; // red
-const player2Color = "#4287f5"; // blue
-
-// Create a new bag element, set its color, and position it at the "player's hand."
-function createBagElement() {
-  const bag = document.createElement('div');
-  bag.classList.add('bag');
-  // Set bag color based on localPlayerNum.
-  if (localPlayerNum === 1) {
-    bag.style.background = player1Color;
-  } else if (localPlayerNum === 2) {
-    bag.style.background = player2Color;
-  } else {
-    bag.style.background = "#c41e3a";
-  }
-  sceneEl.appendChild(bag);
-  setBagStartPosition(bag);
-  return bag;
-}
-function setBagStartPosition(bag) {
-  const gameW = window.innerWidth;
-  const gameH = window.innerHeight;
-  const bagWidth = 40, bagHeight = 40;
-  const startX = gameW * 0.5;
-  const startY = gameH - bagHeight - 20;
-  const startZ = 0;
-  bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY - bagHeight/2}px, ${startZ}px)`;
-}
-
-// Start timing the throw (on mousedown/touchstart).
-function startThrow(e) {
-  e.preventDefault();
-  if (isAnimating || !currentBagEl) return;
-  throwStartTime = performance.now();
-}
-// Release the throw (on mouseup/touchend) and calculate throw power.
-function releaseThrow(e) {
-  e.preventDefault();
-  if (isAnimating || throwStartTime === 0) return;
-  const holdTime = performance.now() - throwStartTime;
-  const throwPower = Math.min(100, holdTime / 20);
-  doThrow(throwPower);
-  throwStartTime = 0;
-}
-
-// Animate the bag along a 3D parabolic path.
-function doThrow(power) {
-  if (isAnimating || !currentBagEl) return;
-  isAnimating = true;
-  
-  const gameW = window.innerWidth;
-  const bagWidth = 40, bagHeight = 40;
-  
-  // Starting position (player's hand)
-  const startX = gameW * 0.5;
-  const startY = window.innerHeight - bagHeight - 20;
-  const startZ = 0;
-  // Target on (or near) the board. Adjust these values as needed.
-  const targetX = gameW * 0.5;
-  const targetY = floorY; // Use the board/floor level.
-  const targetZ = -280;
-  
-  const optimalPower = 50;
-  const baseArc = 100;
-  // Incorporate planet throwAdjustment for gravity effect.
-  const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
-  const flightTime = 2000; // milliseconds
-  const startTime = performance.now();
-  
-  function animateFrame(now) {
-    let t = (now - startTime) / flightTime;
-    if (t > 1) t = 1;
-    // Scale u based on power.
-    let u = t * (power / optimalPower);
-    const x = startX + (targetX - startX) * u;
-    const z = startZ + (targetZ - startZ) * u;
-    const linearY = startY + (targetY - startY) * u;
-    // Parabolic adjustment in y; if the computed y goes below floorY, clamp it.
-    let y = linearY - arcHeight * 4 * u * (1 - u);
-    if (y > targetY) {
-      y = targetY;
+      document.getElementById("resultMessage").textContent = resultMessage;
+      showScreen("resultScreen");
     }
     
-    currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - bagHeight/2}px, ${z}px)`;
+    restartGameBtn.addEventListener('click', () => {
+      window.location.reload();
+    });
     
-    // Create trail particles (using current x,y,z)
-    if ((now - startTime) % 40 < 20) {
-      createTrailParticle(x, y, z);
+    /********************************************************
+     * Cornhole Simulation (Physics, Trail, Bag Creation)
+     ********************************************************/
+    const sceneEl = document.getElementById('scene');
+    const trajectoryContainer = document.getElementById('trajectory');
+    const boardEl = document.getElementById('board');
+    let floorY = window.innerHeight * 0.40; // floor level based on board position
+    
+    let isAnimating = false;
+    let throwStartTime = 0;
+    let currentBagEl = null;
+    const player1Color = "#c41e3a"; // red
+    const player2Color = "#4287f5"; // blue
+    
+    function createBagElement() {
+      const bag = document.createElement('div');
+      bag.classList.add('bag');
+      bag.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
+      sceneEl.appendChild(bag);
+      setBagStartPosition(bag);
+      return bag;
     }
     
-    if (t < 1) {
+    function setBagStartPosition(bag) {
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const bagHeight = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - bagHeight - 20;
+      bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY - bagHeight/2}px, 0px)`;
+    }
+    
+    function startThrow(e) {
+      e.preventDefault();
+      if (isAnimating || !currentBagEl) return;
+      throwStartTime = performance.now();
+    }
+    
+    function releaseThrow(e) {
+      e.preventDefault();
+      if (isAnimating || throwStartTime === 0) return;
+      const holdTime = performance.now() - throwStartTime;
+      const throwPower = Math.min(100, holdTime / 20);
+      doThrow(throwPower);
+      throwStartTime = 0;
+    }
+    
+    function doThrow(power) {
+      if (isAnimating || !currentBagEl) return;
+      isAnimating = true;
+      
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - 40 - 20;
+      const startZ = 0;
+      const targetX = gameW * 0.5;
+      const targetY = floorY;
+      const targetZ = -280;
+      
+      const optimalPower = 50;
+      const baseArc = 100;
+      const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
+      const flightTime = 2000;
+      const startTime = performance.now();
+      
+      function animateFrame(now) {
+        let t = (now - startTime) / flightTime;
+        if (t > 1) t = 1;
+        let u = t * (power / optimalPower);
+        const x = startX + (targetX - startX) * u;
+        const z = startZ + (targetZ - startZ) * u;
+        const linearY = startY + (targetY - startY) * u;
+        let y = linearY - arcHeight * 4 * u * (1 - u);
+        if (y > targetY) { y = targetY; }
+        
+        currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - 20}px, ${z}px)`;
+        
+        if ((now - startTime) % 40 < 20) {
+          createTrailParticle(x, y, z);
+        }
+        
+        if (t < 1) {
+          requestAnimationFrame(animateFrame);
+        } else {
+          finishThrow();
+          isAnimating = false;
+        }
+      }
       requestAnimationFrame(animateFrame);
-    } else {
-      finishThrow();
-      isAnimating = false;
     }
-  }
-  requestAnimationFrame(animateFrame);
-}
-
-// When a throw animation finishes, update Firebase and create a new bag (if needed).
-function finishThrow() {
-  const gameRef = db.collection('cornholeGames').doc(gameId);
-  if (localPlayerNum === 1) {
-    gameRef.update({
-      player1Throws: firebase.firestore.FieldValue.increment(1)
-    }).then(() => {
-      if (player1Throws + 1 >= totalThrows) {
-        gameRef.get().then(doc => {
-          const data = doc.data();
-          if (data.player2Throws >= totalThrows) {
-            gameRef.update({gameStatus: 'ended'});
-            alert("Game over!");
-          } else {
-            gameRef.update({currentPlayer: 2});
+    
+    function finishThrow() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      if (localPlayerNum === 1) {
+        gameRef.update({
+          player1Throws: firebase.firestore.FieldValue.increment(1)
+        }).then(() => {
+          if (player1Throws + 1 >= totalThrows) {
+            gameRef.get().then(doc => {
+              const data = doc.data();
+              if (data.player2Throws >= totalThrows) {
+                gameRef.update({ gameStatus: 'ended' });
+              } else {
+                gameRef.update({ currentPlayer: 2 });
+              }
+            });
+          }
+        });
+      } else {
+        gameRef.update({
+          player2Throws: firebase.firestore.FieldValue.increment(1)
+        }).then(() => {
+          if (player2Throws + 1 >= totalThrows) {
+            gameRef.get().then(doc => {
+              const data = doc.data();
+              if (data.player1Throws >= totalThrows) {
+                gameRef.update({ gameStatus: 'ended' });
+              } else {
+                gameRef.update({ currentPlayer: 1 });
+              }
+            });
           }
         });
       }
-    });
-  } else {
-    gameRef.update({
-      player2Throws: firebase.firestore.FieldValue.increment(1)
-    }).then(() => {
-      if (player2Throws + 1 >= totalThrows) {
-        gameRef.get().then(doc => {
-          const data = doc.data();
-          if (data.player1Throws >= totalThrows) {
-            gameRef.update({gameStatus: 'ended'});
-            alert("Game over!");
-          } else {
-            gameRef.update({currentPlayer: 1});
-          }
-        });
+      
+      const myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
+      if (myThrows + 1 < totalThrows) {
+        currentBagEl = createBagElement();
+      } else {
+        currentBagEl = null;
       }
+    }
+    
+    function createTrailParticle(x, y, z) {
+      const p = document.createElement('div');
+      p.className = 'trail-particle';
+      p.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
+      p.style.boxShadow = `0 0 8px ${(localPlayerNum === 1) ? player1Color : player2Color}`;
+      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
+      p.style.zIndex = 5;
+      trajectoryContainer.appendChild(p);
+      setTimeout(() => p.remove(), 800);
+    }
+    
+    throwBtn.addEventListener('mousedown', startThrow);
+    throwBtn.addEventListener('mouseup', releaseThrow);
+    throwBtn.addEventListener('touchstart', startThrow);
+    throwBtn.addEventListener('touchend', releaseThrow);
+    
+    createGameBtn.addEventListener('click', () => { createNewGame(); });
+    joinGameBtn.addEventListener('click', () => {
+      const joinId = gameIdInput.value.trim();
+      if (joinId) { joinGame(joinId); }
     });
-  }
-  
-  // Leave the thrown bag on the board.
-  // If the local player still has throws remaining, create a new bag.
-  const myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
-  if (myThrows + 1 < totalThrows) {
-    currentBagEl = createBagElement();
-  } else {
-    currentBagEl = null;
-  }
-}
-
-// Create a small trail particle at the given 3D position.
-function createTrailParticle(x, y, z) {
-  const p = document.createElement('div');
-  p.className = 'trail-particle';
-  // Use the same color as the current bag.
-  p.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
-  p.style.boxShadow = `0 0 8px ${(localPlayerNum === 1) ? player1Color : player2Color}`;
-  p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-  p.style.zIndex = 5;
-  trajectoryContainer.appendChild(p);
-  setTimeout(() => p.remove(), 800);
-}
-
-/********************************************************
- * Event Listeners and Utility Functions
- ********************************************************/
-// Initialize the first bag (the throw button is enabled only on our turn)
-currentBagEl = createBagElement();
-throwBtn.addEventListener('mousedown', startThrow);
-throwBtn.addEventListener('mouseup', releaseThrow);
-throwBtn.addEventListener('touchstart', startThrow);
-throwBtn.addEventListener('touchend', releaseThrow);
-
-createGameBtn.addEventListener('click', () => {
-  createNewGame();
-});
-joinGameBtn.addEventListener('click', () => {
-  const joinId = gameIdInput.value.trim();
-  if (joinId) {
-    joinGame(joinId);
-  }
-});
-
-// Utility: Generate (and store) a unique playerId.
-function generatePlayerId() {
-  let stored = localStorage.getItem('playerId');
-  if (stored) return stored;
-  let newId = Math.random().toString(36).substr(2, 9);
-  localStorage.setItem('playerId', newId);
-  return newId;
-}
-</script>
+    
+    function generatePlayerId() {
+      let stored = localStorage.getItem('playerId');
+      if (stored) return stored;
+      let newId = Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('playerId', newId);
+      return newId;
+    }
+  </script>
 </body>
 </html>
