@@ -1,93 +1,584 @@
-# First, let's fix the board positioning in the CSS:
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Space Cornhole - 2 Player</title>
+  <style>
+    /* General reset */
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+      touch-action: none; /* Prevent default touch actions */
+    }
+    
+    /* Common style for all screens */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(#87CEEB, #90EE90);
+      z-index: 100;
+    }
+    
+    /* Show the setup screen initially */
+    #setupScreen {
+      display: flex;
+    }
+    
+    /* Setup Screen */
+    #setupScreen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      color: #333;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    #setupScreen button, 
+    #setupScreen input {
+      font-size: 18px;
+      margin: 10px;
+      padding: 12px 20px;
+      border-radius: 8px;
+    }
 
-#board {
-  position: absolute;
-  width: 120px;
-  height: 240px;
-  left: 50%;
-  top: 45%; /* Moved up from 35% */
-  transform-style: preserve-3d;
-  transform-origin: center bottom;
-  transform: translate(-50%, -50%) translateZ(-500px); /* Adjusted distance */
-  background: #8B4513;
-  border: 4px solid #654321;
-  border-radius: 4px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-}
+    #setupScreen input {
+      width: 200px;
+      border: 2px solid #ddd;
+    }
+    
+    /* Waiting Screen */
+    #waitingScreen p {
+      font-size: 20px;
+      margin: 15px;
+      color: #333;
+    }
+    
+    #gameLink {
+      margin: 20px;
+      padding: 15px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
 
-# And update the instructions text to reflect both mobile and desktop:
+    #gameLink input {
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 300px;
+    }
+    
+    /* Game Screen */
+    #gameScreen {
+      position: relative;
+      cursor: grab;
+    }
 
-#throwInstructions {
-  position: absolute;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 18px;
-  background: rgba(255,255,255,0.9);
-  padding: 12px 20px;
-  border-radius: 8px;
-  text-align: center;
-}
+    #gameScreen.dragging {
+      cursor: grabbing;
+    }
+    
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      perspective: 1200px;
+      perspective-origin: 50% 60%;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #scene {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: rotateX(30deg);
+    }
+    
+    #board {
+      position: absolute;
+      width: 120px;
+      height: 240px;
+      left: 50%;
+      top: 40%;
+      transform-style: preserve-3d;
+      transform-origin: center bottom;
+      transform: translate(-50%, -50%) translateZ(-500px);
+      background: #8B4513;
+      border: 4px solid #654321;
+      border-radius: 4px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    
+    #hole {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      left: 50%;
+      top: 25%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border-radius: 50%;
+    }
+    
+    /* Bag element style */
+    .bag {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 5px;
+      box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+      z-index: 10;
+      transition: transform 0.05s ease-out, opacity 0.3s ease-out;
+      transform-style: preserve-3d;
+    }
+    
+    /* Trail particles */
+    #trajectory {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    
+    .trail-particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 3px;
+      opacity: 0;
+      animation: fadeOut 0.6s forwards;
+      pointer-events: none;
+    }
+    
+    @keyframes fadeOut {
+      0% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+    
+    /* Game info displays */
+    #scoreDisplay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 24px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 101;
+    }
+    
+    #tryCounter {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 101;
+    }
+    
+    #throwInstructions {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 101;
+      text-align: center;
+      pointer-events: none;
+    }
+    
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.9);
+      padding: 15px 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      z-index: 101;
+    }
+    
+    #controls select {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: white;
+      font-size: 16px;
+      padding: 8px 12px;
+    }
 
-# Then modify the throw mechanics to work with mouse drag:
+    /* Preview line for throw direction */
+    #throwPreview {
+      position: absolute;
+      pointer-events: none;
+      z-index: 102;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
 
-let isDragging = false;
-let dragStart = { x: 0, y: 0, time: 0 };
+    .preview-line {
+      position: absolute;
+      width: 2px;
+      height: 100%;
+      background: rgba(255,255,255,0.5);
+      transform-origin: top;
+    }
 
-function startDrag(e) {
-  if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
+    /* Common button styles */
+    button {
+      background: #c41e3a;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      text-transform: uppercase;
+      user-select: none;
+      transition: transform 0.1s, background 0.2s;
+    }
+    
+    button:hover {
+      background: #d42e4a;
+    }
+    
+    button:active {
+      transform: scale(0.95);
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <!-- Setup Screen -->
+  <div id="setupScreen" class="screen">
+    <h1>Space Cornhole</h1>
+    <button id="create-game">Create Game</button>
+    <input type="text" id="gameIdInput" placeholder="Game ID">
+    <button id="join-game">Join Game</button>
+  </div>
   
-  isDragging = true;
-  const point = e.touches ? e.touches[0] : e;
-  dragStart = {
-    x: point.clientX,
-    y: point.clientY,
-    time: performance.now()
-  };
-}
-
-function endDrag(e) {
-  if (!isDragging) return;
-  isDragging = false;
+  <!-- Waiting Screen -->
+  <div id="waitingScreen" class="screen">
+    <p>Game created! Share this link with your friend:</p>
+    <div id="gameLink"></div>
+    <p id="waitingMessage">Waiting for opponent to join...</p>
+  </div>
   
-  const point = e.changedTouches ? e.changedTouches[0] : e;
-  const deltaX = point.clientX - dragStart.x;
-  const deltaY = dragStart.y - point.clientY;
-  const deltaTime = performance.now() - dragStart.time;
-  
-  // Only throw if it was a quick enough motion
-  if (deltaTime < 500 && Math.abs(deltaY) > 20) {
-    const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
-    const angle = Math.atan2(deltaY, deltaX);
-    const power = Math.min(100, speed * 150); // Adjusted for mouse movement
-    throwBag(power, angle, deltaX * 0.1);
-  }
-}
+  <!-- Game Screen -->
+  <div id="gameScreen" class="screen">
+    <div id="game-container">
+      <div id="scene">
+        <div id="trajectory"></div>
+        <div id="board">
+          <div id="hole"></div>
+        </div>
+      </div>
+      <div id="scoreDisplay">Score - Player 1: 0 | Player 2: 0</div>
+      <div id="tryCounter">Waiting for game...</div>
+      <div id="throwInstructions">Click and drag up to throw!</div>
+      <div id="throwPreview">
+        <div class="preview-line"></div>
+      </div>
+      <div id="controls">
+        <label for="planet-select">Planet:</label>
+        <select id="planet-select">
+          <option value="earth">Earth (9.81)</option>
+          <option value="moon">Moon (1.62)</option>
+          <option value="mars">Mars (3.72)</option>
+          <option value="jupiter">Jupiter (24.79)</option>
+        </select>
+      </div>
+    </div>
+  </div>
 
-function updateDragPreview(e) {
-  if (!isDragging || !currentBagEl) return;
-  
-  const point = e.touches ? e.touches[0] : e;
-  const deltaX = point.clientX - dragStart.x;
-  const deltaY = dragStart.y - point.clientY;
-  
-  // Show throw preview (optional visual feedback)
-  // ...
-}
+  <!-- Result Screen -->
+  <div id="resultScreen" class="screen">
+    <h2>Game Over!</h2>
+    <p id="resultMessage"></p>
+    <button id="restart-game">Play Again</button>
+  </div>
 
-// Update event listeners to handle both touch and mouse:
-sceneEl.addEventListener('mousedown', startDrag);
-sceneEl.addEventListener('mousemove', updateDragPreview);
-sceneEl.addEventListener('mouseup', endDrag);
-sceneEl.addEventListener('mouseleave', endDrag);
-sceneEl.addEventListener('touchstart', startDrag);
-sceneEl.addEventListener('touchmove', updateDragPreview);
-sceneEl.addEventListener('touchend', endDrag);
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  
+  <script>
+    // Firebase initialization
+    const firebaseConfig = {
+      apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+      authDomain: "galaxy-hole-53c76.firebaseapp.com",
+      projectId: "galaxy-hole-53c76",
+      storageBucket: "galaxy-hole-53c76.firebaseapp.com",
+      messagingSenderId: "592610380036",
+      appId: "1:592610380036:web:4b5c72ee181682b9262851",
+      measurementId: "G-6KWKF4T304"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-// Update the instructions text based on device type
-const isTouchDevice = ('ontouchstart' in window);
-document.getElementById('throwInstructions').textContent = 
-  isTouchDevice ? 'Swipe up to throw!' : 'Click and drag up to throw!';
+    // Global state
+    let gameId = null;
+    let currentPlayer = null;
+    let localPlayerNum = null;
+    const totalThrows = 4;
+    let player1Throws = 0, player2Throws = 0;
+    const playerId = generatePlayerId();
+    let currentBagEl = null;
+    let isAnimating = false;
+    let isDragging = false;
+    let dragStart = null;
+
+    // Scoring state
+    let roundScores = {
+      player1: { onBoard: 0, inHole: 0 },
+      player2: { onBoard: 0, inHole: 0 }
+    };
+
+    let gameScores = {
+      player1: 0,
+      player2: 0
+    };
+
+    const POINTS_IN_HOLE = 3;
+    const POINTS_ON_BOARD = 1;
+    const WINNING_SCORE = 21;
+
+    // DOM Elements
+    const tryCounterEl = document.getElementById('tryCounter');
+    const scoreDisplayEl = document.getElementById('scoreDisplay');
+    const planetSelect = document.getElementById('planet-select');
+    const sceneEl = document.getElementById('scene');
+    const trajectoryContainer = document.getElementById('trajectory');
+    const gameLinkEl = document.getElementById('gameLink');
+    const boardEl = document.getElementById('board');
+    const gameScreenEl = document.getElementById('gameScreen');
+    const throwPreviewEl = document.getElementById('throwPreview');
+    const throwInstructionsEl = document.getElementById('throwInstructions');
+
+    // Constants
+    const player1Color = "#c41e3a"; // red
+    const player2Color = "#4287f5"; // blue
+    const boardZ = -500; // Board distance
+    const boardTop = window.innerHeight * 0.4; // Board vertical position
+
+    // Planet settings with improved physics
+    const planets = {
+      earth: { gravity: 9.81, throwAdjustment: 1.0 },
+      moon: { gravity: 1.62, throwAdjustment: 0.4 },
+      mars: { gravity: 3.72, throwAdjustment: 0.7 },
+      jupiter: { gravity: 24.79, throwAdjustment: 2.0 }
+    };
+    let currentPlanet = planets.earth;
+
+    // Screen management
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(screen => {
+        screen.style.display = screen.id === screenId ? "flex" : "none";
+      });
+    }
+
+    // Game creation
+    async function createNewGame() {
+      try {
+        const gameRef = await db.collection('cornholeGames').add({
+          player1Id: playerId,
+          player2Id: null,
+          currentPlayer: 1,
+          player1Throws: 0,
+          player2Throws: 0,
+          gameStatus: 'waiting',
+          gameScores: gameScores
+        });
+        
+        gameId = gameRef.id;
+        localPlayerNum = 1;
+        
+        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+        gameLinkEl.innerHTML = `
+          <input type="text" value="${shareLink}" readonly>
+          <button id="copyLink">Copy Link</button>
+        `;
+        
+        document.getElementById('copyLink').addEventListener('click', () => {
+          navigator.clipboard.writeText(shareLink)
+            .then(() => alert("Link copied!"))
+            .catch(err => console.error("Copy failed", err));
+
+                                                             });
+
+        showScreen("waitingScreen");
+        startGameListener();
+      } catch (err) {
+        console.error("Error creating game:", err);
+        alert("Failed to create game. Please try again.");
+      }
+    }
+
+    // Game joining
+    async function joinGame(gameIdToJoin) {
+      if (!gameIdToJoin) {
+        alert("Please enter a game ID");
+        return;
+      }
+
+      try {
+        const gameRef = db.collection('cornholeGames').doc(gameIdToJoin);
+        const doc = await gameRef.get();
+
+        if (!doc.exists) {
+          alert("Game not found");
+          return;
+        }
+
+        const data = doc.data();
+        
+        if (data.player1Id === playerId || data.player2Id === playerId) {
+          // Rejoining existing game
+          localPlayerNum = data.player1Id === playerId ? 1 : 2;
+          gameId = gameIdToJoin;
+          gameScores = data.gameScores || { player1: 0, player2: 0 };
+          updateScoreDisplay();
+          showScreen("gameScreen");
+          startGameListener();
+        } else if (!data.player2Id && data.gameStatus === 'waiting') {
+          // Joining as player 2
+          await gameRef.update({
+            player2Id: playerId,
+            gameStatus: 'started'
+          });
+          localPlayerNum = 2;
+          gameId = gameIdToJoin;
+          showScreen("gameScreen");
+          startGameListener();
+        } else {
+          alert("Cannot join game - it may be full or already ended");
+        }
+      } catch (err) {
+        console.error("Error joining game:", err);
+        alert("Failed to join game. Please try again.");
+      }
+    }
+
+    // Game state listener
+    function startGameListener() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      gameRef.onSnapshot(doc => {
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        currentPlayer = data.currentPlayer;
+        player1Throws = data.player1Throws;
+        player2Throws = data.player2Throws;
+        gameScores = data.gameScores || gameScores;
+        
+        updateTryCounter();
+        updateScoreDisplay();
+
+        if (data.gameStatus === 'started') {
+          showScreen("gameScreen");
+          if (!currentBagEl && localPlayerNum === currentPlayer) {
+            currentBagEl = createBagElement();
+          }
+          throwInstructionsEl.style.display = 
+            localPlayerNum === currentPlayer ? 'block' : 'none';
+        } else if (data.gameStatus === 'ended') {
+          showResult();
+        }
+      }, error => {
+        console.error("Game listener error:", error);
+      });
+    }
+
+    // Drag mechanics
+    function startDrag(e) {
+      if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
+      
+      e.preventDefault();
+      isDragging = true;
+      gameScreenEl.classList.add('dragging');
+      
+      const point = e.touches ? e.touches[0] : e;
+      dragStart = {
+        x: point.clientX,
+        y: point.clientY,
+        time: performance.now()
+      };
+      
+      throwPreviewEl.style.opacity = '1';
+      throwPreviewEl.style.left = `${dragStart.x}px`;
+      throwPreviewEl.style.top = `${dragStart.y}px`;
+    }
+
+    function updateDrag(e) {
+      if (!isDragging) return;
+      
+      e.preventDefault();
+      const point = e.touches ? e.touches[0] : e;
+      const deltaX = point.clientX - dragStart.x;
+      const deltaY = point.clientY - dragStart.y;
+      
+      // Update throw preview line
+      const angle = Math.atan2(-deltaY, deltaX);
+      const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
+      
+      throwPreviewEl.style.transform = `rotate(${angle}rad)`;
+      throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      
+      e.preventDefault();
+      isDragging = false;
+      gameScreenEl.classList.remove('dragging');
+      throwPreviewEl.style.opacity = '0';
+      
+      const point = e.changedTouches ? e.changedTouches[0] : e;
+      const deltaX = point.clientX - dragStart.x;
+      const deltaY = dragStart.y - point.clientY;
+      const deltaTime = performance.now() - dragStart.time;
+      
+      // Only throw if the drag was quick enough and had enough movement
+      if (deltaTime < 500 && Math.abs(deltaY) > 20) {
+        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+        const angle = Math.atan2(deltaY, deltaX);
+        const power = Math.min(100, speed * 150);
+        throwBag(power, angle, deltaX * 0.1);
+      }
+      
+      dragStart = null;
+    }
+
     function throwBag(power, angle, horizontalAdjustment) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
@@ -100,12 +591,12 @@ document.getElementById('throwInstructions').textContent =
       
       // Physics parameters - adjusted for better trajectory
       const throwVelocity = power * 0.3 * currentPlanet.throwAdjustment;
-      const gravity = currentPlanet.gravity * 0.03; // Reduced gravity effect
+      const gravity = currentPlanet.gravity * 0.03;
       
-      // Initial velocities based on drag/swipe
+      // Initial velocities based on drag direction
       const vx = throwVelocity * Math.cos(angle) * 0.3 + horizontalAdjustment;
-      const vy = throwVelocity * Math.sin(angle) * 1.2; // Increased vertical component
-      const vz = -throwVelocity * 1.2; // Increased forward velocity
+      const vy = throwVelocity * Math.sin(angle) * 1.2;
+      const vz = -throwVelocity * 1.2;
       
       let posX = startX;
       let posY = startY;
@@ -116,7 +607,7 @@ document.getElementById('throwInstructions').textContent =
       let hasLanded = false;
 
       function animate() {
-        time += 0.016; // Approximately 60fps
+        time += 0.016;
         
         // Update position with parabolic motion
         posX = startX + vx * time;
@@ -127,13 +618,13 @@ document.getElementById('throwInstructions').textContent =
         rotationX += 5;
         rotationZ += 3;
         
-        // Update bag position with proper transforms for more realistic motion
+        // Update bag position with proper transforms
         currentBagEl.style.transform = 
           `translate3d(${posX - bagWidth/2}px, ${posY}px, ${posZ}px) 
            rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
         
         // Create trail effect
-        if (time * 1000 % 20 < 16) { // Increased trail frequency
+        if (time * 1000 % 20 < 16) {
           createTrailParticle(posX, posY, posZ);
         }
         
@@ -183,6 +674,23 @@ document.getElementById('throwInstructions').textContent =
       setTimeout(() => p.remove(), 600);
     }
 
+    function createBagElement() {
+      const bag = document.createElement('div');
+      bag.classList.add('bag');
+      bag.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+      sceneEl.appendChild(bag);
+      setBagStartPosition(bag);
+      return bag;
+    }
+
+    function setBagStartPosition(bag) {
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - bagWidth - 20;
+      bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
+    }
+
     function registerScore(x, y) {
       const boardCenter = window.innerWidth / 2;
       const distanceFromCenter = Math.abs(x - boardCenter);
@@ -196,7 +704,6 @@ document.getElementById('throwInstructions').textContent =
       
       if (isInHole) {
         roundScores[currentPlayerStr].inHole++;
-        // Visual feedback for hole-in
         createHoleInEffect(x, y);
       } else {
         roundScores[currentPlayerStr].onBoard++;
@@ -206,7 +713,6 @@ document.getElementById('throwInstructions').textContent =
     }
 
     function createHoleInEffect(x, y) {
-      // Add visual celebration for hole-in
       for (let i = 0; i < 20; i++) {
         const particle = document.createElement('div');
         particle.className = 'trail-particle';
@@ -262,51 +768,29 @@ document.getElementById('throwInstructions').textContent =
       }
     }
 
-    async function updateRoundScore() {
-      const roundResults = calculateRoundScore();
-      gameScores.player1 += roundResults.player1;
-      gameScores.player2 += roundResults.player2;
-      
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      
-      try {
-        if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
-          await gameRef.update({
-            gameStatus: 'ended',
-            gameScores: gameScores
-          });
-        } else {
-          await gameRef.update({
-            player1Throws: 0,
-            player2Throws: 0,
-            currentPlayer: 1,
-            gameScores: gameScores
-          });
-          startNewRound();
-        }
-      } catch (err) {
-        console.error("Error updating round score:", err);
-      }
+    function updateTryCounter() {
+      const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
+      tryCounterEl.textContent = 
+        currentPlayer === localPlayerNum ? 
+        `Your turn - Throw ${myThrows + 1} of ${totalThrows}` :
+        `Opponent's turn - Throw ${
+          currentPlayer === 1 ? player1Throws + 1 : player2Throws + 1
+        } of ${totalThrows}`;
     }
 
-    function showResult() {
-      const resultMessage = gameScores.player1 > gameScores.player2 ?
-        (localPlayerNum === 1 ? "You win!" : "You lose!") :
-        (localPlayerNum === 2 ? "You win!" : "You lose!");
-      
-      document.getElementById("resultMessage").textContent = 
-        `${resultMessage} Final Score: ${gameScores.player1} - ${gameScores.player2}`;
-      showScreen("resultScreen");
+    function updateScoreDisplay() {
+      scoreDisplayEl.textContent = 
+        `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
     }
 
-    // Event listeners for both mouse and touch
-    gameScreen.addEventListener('mousedown', startDrag);
-    gameScreen.addEventListener('mousemove', updateDragPreview);
-    gameScreen.addEventListener('mouseup', endDrag);
-    gameScreen.addEventListener('mouseleave', endDrag);
-    gameScreen.addEventListener('touchstart', startDrag);
-    gameScreen.addEventListener('touchmove', updateDragPreview);
-    gameScreen.addEventListener('touchend', endDrag);
+    // Event listeners
+    gameScreenEl.addEventListener('mousedown', startDrag);
+    gameScreenEl.addEventListener('mousemove', updateDrag);
+    gameScreenEl.addEventListener('mouseup', endDrag);
+    gameScreenEl.addEventListener('mouseleave', endDrag);
+    gameScreenEl.addEventListener('touchstart', startDrag);
+    gameScreenEl.addEventListener('touchmove', updateDrag);
+    gameScreenEl.addEventListener('touchend', endDrag);
 
     planetSelect.addEventListener('change', (e) => {
       currentPlanet = planets[e.target.value];
@@ -327,20 +811,19 @@ document.getElementById('throwInstructions').textContent =
       }
     });
 
-    // Handle visibility change
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && isAnimating) {
-        isAnimating = false;
-        if (currentBagEl) {
-          setBagStartPosition(currentBagEl);
-        }
-      }
-    });
-
     // Auto-join from URL
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has("gameId")) {
       joinGame(urlParams.get("gameId"));
+    }
+
+    // Helper functions
+    function generatePlayerId() {
+      let stored = localStorage.getItem('playerId');
+      if (stored) return stored;
+      let newId = Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('playerId', newId);
+      return newId;
     }
   </script>
 </body>
