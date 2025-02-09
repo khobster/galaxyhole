@@ -10,6 +10,7 @@
       font-family: system-ui, sans-serif;
       overflow: hidden;
     }
+    
     /* Common style for all screens */
     .screen {
       position: absolute;
@@ -17,13 +18,14 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      display: none; /* hidden by default */
+      display: none;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       background: linear-gradient(#87CEEB, #90EE90);
       z-index: 100;
     }
+    
     /* Show the setup screen initially */
     #setupScreen {
       display: flex;
@@ -33,30 +35,51 @@
     #setupScreen h1 {
       font-size: 48px;
       margin-bottom: 20px;
+      color: #333;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
     }
+    
     #setupScreen button, 
     #setupScreen input {
       font-size: 18px;
-      margin: 5px;
-      padding: 10px 15px;
+      margin: 10px;
+      padding: 12px 20px;
+      border-radius: 8px;
+    }
+
+    #setupScreen input {
+      width: 200px;
+      border: 2px solid #ddd;
     }
     
     /* Waiting Screen */
     #waitingScreen p {
       font-size: 20px;
-      margin: 10px;
+      margin: 15px;
+      color: #333;
     }
+    
     #gameLink {
-      font-size: 16px;
-      margin-top: 10px;
+      margin: 20px;
+      padding: 15px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    #gameLink input {
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 300px;
     }
     
     /* Game Screen */
     #gameScreen {
       position: relative;
-      display: flex;
-      flex-direction: column;
     }
+    
     #game-container {
       width: 100vw;
       height: 100vh;
@@ -65,6 +88,7 @@
       position: relative;
       overflow: hidden;
     }
+    
     #scene {
       width: 100%;
       height: 100%;
@@ -74,6 +98,7 @@
       left: 0;
       transform: rotateX(45deg);
     }
+    
     #board {
       position: absolute;
       width: 120px;
@@ -88,6 +113,7 @@
       border-radius: 4px;
       box-shadow: 0 10px 20px rgba(0,0,0,0.3);
     }
+    
     #hole {
       position: absolute;
       width: 30px;
@@ -98,6 +124,7 @@
       background: #000;
       border-radius: 50%;
     }
+    
     /* Bag element style */
     .bag {
       position: absolute;
@@ -106,7 +133,9 @@
       border-radius: 5px;
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
+      transition: transform 0.1s ease-out;
     }
+    
     /* Trail particles */
     #trajectory {
       position: absolute;
@@ -117,6 +146,7 @@
       left: 0;
       z-index: 1;
     }
+    
     .trail-particle {
       position: absolute;
       width: 8px;
@@ -126,21 +156,25 @@
       animation: fadeOut 0.6s forwards;
       pointer-events: none;
     }
+    
     @keyframes fadeOut {
       0% { opacity: 0.8; }
       100% { opacity: 0; }
     }
+    
     /* Game Screen controls */
     #tryCounter {
       position: absolute;
       top: 20px;
       right: 20px;
       font-size: 24px;
-      background: rgba(255,255,255,0.8);
-      padding: 10px 15px;
-      border-radius: 5px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       z-index: 101;
     }
+    
     #controls {
       position: absolute;
       bottom: 20px;
@@ -152,27 +186,41 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
       z-index: 101;
     }
-    #controls button, #controls select, #controls label {
+    
+    #controls button,
+    #controls select,
+    #controls label {
       font-size: 16px;
       padding: 8px 12px;
+    }
+
+    #controls select {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: white;
     }
     
     /* Result Screen */
     #resultScreen h2 {
       font-size: 36px;
       margin-bottom: 20px;
+      color: #333;
     }
+    
     #resultScreen p {
-      font-size: 20px;
+      font-size: 24px;
+      margin: 20px;
+      color: #444;
     }
+    
     #resultScreen button {
       font-size: 18px;
-      padding: 10px 15px;
-      margin-top: 20px;
+      padding: 12px 24px;
+      margin-top: 30px;
     }
     
     /* Common button styles */
@@ -180,19 +228,30 @@
       background: #c41e3a;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       cursor: pointer;
       font-weight: bold;
       text-transform: uppercase;
       user-select: none;
       transition: transform 0.1s, background 0.2s;
     }
-    button:hover { background: #d42e4a; }
-    button:active { transform: scale(0.95); }
+    
+    button:hover {
+      background: #d42e4a;
+    }
+    
+    button:active {
+      transform: scale(0.95);
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
-  <!-- Setup Screen: Create/Join Game -->
+  <!-- Setup Screen -->
   <div id="setupScreen" class="screen">
     <h1>Space Cornhole</h1>
     <button id="create-game">Create Game</button>
@@ -200,14 +259,14 @@
     <button id="join-game">Join Game</button>
   </div>
   
-  <!-- Waiting Screen: Share link and wait for opponent -->
+  <!-- Waiting Screen -->
   <div id="waitingScreen" class="screen">
-    <p>Game created. Share this link with your friend:</p>
+    <p>Game created! Share this link with your friend:</p>
     <div id="gameLink"></div>
-    <p>Waiting for opponent to join...</p>
+    <p id="waitingMessage">Waiting for opponent to join...</p>
   </div>
   
-  <!-- Game Screen: 3D game board and throw controls -->
+  <!-- Game Screen -->
   <div id="gameScreen" class="screen">
     <div id="game-container">
       <div id="scene">
@@ -215,7 +274,6 @@
         <div id="board">
           <div id="hole"></div>
         </div>
-        <!-- Bags will be appended dynamically -->
       </div>
       <div id="tryCounter">Waiting for game...</div>
       <div id="controls">
@@ -230,269 +288,273 @@
       </div>
     </div>
   </div>
-  
-  <!-- Result Screen: Game Over -->
+
+  <!-- Result Screen -->
   <div id="resultScreen" class="screen">
     <h2>Game Over!</h2>
     <p id="resultMessage"></p>
     <button id="restart-game">Play Again</button>
   </div>
-  
+
   <!-- Firebase Scripts -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  
   <script>
-    /********************************************************
-     * Utility: Screen Switching
-     ********************************************************/
-    function showScreen(screenId) {
-      document.querySelectorAll('.screen').forEach(screen => {
-        screen.style.display = (screen.id === screenId) ? "flex" : "none";
-      });
-    }
-    
-    /********************************************************
-     * Firebase Initialization and Two-Player Game Logic
-     ********************************************************/
+    // Firebase initialization
     const firebaseConfig = {
       apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
       authDomain: "galaxy-hole-53c76.firebaseapp.com",
       projectId: "galaxy-hole-53c76",
-      storageBucket: "galaxy-hole-53c76.firebasestorage.app",
+      storageBucket: "galaxy-hole-53c76.firebaseapp.com",
       messagingSenderId: "592610380036",
       appId: "1:592610380036:web:4b5c72ee181682b9262851",
       measurementId: "G-6KWKF4T304"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    
-    // Global game state variables
+
+    // Global state
     let gameId = null;
-    let currentPlayer; // Whose turn it is: 1 or 2.
-    let localPlayerNum = null; // 1 or 2 for this client.
+    let currentPlayer = null;
+    let localPlayerNum = null;
     const totalThrows = 4;
     let player1Throws = 0, player2Throws = 0;
     const playerId = generatePlayerId();
-    
-    // UI elements from the setup and game screens
-    const createGameBtn = document.getElementById('create-game');
-    const joinGameBtn = document.getElementById('join-game');
-    const gameIdInput = document.getElementById('gameIdInput');
-    const gameLinkEl = document.getElementById('gameLink');
+    let currentBagEl = null;
+    let isAnimating = false;
+    let throwStartTime = 0;
+
+    // DOM Elements
     const throwBtn = document.getElementById('throw-button');
     const tryCounterEl = document.getElementById('tryCounter');
     const planetSelect = document.getElementById('planet-select');
-    const restartGameBtn = document.getElementById('restart-game');
-    
-    /********************************************************
-     * Planet Settings
-     ********************************************************/
+    const sceneEl = document.getElementById('scene');
+    const trajectoryContainer = document.getElementById('trajectory');
+    const gameLinkEl = document.getElementById('gameLink');
+
+    // Constants
+    const player1Color = "#c41e3a"; // red
+    const player2Color = "#4287f5"; // blue
+    const floorY = window.innerHeight * 0.40;
+
+    // Planet settings
     const planets = {
       earth: { gravity: 9.81, throwAdjustment: 1.0 },
-      moon:  { gravity: 1.62, throwAdjustment: 0.16 },
-      mars:  { gravity: 3.72, throwAdjustment: 0.38 },
+      moon: { gravity: 1.62, throwAdjustment: 0.16 },
+      mars: { gravity: 3.72, throwAdjustment: 0.38 },
       jupiter: { gravity: 24.79, throwAdjustment: 2.53 }
     };
     let currentPlanet = planets.earth;
-    planetSelect.addEventListener('change', (e) => {
-      currentPlanet = planets[e.target.value];
-    });
-    
-    /********************************************************
-     * Game Creation/Joining Functions
-     ********************************************************/
-    function createNewGame() {
-      db.collection('cornholeGames').add({
-        player1Id: playerId,
-        player2Id: null,
-        currentPlayer: 1,
-        player1Throws: 0,
-        player2Throws: 0,
-        gameStatus: 'waiting'
-      }).then(docRef => {
-        gameId = docRef.id;
-        localPlayerNum = 1;
-        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
-        gameLinkEl.innerHTML = `Share this link with your friend: <a href="${shareLink}" target="_blank">${shareLink}</a> <button id="copyLink">Copy Link</button>`;
-        document.getElementById('copyLink').addEventListener('click', () => {
-          navigator.clipboard.writeText(shareLink)
-            .then(() => alert("Link copied to clipboard!"))
-            .catch(() => alert("Failed to copy link."));
-        });
-        showScreen("waitingScreen");
-        startGameListener();
-      }).catch(err => console.error("Error creating game", err));
-    }
-    
-    function joinGame(gameIdToJoin) {
-      gameId = gameIdToJoin;
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      gameRef.get().then(doc => {
-        if (doc.exists) {
-          const data = doc.data();
-          if (!data.player2Id && data.player1Id !== playerId) {
-            return gameRef.update({
-              player2Id: playerId,
-              gameStatus: 'started'
-            }).then(() => {
-              localPlayerNum = 2;
-              showScreen("gameScreen");
-              startGameListener();
-            });
-          } else if (data.player1Id === playerId || data.player2Id === playerId) {
-            localPlayerNum = (data.player1Id === playerId) ? 1 : 2;
-            showScreen("gameScreen");
-            startGameListener();
-          } else {
-            alert("Unable to join game. It may already be full.");
-          }
-        } else {
-          alert("Game not found.");
-        }
-      }).catch(err => console.error("Error joining game", err));
-    }
-    
-    // Auto-join if URL contains a gameId parameter.
-    (function autoJoinGameFromURL() {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has("gameId")) {
-        joinGame(urlParams.get("gameId"));
-      }
-    })();
-    
-    function startGameListener() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      gameRef.onSnapshot(doc => {
-        if (doc.exists) {
-          const data = doc.data();
-          currentPlayer = data.currentPlayer;
-          player1Throws = data.player1Throws;
-          player2Throws = data.player2Throws;
-          updateTryCounter();
-          if (data.gameStatus === 'started') {
-            showScreen("gameScreen");
-            // Create the bag if it hasn't been created yet.
-            if (!currentBagEl) {
-              currentBagEl = createBagElement();
-            }
-          }
-          // Enable the throw button if it’s our turn.
-          if (localPlayerNum === currentPlayer && data.gameStatus === 'started') {
-            throwBtn.disabled = false;
-          } else {
-            throwBtn.disabled = true;
-          }
-          if (data.gameStatus === 'ended') {
-            showResult();
-          }
-        }
+
+    // Screen management
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(screen => {
+        screen.style.display = screen.id === screenId ? "flex" : "none";
       });
     }
-    
+
+    // Game creation
+    async function createNewGame() {
+      try {
+        const gameRef = await db.collection('cornholeGames').add({
+          player1Id: playerId,
+          player2Id: null,
+          currentPlayer: 1,
+          player1Throws: 0,
+          player2Throws: 0,
+          gameStatus: 'waiting'
+        });
+        
+        gameId = gameRef.id;
+        localPlayerNum = 1;
+        
+        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+        gameLinkEl.innerHTML = `
+          <input type="text" value="${shareLink}" readonly>
+          <button id="copyLink">Copy Link</button>
+        `;
+        
+        document.getElementById('copyLink').addEventListener('click', () => {
+          navigator.clipboard.writeText(shareLink)
+            .then(() => alert("Link copied!"))
+            .catch(err => console.error("Copy failed", err));
+        });
+
+        showScreen("waitingScreen");
+        startGameListener();
+      } catch (err) {
+        console.error("Error creating game:", err);
+        alert("Failed to create game. Please try again.");
+      }
+    }
+
+    // Game joining
+    async function joinGame(gameIdToJoin) {
+      if (!gameIdToJoin) {
+        alert("Please enter a game ID");
+        return;
+      }
+
+      try {
+        const gameRef = db.collection('cornholeGames').doc(gameIdToJoin);
+        const doc = await gameRef.get();
+
+        if (!doc.exists) {
+          alert("Game not found");
+          return;
+        }
+
+        const data = doc.data();
+        
+        if (data.player1Id === playerId || data.player2Id === playerId) {
+          // Rejoining existing game
+          localPlayerNum = data.player1Id === playerId ? 1 : 2;
+          gameId = gameIdToJoin;
+          showScreen("gameScreen");
+          startGameListener();
+        } else if (!data.player2Id && data.gameStatus === 'waiting') {
+          // Joining as player 2
+          await gameRef.update({
+            player2Id: playerId,
+            gameStatus: 'started'
+          });
+          localPlayerNum = 2;
+          gameId = gameIdToJoin;
+          showScreen("gameScreen");
+          startGameListener();
+        } else {
+          alert("Cannot join game - it may be full or already ended");
+        }
+      } catch (err) {
+        console.error("Error joining game:", err);
+        alert("Failed to join game. Please try again.");
+      }
+    }
+
+    // Game state listener
+    function startGameListener() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      gameRef.onSnapshot(doc => {
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        currentPlayer = data.currentPlayer;
+        player1Throws = data.player1Throws;
+        player2Throws = data.player2Throws;
+        
+        updateTryCounter();
+
+        if (data.gameStatus === 'started') {
+          showScreen("gameScreen");
+          if (!currentBagEl) {
+            currentBagEl = createBagElement();
+          }
+          throwBtn.disabled = localPlayerNum !== currentPlayer;
+        } else if (data.gameStatus === 'ended') {
+          showResult();
+        }
+      }, error => {
+        console.error("Game listener error:", error);
+      });
+    }
+
+    // UI Updates
     function updateTryCounter() {
-      let myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
+      const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
       tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
     }
-    
+
     function showResult() {
       let resultMessage = "";
       if (player1Throws === player2Throws) {
         resultMessage = "It's a tie!";
       } else if (player1Throws > player2Throws) {
-        resultMessage = (localPlayerNum === 1) ? "You win!" : "You lose!";
+        resultMessage = localPlayerNum === 1 ? "You win!" : "You lose!";
       } else {
-        resultMessage = (localPlayerNum === 2) ? "You win!" : "You lose!";
+        resultMessage = localPlayerNum === 2 ? "You win!" : "You lose!";
       }
       document.getElementById("resultMessage").textContent = resultMessage;
       showScreen("resultScreen");
     }
-    
-    restartGameBtn.addEventListener('click', () => {
-      window.location.reload();
-    });
-    
-    /********************************************************
-     * Cornhole Simulation (Physics, Trail, Bag Creation)
-     ********************************************************/
-    const sceneEl = document.getElementById('scene');
-    const trajectoryContainer = document.getElementById('trajectory');
-    const boardEl = document.getElementById('board');
-    let floorY = window.innerHeight * 0.40; // floor level based on board position
-    
-    let isAnimating = false;
-    let throwStartTime = 0;
-    let currentBagEl = null;
-    const player1Color = "#c41e3a"; // red
-    const player2Color = "#4287f5"; // blue
-    
+
+    // Bag creation and physics
     function createBagElement() {
       const bag = document.createElement('div');
       bag.classList.add('bag');
-      bag.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
+      bag.style.background = localPlayerNum === 1 ? player1Color : player2Color;
       sceneEl.appendChild(bag);
       setBagStartPosition(bag);
       return bag;
     }
-    
+
     function setBagStartPosition(bag) {
       const gameW = window.innerWidth;
       const bagWidth = 40;
-      const bagHeight = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - bagHeight - 20;
-      bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY - bagHeight/2}px, 0px)`;
+      const startY = window.innerHeight - bagWidth - 20;
+      bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
     }
-    
+
+    // Throw mechanics
     function startThrow(e) {
       e.preventDefault();
-      if (isAnimating || !currentBagEl) return;
+      if (isAnimating || !currentBagEl || throwBtn.disabled) return;
       throwStartTime = performance.now();
+      throwBtn.style.background = '#a01830';
     }
-    
+
     function releaseThrow(e) {
       e.preventDefault();
-      if (isAnimating || throwStartTime === 0) return;
+      if (isAnimating || throwStartTime === 0 || !currentBagEl || throwBtn.disabled) return;
+      
       const holdTime = performance.now() - throwStartTime;
       const throwPower = Math.min(100, holdTime / 20);
+      throwBtn.style.background = '#c41e3a';
       doThrow(throwPower);
       throwStartTime = 0;
     }
-    
+
     function doThrow(power) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
-      
+
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 40 - 20;
+      const startY = window.innerHeight - bagWidth - 20;
       const startZ = 0;
       const targetX = gameW * 0.5;
       const targetY = floorY;
       const targetZ = -280;
-      
+
       const optimalPower = 50;
       const baseArc = 100;
       const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
-      const flightTime = 2000; // milliseconds
+      const flightTime = 2000;
       const startTime = performance.now();
-      
+
       function animateFrame(now) {
         let t = (now - startTime) / flightTime;
         if (t > 1) t = 1;
+        
         let u = t * (power / optimalPower);
         const x = startX + (targetX - startX) * u;
         const z = startZ + (targetZ - startZ) * u;
         const linearY = startY + (targetY - startY) * u;
         let y = linearY - arcHeight * 4 * u * (1 - u);
-        if (y > targetY) { y = targetY; }
         
+        if (y > targetY) {
+          y = targetY;
+        }
+
         currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - 20}px, ${z}px)`;
-        
+
         if ((now - startTime) % 40 < 20) {
           createTrailParticle(x, y, z);
         }
-        
+
         if (t < 1) {
           requestAnimationFrame(animateFrame);
         } else {
@@ -500,79 +562,98 @@
           isAnimating = false;
         }
       }
+
       requestAnimationFrame(animateFrame);
     }
-    
-    function finishThrow() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      if (localPlayerNum === 1) {
-        gameRef.update({
-          player1Throws: firebase.firestore.FieldValue.increment(1)
-        }).then(() => {
-          if (player1Throws + 1 >= totalThrows) {
-            gameRef.get().then(doc => {
-              const data = doc.data();
-              if (data.player2Throws >= totalThrows) {
-                gameRef.update({ gameStatus: 'ended' });
-              } else {
-                gameRef.update({ currentPlayer: 2 });
-              }
-            });
-          }
-        });
-      } else {
-        gameRef.update({
-          player2Throws: firebase.firestore.FieldValue.increment(1)
-        }).then(() => {
-          if (player2Throws + 1 >= totalThrows) {
-            gameRef.get().then(doc => {
-              const data = doc.data();
-              if (data.player1Throws >= totalThrows) {
-                gameRef.update({ gameStatus: 'ended' });
-              } else {
-                gameRef.update({ currentPlayer: 1 });
-              }
-            });
-          }
-        });
-      }
-      
-      const myThrows = (localPlayerNum === 1) ? player1Throws : player2Throws;
-      if (myThrows + 1 < totalThrows) {
-        currentBagEl = createBagElement();
-      } else {
-        currentBagEl = null;
-      }
-    }
-    
+
     function createTrailParticle(x, y, z) {
       const p = document.createElement('div');
       p.className = 'trail-particle';
-      p.style.background = (localPlayerNum === 1) ? player1Color : player2Color;
-      p.style.boxShadow = `0 0 8px ${(localPlayerNum === 1) ? player1Color : player2Color}`;
+      p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+      p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
       p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-      p.style.zIndex = 5;
       trajectoryContainer.appendChild(p);
       setTimeout(() => p.remove(), 800);
     }
-    
+
+    async function finishThrow() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      try {
+        if (localPlayerNum === 1) {
+          await gameRef.update({
+            player1Throws: firebase.firestore.FieldValue.increment(1)
+          });
+          
+          if (player1Throws + 1 >= totalThrows) {
+            const doc = await gameRef.get();
+            const data = doc.data();
+            if (data.player2Throws >= totalThrows) {
+              await gameRef.update({ gameStatus: 'ended' });
+            } else {
+              await gameRef.update({ currentPlayer: 2 });
+            }
+          }
+        } else {
+          await gameRef.update({
+            player2Throws: firebase.firestore.FieldValue.increment(1)
+          });
+          
+          if (player2Throws + 1 >= totalThrows) {
+            const doc = await gameRef.get();
+            const data = doc.data();
+            if (data.player1Throws >= totalThrows) {
+              await gameRef.update({ gameStatus: 'ended' });
+            } else {
+              await gameRef.update({ currentPlayer: 1 });
+            }
+          }
+        }
+
+        const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
+        if (myThrows + 1 < totalThrows) {
+          currentBagEl = createBagElement();
+        } else {
+          currentBagEl = null;
+        }
+      } catch (err) {
+        console.error("Error updating game state:", err);
+        alert("Failed to update game state. Please try refreshing the page.");
+      }
+    }
+
+    // Event listeners
+    planetSelect.addEventListener('change', (e) => {
+      currentPlanet = planets[e.target.value];
+    });
+
     throwBtn.addEventListener('mousedown', startThrow);
     throwBtn.addEventListener('mouseup', releaseThrow);
     throwBtn.addEventListener('touchstart', startThrow);
     throwBtn.addEventListener('touchend', releaseThrow);
-    
-    createGameBtn.addEventListener('click', () => { createNewGame(); });
-    joinGameBtn.addEventListener('click', () => {
-      const joinId = gameIdInput.value.trim();
-      if (joinId) { joinGame(joinId); }
+    throwBtn.addEventListener('mouseleave', releaseThrow);
+
+    document.getElementById('create-game').addEventListener('click', createNewGame);
+    document.getElementById('join-game').addEventListener('click', () => {
+      joinGame(document.getElementById('gameIdInput').value.trim());
     });
-    
+    document.getElementById('restart-game').addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    // Helper functions
     function generatePlayerId() {
       let stored = localStorage.getItem('playerId');
       if (stored) return stored;
       let newId = Math.random().toString(36).substr(2, 9);
       localStorage.setItem('playerId', newId);
       return newId;
+    }
+
+    // Auto-join from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has("gameId")) {
+      joinGame(urlParams.get("gameId"));
     }
   </script>
 </body>
