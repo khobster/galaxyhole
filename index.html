@@ -133,7 +133,7 @@
       border-radius: 5px;
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
-      transition: transform 0.1s ease-out;
+      transition: transform 0.05s ease-out;
     }
     
     /* Trail particles */
@@ -202,25 +202,6 @@
       border: 1px solid #ddd;
       border-radius: 4px;
       background: white;
-    }
-    
-    /* Result Screen */
-    #resultScreen h2 {
-      font-size: 36px;
-      margin-bottom: 20px;
-      color: #333;
-    }
-    
-    #resultScreen p {
-      font-size: 24px;
-      margin: 20px;
-      color: #444;
-    }
-    
-    #resultScreen button {
-      font-size: 18px;
-      padding: 12px 24px;
-      margin-top: 30px;
     }
     
     /* Common button styles */
@@ -332,18 +313,22 @@
     const sceneEl = document.getElementById('scene');
     const trajectoryContainer = document.getElementById('trajectory');
     const gameLinkEl = document.getElementById('gameLink');
+    const boardEl = document.getElementById('board');
 
     // Constants
     const player1Color = "#c41e3a"; // red
     const player2Color = "#4287f5"; // blue
     const floorY = window.innerHeight * 0.40;
+    const boardRect = boardEl.getBoundingClientRect();
+    const boardTop = boardRect.top + window.scrollY;
+    const boardZ = -300; // Board Z position
 
-    // Planet settings
+    // Planet settings with improved physics
     const planets = {
       earth: { gravity: 9.81, throwAdjustment: 1.0 },
-      moon: { gravity: 1.62, throwAdjustment: 0.16 },
-      mars: { gravity: 3.72, throwAdjustment: 0.38 },
-      jupiter: { gravity: 24.79, throwAdjustment: 2.53 }
+      moon: { gravity: 1.62, throwAdjustment: 0.4 },
+      mars: { gravity: 3.72, throwAdjustment: 0.7 },
+      jupiter: { gravity: 24.79, throwAdjustment: 2.0 }
     };
     let currentPlanet = planets.earth;
 
@@ -497,7 +482,7 @@
       bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
     }
 
-    // Throw mechanics
+    // Throw mechanics with improved physics
     function startThrow(e) {
       e.preventDefault();
       if (isAnimating || !currentBagEl || throwBtn.disabled) return;
@@ -510,7 +495,8 @@
       if (isAnimating || throwStartTime === 0 || !currentBagEl || throwBtn.disabled) return;
       
       const holdTime = performance.now() - throwStartTime;
-      const throwPower = Math.min(100, holdTime / 20);
+      // More sensitive power calculation
+      const throwPower = Math.min(100, holdTime / 5); // Increased sensitivity
       throwBtn.style.background = '#c41e3a';
       doThrow(throwPower);
       throwStartTime = 0;
@@ -522,40 +508,71 @@
 
       const gameW = window.innerWidth;
       const bagWidth = 40;
-      const startX = gameW * 0.5;
+      
+      // Starting position with slight randomness
+      const startX = gameW * 0.5 + (Math.random() * 40 - 20);
       const startY = window.innerHeight - bagWidth - 20;
       const startZ = 0;
-      const targetX = gameW * 0.5;
-      const targetY = floorY;
-      const targetZ = -280;
-
-      const optimalPower = 50;
-      const baseArc = 100;
-      const arcHeight = baseArc * (power / optimalPower) * currentPlanet.throwAdjustment;
-      const flightTime = 2000;
+      
+      // Calculate throw parameters
+      const throwAngle = (45 + (Math.random() * 10 - 5)) * (Math.PI / 180); // Base 45° + variation
+      const throwVelocity = power * 0.4 * currentPlanet.throwAdjustment;
+      const gravity = currentPlanet.gravity * 0.1;
+      
+      // Initial velocities
+      const vx = throwVelocity * Math.cos(throwAngle) * (Math.random() * 0.4 + 0.8); // Add some randomness
+      const vy = throwVelocity * Math.sin(throwAngle);
+      const vz = -throwVelocity * 0.8;
+      
       const startTime = performance.now();
+      let lastTime = startTime;
+      let posX = startX;
+      let posY = startY;
+      let posZ = startZ;
+      let hasHitBoard = false;
+      let hasLanded = false;
 
       function animateFrame(now) {
-        let t = (now - startTime) / flightTime;
-        if (t > 1) t = 1;
+        const deltaTime = (now - lastTime) / 1000; // Convert to seconds
+        lastTime = now;
         
-        let u = t * (power / optimalPower);
-        const x = startX + (targetX - startX) * u;
-        const z = startZ + (targetZ - startZ) * u;
-        const linearY = startY + (targetY - startY) * u;
-        let y = linearY - arcHeight * 4 * u * (1 - u);
-        
-        if (y > targetY) {
-          y = targetY;
+        if (!hasLanded) {
+          // Update position using physics
+          posX += vx * deltaTime;
+          posY -= (vy * deltaTime - 0.5 * gravity * deltaTime * deltaTime);
+          posZ += vz * deltaTime;
+          
+          // Check for collision with board
+          if (posZ <= boardZ && !hasHitBoard) {
+            const boardHitY = window.innerHeight * 0.25;
+            if (posY > boardHitY - 40 && posY < boardHitY + 240) {
+              // Hit the board
+              hasHitBoard = true;
+              hasLanded = true;
+              posZ = boardZ + 2; // Rest slightly above board
+              // Add slight random rotation for visual effect
+              const rotation = Math.random() * 360;
+              currentBagEl.style.transform = `translate3d(${posX - bagWidth/2}px, ${posY - 20}px, ${posZ}px) rotate(${rotation}deg)`;
+            }
+          }
+          
+          // Check if bag has fallen to the ground
+          if (posY >= window.innerHeight - 40) {
+            hasLanded = true;
+            posY = window.innerHeight - 40;
+          }
+
+          // Update bag position
+          currentBagEl.style.transform = `translate3d(${posX - bagWidth/2}px, ${posY - 20}px, ${posZ}px)`;
+
+          // Create trail particles
+          if ((now - startTime) % 30 < 15) {
+            createTrailParticle(posX, posY, posZ);
+          }
         }
 
-        currentBagEl.style.transform = `translate3d(${x - bagWidth/2}px, ${y - 20}px, ${z}px)`;
-
-        if ((now - startTime) % 40 < 20) {
-          createTrailParticle(x, y, z);
-        }
-
-        if (t < 1) {
+        // Continue animation until landed or timeout
+        if (!hasLanded && now - startTime < 3000) {
           requestAnimationFrame(animateFrame);
         } else {
           finishThrow();
@@ -572,6 +589,7 @@
       p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
       p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
       p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
+      p.style.zIndex = Math.floor(-z); // Dynamic z-index based on depth
       trajectoryContainer.appendChild(p);
       setTimeout(() => p.remove(), 800);
     }
@@ -639,6 +657,25 @@
     });
     document.getElementById('restart-game').addEventListener('click', () => {
       window.location.reload();
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      const boardRect = boardEl.getBoundingClientRect();
+      boardTop = boardRect.top + window.scrollY;
+      if (currentBagEl) {
+        setBagStartPosition(currentBagEl);
+      }
+    });
+
+    // Handle visibility change
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isAnimating) {
+        isAnimating = false;
+        if (currentBagEl) {
+          setBagStartPosition(currentBagEl);
+        }
+      }
     });
 
     // Helper functions
