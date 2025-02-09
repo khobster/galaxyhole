@@ -9,6 +9,7 @@
       margin: 0;
       font-family: system-ui, sans-serif;
       overflow: hidden;
+      touch-action: none; /* Prevent default touch actions for better swipe control */
     }
     
     /* Common style for all screens */
@@ -83,8 +84,8 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 1000px;
-      perspective-origin: 50% 75%;
+      perspective: 1200px; /* Increased for better depth */
+      perspective-origin: 50% 65%;
       position: relative;
       overflow: hidden;
     }
@@ -96,7 +97,7 @@
       position: absolute;
       top: 0;
       left: 0;
-      transform: rotateX(45deg);
+      transform: rotateX(30deg); /* Better angle for cornhole perspective */
     }
     
     #board {
@@ -104,14 +105,14 @@
       width: 120px;
       height: 240px;
       left: 50%;
-      top: 25%;
+      top: 35%;
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-300px);
+      transform: translate(-50%, -50%) translateZ(-600px); /* More distance */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
     }
     
     #hole {
@@ -134,6 +135,7 @@
       box-shadow: 0 5px 10px rgba(0,0,0,0.2);
       z-index: 10;
       transition: transform 0.05s ease-out;
+      transform-style: preserve-3d;
     }
     
     /* Trail particles */
@@ -162,7 +164,19 @@
       100% { opacity: 0; }
     }
     
-    /* Game Screen controls */
+    /* Game info displays */
+    #scoreDisplay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 24px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 101;
+    }
+    
     #tryCounter {
       position: absolute;
       top: 20px;
@@ -173,6 +187,20 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       z-index: 101;
+    }
+    
+    #throwInstructions {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      background: rgba(255,255,255,0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 101;
+      text-align: center;
     }
     
     #controls {
@@ -191,43 +219,12 @@
       z-index: 101;
     }
     
-    #controls button,
-    #controls select,
-    #controls label {
-      font-size: 16px;
-      padding: 8px 12px;
-    }
-
     #controls select {
       border: 1px solid #ddd;
       border-radius: 4px;
       background: white;
-    }
-    
-    /* Common button styles */
-    button {
-      background: #c41e3a;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      text-transform: uppercase;
-      user-select: none;
-      transition: transform 0.1s, background 0.2s;
-    }
-    
-    button:hover {
-      background: #d42e4a;
-    }
-    
-    button:active {
-      transform: scale(0.95);
-    }
-
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
+      font-size: 16px;
+      padding: 8px 12px;
     }
   </style>
 </head>
@@ -256,7 +253,9 @@
           <div id="hole"></div>
         </div>
       </div>
+      <div id="scoreDisplay">Score - Player 1: 0 | Player 2: 0</div>
       <div id="tryCounter">Waiting for game...</div>
+      <div id="throwInstructions">Swipe up to throw!</div>
       <div id="controls">
         <label for="planet-select">Planet:</label>
         <select id="planet-select">
@@ -265,7 +264,6 @@
           <option value="mars">Mars (3.72)</option>
           <option value="jupiter">Jupiter (24.79)</option>
         </select>
-        <button id="throw-button" disabled>Hold to Throw</button>
       </div>
     </div>
   </div>
@@ -304,11 +302,25 @@
     const playerId = generatePlayerId();
     let currentBagEl = null;
     let isAnimating = false;
-    let throwStartTime = 0;
+
+    // Scoring state
+    let roundScores = {
+      player1: { onBoard: 0, inHole: 0 },
+      player2: { onBoard: 0, inHole: 0 }
+    };
+
+    let gameScores = {
+      player1: 0,
+      player2: 0
+    };
+
+    const POINTS_IN_HOLE = 3;
+    const POINTS_ON_BOARD = 1;
+    const WINNING_SCORE = 21;
 
     // DOM Elements
-    const throwBtn = document.getElementById('throw-button');
     const tryCounterEl = document.getElementById('tryCounter');
+    const scoreDisplayEl = document.getElementById('scoreDisplay');
     const planetSelect = document.getElementById('planet-select');
     const sceneEl = document.getElementById('scene');
     const trajectoryContainer = document.getElementById('trajectory');
@@ -318,10 +330,8 @@
     // Constants
     const player1Color = "#c41e3a"; // red
     const player2Color = "#4287f5"; // blue
-    const floorY = window.innerHeight * 0.40;
-    const boardRect = boardEl.getBoundingClientRect();
-    const boardTop = boardRect.top + window.scrollY;
-    const boardZ = -300; // Board Z position
+    const boardZ = -600; // Board distance
+    const boardTop = window.innerHeight * 0.35;
 
     // Planet settings with improved physics
     const planets = {
@@ -348,7 +358,8 @@
           currentPlayer: 1,
           player1Throws: 0,
           player2Throws: 0,
-          gameStatus: 'waiting'
+          gameStatus: 'waiting',
+          gameScores: gameScores
         });
         
         gameId = gameRef.id;
@@ -396,6 +407,8 @@
           // Rejoining existing game
           localPlayerNum = data.player1Id === playerId ? 1 : 2;
           gameId = gameIdToJoin;
+          gameScores = data.gameScores || { player1: 0, player2: 0 };
+          updateScoreDisplay();
           showScreen("gameScreen");
           startGameListener();
         } else if (!data.player2Id && data.gameStatus === 'waiting') {
@@ -417,6 +430,10 @@
       }
     }
 
+    // Swipe mechanics
+    let swipeStart = { x: 0, y: 0, time: 0 };
+    let isSwipeInProgress = false;
+
     // Game state listener
     function startGameListener() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
@@ -428,15 +445,18 @@
         currentPlayer = data.currentPlayer;
         player1Throws = data.player1Throws;
         player2Throws = data.player2Throws;
+        gameScores = data.gameScores || gameScores;
         
         updateTryCounter();
+        updateScoreDisplay();
 
         if (data.gameStatus === 'started') {
           showScreen("gameScreen");
-          if (!currentBagEl) {
+          if (!currentBagEl && localPlayerNum === currentPlayer) {
             currentBagEl = createBagElement();
           }
-          throwBtn.disabled = localPlayerNum !== currentPlayer;
+          document.getElementById('throwInstructions').style.display = 
+            localPlayerNum === currentPlayer ? 'block' : 'none';
         } else if (data.gameStatus === 'ended') {
           showResult();
         }
@@ -445,26 +465,263 @@
       });
     }
 
-    // UI Updates
+    function updateScoreDisplay() {
+      scoreDisplayEl.textContent = 
+        `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
+    }
+
     function updateTryCounter() {
       const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
-      tryCounterEl.textContent = `Player ${localPlayerNum} - Try ${myThrows + 1} of ${totalThrows}`;
+      tryCounterEl.textContent = 
+        currentPlayer === localPlayerNum ? 
+        `Your turn - Throw ${myThrows + 1} of ${totalThrows}` :
+        `Opponent's turn - Throw ${
+          currentPlayer === 1 ? player1Throws + 1 : player2Throws + 1
+        } of ${totalThrows}`;
+    }
+
+    function startSwipe(e) {
+      if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
+      
+      isSwipeInProgress = true;
+      const point = e.touches ? e.touches[0] : e;
+      swipeStart = {
+        x: point.clientX,
+        y: point.clientY,
+        time: performance.now()
+      };
+    }
+
+    function endSwipe(e) {
+      if (!isSwipeInProgress) return;
+      isSwipeInProgress = false;
+      
+      const point = e.changedTouches ? e.changedTouches[0] : e;
+      const deltaX = point.clientX - swipeStart.x;
+      const deltaY = swipeStart.y - point.clientY; // Inverted for intuitive up motion
+      const deltaTime = performance.now() - swipeStart.time;
+      
+      // Only throw if it was a mostly upward swipe and quick enough
+      if (deltaY > 30 && deltaTime < 300) {
+        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+        const angle = Math.atan2(deltaY, deltaX);
+        const power = Math.min(100, speed * 100);
+        const horizontalAdjustment = deltaX * 0.1;
+        
+        throwBag(power, angle, horizontalAdjustment);
+      }
+    }
+
+    function throwBag(power, angle, horizontalAdjustment) {
+      if (isAnimating || !currentBagEl) return;
+      isAnimating = true;
+
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - bagWidth - 20;
+      const startZ = 0;
+      
+      // Physics parameters
+      const throwVelocity = power * 0.4 * currentPlanet.throwAdjustment;
+      const gravity = currentPlanet.gravity * 0.05;
+      
+      // Initial velocities based on swipe
+      const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
+      const vy = throwVelocity * Math.sin(angle);
+      const vz = -throwVelocity * 0.8; // Forward velocity
+      
+      let posX = startX;
+      let posY = startY;
+      let posZ = startZ;
+      let time = 0;
+      let hasLanded = false;
+
+      function animate() {
+        time += 0.016; // Approximately 60fps
+        
+        // Update position with parabolic motion
+        posX = startX + vx * time;
+        posY = startY - (vy * time - 0.5 * gravity * time * time);
+        posZ = startZ + vz * time;
+        
+        // Add rotation for realism
+        const rotation = time * 180;
+        
+        // Update bag position with proper transforms
+        currentBagEl.style.transform = 
+          `translate3d(${posX - bagWidth/2}px, ${posY}px, ${posZ}px) 
+           rotateX(${rotation}deg) rotateZ(${rotation * 0.5}deg)`;
+        
+        // Create trail effect
+        if (time * 1000 % 30 < 16) {
+          createTrailParticle(posX, posY, posZ);
+        }
+        
+        // Check for landing on board
+        if (posZ <= boardZ && !hasLanded) {
+          const boardHitY = boardTop;
+          if (posY > boardHitY - 40 && posY < boardHitY + 240) {
+            hasLanded = true;
+            registerScore(posX, posY);
+          }
+        }
+        
+        // Check if bag has missed the board
+        if (posZ <= boardZ - 100 && !hasLanded) {
+            hasLanded = true;
+            currentBagEl.remove();
+            finishThrow();
+        }
+        
+        if (!hasLanded && time < 3) {
+          requestAnimationFrame(animate);
+        } else {
+          isAnimating = false;
+        }
+      }
+      
+      requestAnimationFrame(animate);
+    }
+
+    function createTrailParticle(x, y, z) {
+      const p = document.createElement('div');
+      p.className = 'trail-particle';
+      p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+      p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
+      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
+      p.style.zIndex = Math.floor(-z);
+      trajectoryContainer.appendChild(p);
+      setTimeout(() => p.remove(), 800);
+    }
+
+    function registerScore(x, y) {
+      const boardCenter = window.innerWidth / 2;
+      const isInHole = Math.abs(x - boardCenter) < 15 && Math.abs(y - boardTop) < 15;
+      
+      const currentPlayerStr = `player${localPlayerNum}`;
+      if (isInHole) {
+        roundScores[currentPlayerStr].inHole++;
+      } else {
+        roundScores[currentPlayerStr].onBoard++;
+      }
+      
+      // Position bag on board
+      currentBagEl.style.transition = 'transform 0.3s ease-out';
+      currentBagEl.style.transform = `translate3d(${x}px, ${y}px, ${boardZ + 2}px)`;
+      
+      // Store bag information
+      currentBagEl.dataset.player = currentPlayerStr;
+      currentBagEl.dataset.score = isInHole ? 'hole' : 'board';
+      
+      finishThrow();
+    }
+
+    async function finishThrow() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      try {
+        if (localPlayerNum === 1) {
+          await gameRef.update({
+            player1Throws: firebase.firestore.FieldValue.increment(1),
+            currentPlayer: 2
+          });
+          
+          if (player1Throws + 1 >= totalThrows) {
+            if (player2Throws >= totalThrows) {
+              updateRoundScore();
+            }
+          }
+        } else {
+          await gameRef.update({
+            player2Throws: firebase.firestore.FieldValue.increment(1),
+            currentPlayer: 1
+          });
+          
+          if (player2Throws + 1 >= totalThrows) {
+            if (player1Throws >= totalThrows) {
+              updateRoundScore();
+            }
+          }
+        }
+
+        currentBagEl = null;
+      } catch (err) {
+        console.error("Error updating game state:", err);
+        alert("Failed to update game state. Please try refreshing the page.");
+      }
+    }
+
+    async function updateRoundScore() {
+      const roundResults = calculateRoundScore();
+      gameScores.player1 += roundResults.player1;
+      gameScores.player2 += roundResults.player2;
+      
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      try {
+        if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
+          await gameRef.update({
+            gameStatus: 'ended',
+            gameScores: gameScores
+          });
+        } else {
+          await gameRef.update({
+            player1Throws: 0,
+            player2Throws: 0,
+            currentPlayer: 1,
+            gameScores: gameScores
+          });
+          startNewRound();
+        }
+      } catch (err) {
+        console.error("Error updating round score:", err);
+      }
+    }
+
+    function calculateRoundScore() {
+      const p1Score = (roundScores.player1.inHole * POINTS_IN_HOLE) + 
+                     (roundScores.player1.onBoard * POINTS_ON_BOARD);
+      const p2Score = (roundScores.player2.inHole * POINTS_IN_HOLE) + 
+                     (roundScores.player2.onBoard * POINTS_ON_BOARD);
+      
+      if (roundScores.player1.inHole === roundScores.player2.inHole &&
+          roundScores.player1.onBoard === roundScores.player2.onBoard) {
+        return { player1: 0, player2: 0 }; // Wash
+      }
+      
+      const netScore = p1Score - p2Score;
+      return {
+        player1: netScore > 0 ? netScore : 0,
+        player2: netScore < 0 ? -netScore : 0
+      };
+    }
+
+    function startNewRound() {
+      // Clear all bags from board
+      document.querySelectorAll('.bag').forEach(bag => bag.remove());
+      
+      // Reset round scores
+      roundScores = {
+        player1: { onBoard: 0, inHole: 0 },
+        player2: { onBoard: 0, inHole: 0 }
+      };
+      
+      if (localPlayerNum === 1) {
+        currentBagEl = createBagElement();
+      }
     }
 
     function showResult() {
-      let resultMessage = "";
-      if (player1Throws === player2Throws) {
-        resultMessage = "It's a tie!";
-      } else if (player1Throws > player2Throws) {
-        resultMessage = localPlayerNum === 1 ? "You win!" : "You lose!";
-      } else {
-        resultMessage = localPlayerNum === 2 ? "You win!" : "You lose!";
-      }
-      document.getElementById("resultMessage").textContent = resultMessage;
+      const resultMessage = gameScores.player1 > gameScores.player2 ?
+        (localPlayerNum === 1 ? "You win!" : "You lose!") :
+        (localPlayerNum === 2 ? "You win!" : "You lose!");
+      
+      document.getElementById("resultMessage").textContent = 
+        `${resultMessage} Final Score: ${gameScores.player1} - ${gameScores.player2}`;
       showScreen("resultScreen");
     }
 
-    // Bag creation and physics
     function createBagElement() {
       const bag = document.createElement('div');
       bag.classList.add('bag');
@@ -482,174 +739,16 @@
       bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
     }
 
-    // Throw mechanics with improved physics
-    function startThrow(e) {
-      e.preventDefault();
-      if (isAnimating || !currentBagEl || throwBtn.disabled) return;
-      throwStartTime = performance.now();
-      throwBtn.style.background = '#a01830';
-    }
-
-    function releaseThrow(e) {
-      e.preventDefault();
-      if (isAnimating || throwStartTime === 0 || !currentBagEl || throwBtn.disabled) return;
-      
-      const holdTime = performance.now() - throwStartTime;
-      // More sensitive power calculation
-      const throwPower = Math.min(100, holdTime / 5); // Increased sensitivity
-      throwBtn.style.background = '#c41e3a';
-      doThrow(throwPower);
-      throwStartTime = 0;
-    }
-
-    function doThrow(power) {
-      if (isAnimating || !currentBagEl) return;
-      isAnimating = true;
-
-      const gameW = window.innerWidth;
-      const bagWidth = 40;
-      
-      // Starting position with slight randomness
-      const startX = gameW * 0.5 + (Math.random() * 40 - 20);
-      const startY = window.innerHeight - bagWidth - 20;
-      const startZ = 0;
-      
-      // Calculate throw parameters
-      const throwAngle = (45 + (Math.random() * 10 - 5)) * (Math.PI / 180); // Base 45° + variation
-      const throwVelocity = power * 0.4 * currentPlanet.throwAdjustment;
-      const gravity = currentPlanet.gravity * 0.1;
-      
-      // Initial velocities
-      const vx = throwVelocity * Math.cos(throwAngle) * (Math.random() * 0.4 + 0.8); // Add some randomness
-      const vy = throwVelocity * Math.sin(throwAngle);
-      const vz = -throwVelocity * 0.8;
-      
-      const startTime = performance.now();
-      let lastTime = startTime;
-      let posX = startX;
-      let posY = startY;
-      let posZ = startZ;
-      let hasHitBoard = false;
-      let hasLanded = false;
-
-      function animateFrame(now) {
-        const deltaTime = (now - lastTime) / 1000; // Convert to seconds
-        lastTime = now;
-        
-        if (!hasLanded) {
-          // Update position using physics
-          posX += vx * deltaTime;
-          posY -= (vy * deltaTime - 0.5 * gravity * deltaTime * deltaTime);
-          posZ += vz * deltaTime;
-          
-          // Check for collision with board
-          if (posZ <= boardZ && !hasHitBoard) {
-            const boardHitY = window.innerHeight * 0.25;
-            if (posY > boardHitY - 40 && posY < boardHitY + 240) {
-              // Hit the board
-              hasHitBoard = true;
-              hasLanded = true;
-              posZ = boardZ + 2; // Rest slightly above board
-              // Add slight random rotation for visual effect
-              const rotation = Math.random() * 360;
-              currentBagEl.style.transform = `translate3d(${posX - bagWidth/2}px, ${posY - 20}px, ${posZ}px) rotate(${rotation}deg)`;
-            }
-          }
-          
-          // Check if bag has fallen to the ground
-          if (posY >= window.innerHeight - 40) {
-            hasLanded = true;
-            posY = window.innerHeight - 40;
-          }
-
-          // Update bag position
-          currentBagEl.style.transform = `translate3d(${posX - bagWidth/2}px, ${posY - 20}px, ${posZ}px)`;
-
-          // Create trail particles
-          if ((now - startTime) % 30 < 15) {
-            createTrailParticle(posX, posY, posZ);
-          }
-        }
-
-        // Continue animation until landed or timeout
-        if (!hasLanded && now - startTime < 3000) {
-          requestAnimationFrame(animateFrame);
-        } else {
-          finishThrow();
-          isAnimating = false;
-        }
-      }
-
-      requestAnimationFrame(animateFrame);
-    }
-
-    function createTrailParticle(x, y, z) {
-      const p = document.createElement('div');
-      p.className = 'trail-particle';
-      p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
-      p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
-      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-      p.style.zIndex = Math.floor(-z); // Dynamic z-index based on depth
-      trajectoryContainer.appendChild(p);
-      setTimeout(() => p.remove(), 800);
-    }
-
-    async function finishThrow() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      
-      try {
-        if (localPlayerNum === 1) {
-          await gameRef.update({
-            player1Throws: firebase.firestore.FieldValue.increment(1)
-          });
-          
-          if (player1Throws + 1 >= totalThrows) {
-            const doc = await gameRef.get();
-            const data = doc.data();
-            if (data.player2Throws >= totalThrows) {
-              await gameRef.update({ gameStatus: 'ended' });
-            } else {
-              await gameRef.update({ currentPlayer: 2 });
-            }
-          }
-        } else {
-          await gameRef.update({
-            player2Throws: firebase.firestore.FieldValue.increment(1)
-          });
-          
-          if (player2Throws + 1 >= totalThrows) {
-            const doc = await gameRef.get();
-            const data = doc.data();
-            if (data.player1Throws >= totalThrows) {
-              await gameRef.update({ gameStatus: 'ended' });
-            } else {
-              await gameRef.update({ currentPlayer: 1 });
-            }
-          }
-        }
-
-        const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
-        if (myThrows + 1 < totalThrows) {
-          currentBagEl = createBagElement();
-        } else {
-          currentBagEl = null;
-        }
-      } catch (err) {
-        console.error("Error updating game state:", err);
-        alert("Failed to update game state. Please try refreshing the page.");
-      }
-    }
-
     // Event listeners
     planetSelect.addEventListener('change', (e) => {
       currentPlanet = planets[e.target.value];
     });
 
-    throwBtn.addEventListener('mousedown', startThrow);
-    throwBtn.addEventListener('mouseup', releaseThrow);
-    throwBtn.addEventListener('touchstart', startThrow);
-    throwBtn.addEventListener('touchend', releaseThrow);
-    throwBtn.addEventListener('mouseleave', releaseThrow);
+    // Add event listeners for both mouse and touch
+    sceneEl.addEventListener('mousedown', startSwipe);
+    sceneEl.addEventListener('mouseup', endSwipe);
+    sceneEl.addEventListener('touchstart', startSwipe);
+    sceneEl.addEventListener('touchend', endSwipe);
 
     document.getElementById('create-game').addEventListener('click', createNewGame);
     document.getElementById('join-game').addEventListener('click', () => {
@@ -661,8 +760,6 @@
 
     // Handle window resize
     window.addEventListener('resize', () => {
-      const boardRect = boardEl.getBoundingClientRect();
-      boardTop = boardRect.top + window.scrollY;
       if (currentBagEl) {
         setBagStartPosition(currentBagEl);
       }
