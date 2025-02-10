@@ -9,7 +9,7 @@
       margin: 0;
       font-family: system-ui, sans-serif;
       overflow: hidden;
-      touch-action: none; /* Prevent default touch actions */
+      touch-action: none;
     }
     
     /* Common style for all screens */
@@ -27,12 +27,10 @@
       z-index: 100;
     }
     
-    /* Show the setup screen initially */
     #setupScreen {
       display: flex;
     }
     
-    /* Setup Screen */
     #setupScreen h1 {
       font-size: 48px;
       margin-bottom: 20px;
@@ -53,7 +51,6 @@
       border: 2px solid #ddd;
     }
     
-    /* Waiting Screen */
     #waitingScreen p {
       font-size: 20px;
       margin: 15px;
@@ -76,7 +73,7 @@
       width: 300px;
     }
     
-    /* Game Screen */
+    /* Game Screen - Updated for better visibility */
     #gameScreen {
       position: relative;
       cursor: grab;
@@ -89,8 +86,8 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 1200px;
-      perspective-origin: 50% 60%;
+      perspective: 1500px; /* Increased for better depth */
+      perspective-origin: 50% 40%; /* Moved up to see trajectory better */
       position: relative;
       overflow: hidden;
     }
@@ -102,18 +99,19 @@
       position: absolute;
       top: 0;
       left: 0;
-      transform: rotateX(30deg);
+      transform: rotateX(25deg); /* Reduced angle for better visibility */
     }
     
+    /* Board positioning - moved up */
     #board {
       position: absolute;
       width: 120px;
       height: 240px;
       left: 50%;
-      top: 40%;
+      top: 25%; /* Moved higher */
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-500px);
+      transform: translate(-50%, -50%) translateZ(-600px); /* Further back */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -131,7 +129,7 @@
       border-radius: 50%;
     }
     
-    /* Bag element style */
+    /* Bag styling */
     .bag {
       position: absolute;
       width: 40px;
@@ -143,7 +141,7 @@
       transform-style: preserve-3d;
     }
     
-    /* Trail particles */
+    /* Trajectory styling */
     #trajectory {
       position: absolute;
       width: 100%;
@@ -169,7 +167,7 @@
       100% { opacity: 0; }
     }
     
-    /* Game info displays */
+    /* UI Positioning - Updated */
     #scoreDisplay {
       position: absolute;
       top: 20px;
@@ -196,7 +194,7 @@
     
     #throwInstructions {
       position: absolute;
-      bottom: 100px;
+      bottom: 120px; /* Moved up */
       left: 50%;
       transform: translateX(-50%);
       font-size: 18px;
@@ -211,7 +209,7 @@
     
     #controls {
       position: absolute;
-      bottom: 20px;
+      bottom: 40px; /* Moved up */
       left: 50%;
       transform: translateX(-50%);
       background: rgba(255,255,255,0.9);
@@ -233,7 +231,7 @@
       padding: 8px 12px;
     }
 
-    /* Preview line for throw direction */
+    /* Throw preview - Updated */
     #throwPreview {
       position: absolute;
       pointer-events: none;
@@ -332,6 +330,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   
   <script>
+    <script>
     // Firebase initialization
     const firebaseConfig = {
       apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
@@ -387,15 +386,15 @@
     // Constants
     const player1Color = "#c41e3a"; // red
     const player2Color = "#4287f5"; // blue
-    const boardZ = -500; // Board distance
-    const boardTop = window.innerHeight * 0.4; // Board vertical position
+    const boardZ = -600; // Updated board distance
+    const boardTop = window.innerHeight * 0.25; // Updated board vertical position
 
-    // Planet settings with improved physics
+    // Planet settings with adjusted physics
     const planets = {
       earth: { gravity: 9.81, throwAdjustment: 1.0 },
-      moon: { gravity: 1.62, throwAdjustment: 0.4 },
-      mars: { gravity: 3.72, throwAdjustment: 0.7 },
-      jupiter: { gravity: 24.79, throwAdjustment: 2.0 }
+      moon: { gravity: 1.62, throwAdjustment: 0.6 },
+      mars: { gravity: 3.72, throwAdjustment: 0.8 },
+      jupiter: { gravity: 24.79, throwAdjustment: 1.5 }
     };
     let currentPlanet = planets.earth;
 
@@ -432,8 +431,7 @@
           navigator.clipboard.writeText(shareLink)
             .then(() => alert("Link copied!"))
             .catch(err => console.error("Copy failed", err));
-
-                                                             });
+        });
 
         showScreen("waitingScreen");
         startGameListener();
@@ -519,7 +517,7 @@
       });
     }
 
-    // Drag mechanics
+    // Drag mechanics - Updated for better control
     function startDrag(e) {
       if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
       
@@ -553,6 +551,14 @@
       
       throwPreviewEl.style.transform = `rotate(${angle}rad)`;
       throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
+      
+      // Update bag position preview
+      if (currentBagEl) {
+        const previewX = dragStart.x + deltaX * 0.1;
+        const previewY = dragStart.y + deltaY * 0.1;
+        currentBagEl.style.transform = 
+          `translate3d(${previewX - 20}px, ${previewY - 20}px, 0px)`;
+      }
     }
 
     function endDrag(e) {
@@ -574,11 +580,15 @@
         const angle = Math.atan2(deltaY, deltaX);
         const power = Math.min(100, speed * 150);
         throwBag(power, angle, deltaX * 0.1);
+      } else {
+        // Reset bag position if throw wasn't triggered
+        setBagStartPosition(currentBagEl);
       }
       
       dragStart = null;
     }
 
+    // Updated throwing physics
     function throwBag(power, angle, horizontalAdjustment) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
@@ -586,17 +596,17 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - bagWidth - 20;
+      const startY = window.innerHeight - 150; // Raised starting position
       const startZ = 0;
       
-      // Physics parameters - adjusted for better trajectory
-      const throwVelocity = power * 0.3 * currentPlanet.throwAdjustment;
-      const gravity = currentPlanet.gravity * 0.03;
+      // Adjusted physics parameters for better arc
+      const throwVelocity = power * 0.4 * currentPlanet.throwAdjustment;
+      const gravity = currentPlanet.gravity * 0.02; // Reduced gravity effect
       
-      // Initial velocities based on drag direction
+      // Initial velocities with better trajectory
       const vx = throwVelocity * Math.cos(angle) * 0.3 + horizontalAdjustment;
-      const vy = throwVelocity * Math.sin(angle) * 1.2;
-      const vz = -throwVelocity * 1.2;
+      const vy = throwVelocity * Math.sin(angle) * 1.5; // Increased vertical component
+      const vz = -throwVelocity * 1.0; // Adjusted forward velocity
       
       let posX = startX;
       let posY = startY;
@@ -609,22 +619,22 @@
       function animate() {
         time += 0.016;
         
-        // Update position with parabolic motion
+        // Update position with enhanced parabolic motion
         posX = startX + vx * time;
         posY = startY - (vy * time - 0.5 * gravity * time * time);
         posZ = startZ + vz * time;
         
-        // Add rotation for realism
+        // Add realistic rotation
         rotationX += 5;
         rotationZ += 3;
         
-        // Update bag position with proper transforms
+        // Update bag position and rotation
         currentBagEl.style.transform = 
           `translate3d(${posX - bagWidth/2}px, ${posY}px, ${posZ}px) 
            rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
         
-        // Create trail effect
-        if (time * 1000 % 20 < 16) {
+        // Create more frequent trail effect
+        if (time * 1000 % 15 < 8) {
           createTrailParticle(posX, posY, posZ);
         }
         
@@ -663,13 +673,14 @@
       requestAnimationFrame(animate);
     }
 
+    // Enhanced trail effect
     function createTrailParticle(x, y, z) {
       const p = document.createElement('div');
       p.className = 'trail-particle';
       p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
       p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
       p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-      p.style.zIndex = Math.floor(-z);
+      p.style.zIndex = Math.floor(-z); // Dynamic z-index for proper depth
       trajectoryContainer.appendChild(p);
       setTimeout(() => p.remove(), 600);
     }
@@ -683,11 +694,12 @@
       return bag;
     }
 
+    // Updated starting position
     function setBagStartPosition(bag) {
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - bagWidth - 20;
+      const startY = window.innerHeight - 150; // Higher starting position
       bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
     }
 
@@ -696,7 +708,8 @@
       const distanceFromCenter = Math.abs(x - boardCenter);
       const distanceFromHole = Math.sqrt(
         Math.pow(distanceFromCenter, 2) + 
-        Math.pow(y - boardTop, 2)
+        Math.pow(y - boardTop, 2
+                 )
       );
       
       const isInHole = distanceFromHole < 20;
@@ -712,6 +725,7 @@
       finishThrow();
     }
 
+    // Enhanced hole-in effect
     function createHoleInEffect(x, y) {
       for (let i = 0; i < 20; i++) {
         const particle = document.createElement('div');
@@ -768,6 +782,76 @@
       }
     }
 
+    async function updateRoundScore() {
+      const roundResults = calculateRoundScore();
+      gameScores.player1 += roundResults.player1;
+      gameScores.player2 += roundResults.player2;
+      
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      
+      try {
+        if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
+          await gameRef.update({
+            gameStatus: 'ended',
+            gameScores: gameScores
+          });
+        } else {
+          await gameRef.update({
+            player1Throws: 0,
+            player2Throws: 0,
+            currentPlayer: 1,
+            gameScores: gameScores
+          });
+          startNewRound();
+        }
+      } catch (err) {
+        console.error("Error updating round score:", err);
+      }
+    }
+
+    function calculateRoundScore() {
+      const p1Score = (roundScores.player1.inHole * POINTS_IN_HOLE) + 
+                     (roundScores.player1.onBoard * POINTS_ON_BOARD);
+      const p2Score = (roundScores.player2.inHole * POINTS_IN_HOLE) + 
+                     (roundScores.player2.onBoard * POINTS_ON_BOARD);
+      
+      if (roundScores.player1.inHole === roundScores.player2.inHole &&
+          roundScores.player1.onBoard === roundScores.player2.onBoard) {
+        return { player1: 0, player2: 0 }; // Wash
+      }
+      
+      const netScore = p1Score - p2Score;
+      return {
+        player1: netScore > 0 ? netScore : 0,
+        player2: netScore < 0 ? -netScore : 0
+      };
+    }
+
+    function startNewRound() {
+      // Clear all bags from board
+      document.querySelectorAll('.bag').forEach(bag => bag.remove());
+      
+      // Reset round scores
+      roundScores = {
+        player1: { onBoard: 0, inHole: 0 },
+        player2: { onBoard: 0, inHole: 0 }
+      };
+      
+      if (localPlayerNum === 1) {
+        currentBagEl = createBagElement();
+      }
+    }
+
+    function showResult() {
+      const resultMessage = gameScores.player1 > gameScores.player2 ?
+        (localPlayerNum === 1 ? "You win!" : "You lose!") :
+        (localPlayerNum === 2 ? "You win!" : "You lose!");
+      
+      document.getElementById("resultMessage").textContent = 
+        `${resultMessage} Final Score: ${gameScores.player1} - ${gameScores.player2}`;
+      showScreen("resultScreen");
+    }
+
     function updateTryCounter() {
       const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
       tryCounterEl.textContent = 
@@ -783,7 +867,7 @@
         `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
     }
 
-    // Event listeners
+    // Event listeners for both desktop and mobile
     gameScreenEl.addEventListener('mousedown', startDrag);
     gameScreenEl.addEventListener('mousemove', updateDrag);
     gameScreenEl.addEventListener('mouseup', endDrag);
@@ -811,11 +895,15 @@
       }
     });
 
-    // Auto-join from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has("gameId")) {
-      joinGame(urlParams.get("gameId"));
-    }
+    // Handle visibility change
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isAnimating) {
+        isAnimating = false;
+        if (currentBagEl) {
+          setBagStartPosition(currentBagEl);
+        }
+      }
+    });
 
     // Helper functions
     function generatePlayerId() {
@@ -824,6 +912,12 @@
       let newId = Math.random().toString(36).substr(2, 9);
       localStorage.setItem('playerId', newId);
       return newId;
+    }
+
+    // Auto-join from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has("gameId")) {
+      joinGame(urlParams.get("gameId"));
     }
   </script>
 </body>
