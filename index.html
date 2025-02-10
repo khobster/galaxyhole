@@ -330,7 +330,6 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   
   <script>
-    <script>
     // Firebase initialization
     const firebaseConfig = {
       apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
@@ -707,9 +706,9 @@
       const boardCenter = window.innerWidth / 2;
       const distanceFromCenter = Math.abs(x - boardCenter);
       const distanceFromHole = Math.sqrt(
-        Math.pow(distanceFromCenter, 2) + 
-        Math.pow(y - boardTop, 2
-                 )
+  Math.pow(distanceFromCenter, 2) + 
+  Math.pow(y - boardTop, 2   // Missing closing parenthesis
+)
       );
       
       const isInHole = distanceFromHole < 20;
