@@ -223,7 +223,29 @@
       pointer-events: none;
     }
 
-    /* Throw preview - Updated */
+    /* Power meter */
+    #powerMeter {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 10px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 5px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #powerFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4CAF50, #FFC107, #F44336);
+      transition: width 0.1s;
+    }
+
+    /* Throw preview */
     #throwPreview {
       position: absolute;
       pointer-events: none;
@@ -303,7 +325,10 @@
         </select>
       </div>
       <div id="tryCounter">Waiting for game...</div>
-      <div id="throwInstructions">Click and drag up to throw!</div>
+      <div id="throwInstructions">Quick swipe up for more power! Angle for direction.</div>
+      <div id="powerMeter">
+        <div id="powerFill"></div>
+      </div>
       <div id="throwPreview">
         <div class="preview-line"></div>
       </div>
@@ -347,7 +372,7 @@
     let isDragging = false;
     let dragStart = null;
 
-    // Track bags on board
+    // Track bags on board for scoring
     const bagsOnBoard = {
       player1: [],
       player2: []
@@ -379,6 +404,8 @@
     const gameScreenEl = document.getElementById('gameScreen');
     const throwPreviewEl = document.getElementById('throwPreview');
     const throwInstructionsEl = document.getElementById('throwInstructions');
+    const powerMeterEl = document.getElementById('powerMeter');
+    const powerFillEl = document.getElementById('powerFill');
 
     // Constants
     const player1Color = "#c41e3a"; // red
@@ -394,7 +421,6 @@
       jupiter: { gravity: 24.79, throwAdjustment: 1.5 }
     };
     let currentPlanet = planets.earth;
-
     // Screen management
     function showScreen(screenId) {
       document.querySelectorAll('.screen').forEach(screen => {
@@ -412,7 +438,11 @@
           player1Throws: 0,
           player2Throws: 0,
           gameStatus: 'waiting',
-          gameScores: gameScores
+          gameScores: gameScores,
+          bagsInPlay: {
+            player1: [],
+            player2: []
+          }
         });
         
         gameId = gameRef.id;
@@ -463,6 +493,10 @@
           gameScores = data.gameScores || { player1: 0, player2: 0 };
           player1Throws = data.player1Throws;
           player2Throws = data.player2Throws;
+          
+          // Recreate any bags that were in play
+          recreateBagsFromState(data.bagsInPlay);
+          
           updateScoreDisplay();
           updateTryCounter();
           showScreen("gameScreen");
@@ -486,6 +520,34 @@
       }
     }
 
+    // Recreate bags from saved state
+    function recreateBagsFromState(bagsInPlay) {
+      // Clear any existing bags
+      document.querySelectorAll('.bag').forEach(bag => bag.remove());
+      
+      // Recreate player 1 bags
+      bagsInPlay.player1.forEach(bagData => {
+        const bag = document.createElement('div');
+        bag.classList.add('bag');
+        bag.style.background = player1Color;
+        sceneEl.appendChild(bag);
+        bag.style.transform = 
+          `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + 2}px) 
+           rotate(${bagData.rotation || 0}deg)`;
+      });
+      
+      // Recreate player 2 bags
+      bagsInPlay.player2.forEach(bagData => {
+        const bag = document.createElement('div');
+        bag.classList.add('bag');
+        bag.style.background = player2Color;
+        sceneEl.appendChild(bag);
+        bag.style.transform = 
+          `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + 2}px) 
+           rotate(${bagData.rotation || 0}deg)`;
+      });
+    }
+
     // Game state listener
     function startGameListener() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
@@ -499,15 +561,24 @@
         player2Throws = data.player2Throws;
         gameScores = data.gameScores || gameScores;
         
+        // Recreate bags if they changed
+        if (data.bagsInPlay) {
+          recreateBagsFromState(data.bagsInPlay);
+        }
+        
         updateTryCounter();
         updateScoreDisplay();
 
         if (data.gameStatus === 'started') {
           showScreen("gameScreen");
-          if (!currentBagEl && localPlayerNum === currentPlayer) {
+          if (!currentBagEl && localPlayerNum === currentPlayer && 
+              ((localPlayerNum === 1 && player1Throws < totalThrows) || 
+               (localPlayerNum === 2 && player2Throws < totalThrows))) {
             currentBagEl = createBagElement();
           }
           throwInstructionsEl.style.display = 
+            localPlayerNum === currentPlayer ? 'block' : 'none';
+          powerMeterEl.style.display =
             localPlayerNum === currentPlayer ? 'block' : 'none';
         } else if (data.gameStatus === 'ended') {
           showResult();
@@ -516,8 +587,7 @@
         console.error("Game listener error:", error);
       });
     }
-
-    // Drag mechanics
+    // Drag mechanics with improved sensitivity
     function startDrag(e) {
       if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
       
@@ -535,6 +605,7 @@
       throwPreviewEl.style.opacity = '1';
       throwPreviewEl.style.left = `${dragStart.x}px`;
       throwPreviewEl.style.top = `${dragStart.y}px`;
+      powerMeterEl.style.opacity = '1';
     }
 
     function updateDrag(e) {
@@ -548,6 +619,10 @@
       // Update throw preview line
       const angle = Math.atan2(-deltaY, deltaX);
       const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
+      
+      // Update power meter
+      const power = Math.min(100, (length / 200) * 100);
+      powerFillEl.style.width = `${power}%`;
       
       throwPreviewEl.style.transform = `rotate(${angle}rad)`;
       throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
@@ -568,18 +643,20 @@
       isDragging = false;
       gameScreenEl.classList.remove('dragging');
       throwPreviewEl.style.opacity = '0';
+      powerMeterEl.style.opacity = '0';
+      powerFillEl.style.width = '0%';
       
       const point = e.changedTouches ? e.changedTouches[0] : e;
       const deltaX = point.clientX - dragStart.x;
       const deltaY = dragStart.y - point.clientY;
       const deltaTime = performance.now() - dragStart.time;
       
-      // Only throw if the drag was quick enough and had enough movement
-      if (deltaTime < 500 && Math.abs(deltaY) > 20) {
+      // More sensitive throwing
+      if (deltaTime < 500 && Math.abs(deltaY) > 10) {
         const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
         const angle = Math.atan2(deltaY, deltaX);
-        const power = Math.min(100, speed * 150);
-        throwBag(power, angle, deltaX * 0.1);
+        const power = Math.min(100, speed * 200); // Increased sensitivity
+        throwBag(power, angle, deltaX * 0.2); // Increased horizontal adjustment
       } else {
         // Reset bag position if throw wasn't triggered
         setBagStartPosition(currentBagEl);
@@ -588,7 +665,7 @@
       dragStart = null;
     }
 
-    // Updated throwing physics
+    // Improved throwing physics
     function throwBag(power, angle, horizontalAdjustment) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
@@ -599,14 +676,14 @@
       const startY = window.innerHeight - 150;
       const startZ = 0;
       
-      // Adjusted physics for better distance
-      const throwVelocity = power * 0.6 * currentPlanet.throwAdjustment;
-      const gravity = currentPlanet.gravity * 0.015;
+      // Enhanced throwing physics
+      const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
+      const gravity = currentPlanet.gravity * 0.01;
       
-      // Initial velocities with better trajectory
-      const vx = throwVelocity * Math.cos(angle) * 0.4 + horizontalAdjustment;
-      const vy = throwVelocity * Math.sin(angle) * 2.0;
-      const vz = -throwVelocity * 1.5;
+      // Better trajectory calculations
+      const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
+      const vy = throwVelocity * Math.sin(angle) * 2.5;
+      const vz = -throwVelocity * 2.0;
       
       let posX = startX;
       let posY = startY;
@@ -651,7 +728,7 @@
             currentBagEl.style.transform = 
               `translate3d(${posX - bagWidth/2}px, ${posY}px, ${boardZ + 2}px) 
                rotate(${finalRotation}deg)`;
-            registerScore(posX, posY);
+            registerScore(posX, posY, finalRotation);
           }
         }
         
@@ -673,7 +750,6 @@
       requestAnimationFrame(animate);
     }
 
-    // Enhanced trail effect
     function createTrailParticle(x, y, z) {
       const p = document.createElement('div');
       p.className = 'trail-particle';
@@ -702,7 +778,7 @@
       bag.style.transform = `translate3d(${startX - bagWidth/2}px, ${startY}px, 0px)`;
     }
 
-    function registerScore(x, y) {
+    async function registerScore(x, y, rotation) {
       const boardCenter = window.innerWidth / 2;
       const distanceFromCenter = Math.abs(x - boardCenter);
       const distanceFromHole = Math.sqrt(
@@ -713,11 +789,18 @@
       const isInHole = distanceFromHole < 20;
       const currentPlayerStr = `player${localPlayerNum}`;
       
-      // Store bag reference with position
-      bagsOnBoard[currentPlayerStr].push({
-        element: currentBagEl,
+      // Store bag data
+      const bagData = {
+        x: x,
+        y: y,
         isInHole: isInHole,
-        position: { x, y }
+        rotation: rotation
+      };
+
+      // Update Firebase with new bag position
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      await gameRef.update({
+        [`bagsInPlay.${currentPlayerStr}`]: firebase.firestore.FieldValue.arrayUnion(bagData)
       });
       
       if (isInHole) {
@@ -780,33 +863,33 @@
     }
 
     async function calculateAndUpdateScore() {
-      // Calculate scores
-      let p1InHole = bagsOnBoard.player1.filter(b => b.isInHole).length;
-      let p2InHole = bagsOnBoard.player2.filter(b => b.isInHole).length;
-      let p1OnBoard = bagsOnBoard.player1.filter(b => !b.isInHole).length;
-      let p2OnBoard = bagsOnBoard.player2.filter(b => !b.isInHole).length;
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+      const doc = await gameRef.get();
+      const data = doc.data();
       
-      // Calculate point values
-      const p1Score = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
-      const p2Score = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
+      // Calculate scores from bags in play
+      const p1Bags = data.bagsInPlay.player1;
+      const p2Bags = data.bagsInPlay.player2;
       
-      // Apply cancellation rules
-      let roundPoints;
-      if (p1InHole === p2InHole && p1OnBoard === p2OnBoard) {
-        roundPoints = { player1: 0, player2: 0 }; // Wash
-      } else {
-        const netScore = p1Score - p2Score;
-        roundPoints = {
-          player1: netScore > 0 ? netScore : 0,
-          player2: netScore < 0 ? -netScore : 0
-        };
-      }
+      const p1InHole = p1Bags.filter(b => b.isInHole).length;
+      const p2InHole = p2Bags.filter(b => b.isInHole).length;
+      const p1OnBoard = p1Bags.filter(b => !b.isInHole).length;
+      const p2OnBoard = p2Bags.filter(b => !b.isInHole).length;
+      
+      // Calculate points with cancellation
+      let p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
+      let p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
+      
+      // Net scoring after cancellation
+      const netPoints = Math.abs(p1Points - p2Points);
+      const winner = p1Points > p2Points ? 1 : 2;
       
       // Update game scores
-      gameScores.player1 += roundPoints.player1;
-      gameScores.player2 += roundPoints.player2;
-      
-      const gameRef = db.collection('cornholeGames').doc(gameId);
+      if (winner === 1) {
+        gameScores.player1 += netPoints;
+      } else if (winner === 2) {
+        gameScores.player2 += netPoints;
+      }
       
       try {
         if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
@@ -815,44 +898,21 @@
             gameScores: gameScores
           });
         } else {
+          // Start new round
           await gameRef.update({
             player1Throws: 0,
             player2Throws: 0,
             currentPlayer: 1,
-            gameScores: gameScores
+            gameScores: gameScores,
+            bagsInPlay: {
+              player1: [],
+              player2: []
+            }
           });
-          startNewRound();
         }
       } catch (err) {
-        console.error("Error updating round score:", err);
+        console.error("Error updating score:", err);
       }
-    }
-
-    function startNewRound() {
-      // Clear bags after delay to show final positions
-      setTimeout(() => {
-        bagsOnBoard.player1.forEach(bag => bag.element.remove());
-        bagsOnBoard.player2.forEach(bag => bag.element.remove());
-        
-        // Reset arrays
-        bagsOnBoard.player1 = [];
-        bagsOnBoard.player2 = [];
-        
-        // Create new bag for first player
-        if (localPlayerNum === 1) {
-          currentBagEl = createBagElement();
-        }
-      }, 2000);
-    }
-
-    function showResult() {
-      const resultMessage = gameScores.player1 > gameScores.player2 ?
-        (localPlayerNum === 1 ? "You win!" : "You lose!") :
-        (localPlayerNum === 2 ? "You win!" : "You lose!");
-      
-      document.getElementById("resultMessage").textContent = 
-        `${resultMessage} Final Score: ${gameScores.player1} - ${gameScores.player2}`;
-      showScreen("resultScreen");
     }
 
     function updateTryCounter() {
@@ -868,6 +928,16 @@
     function updateScoreDisplay() {
       scoreDisplayEl.textContent = 
         `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
+    }
+
+    function showResult() {
+      const resultMessage = gameScores.player1 > gameScores.player2 ?
+        (localPlayerNum === 1 ? "You win!" : "You lose!") :
+        (localPlayerNum === 2 ? "You win!" : "You lose!");
+      
+      document.getElementById("resultMessage").textContent = 
+        `${resultMessage} Final Score: ${gameScores.player1} - ${gameScores.player2}`;
+      showScreen("resultScreen");
     }
 
     // Event listeners
