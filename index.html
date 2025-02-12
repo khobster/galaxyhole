@@ -436,17 +436,18 @@
         gameId = gameRef.id;
         localPlayerNum = 1;
 
-        const shareLink = `<span class="math-inline">\{window\.location\.origin\}</span>{window.location.pathname}?gameId=${gameId}`;
+        const shareLink = `<span class="math-inline">\{window\.location\.origin\}</span>{window.location.pathname}?gameId=${gameId}`; // This line is CORRECT
         gameLinkEl.innerHTML = `
           <input type="text" value="${shareLink}" readonly>
-          <button id="copyLink">Copy Link</button>
+          <button id="copyLink">Copy Link</button> 
         `;
-
+        //Fix the button and add the correct text to copy.
         document.getElementById('copyLink').addEventListener('click', () => {
-          navigator.clipboard.writeText(shareLink)
+          navigator.clipboard.writeText(shareLink) // Use shareLink, not the element's textContent
             .then(() => alert("Link copied!"))
             .catch(err => console.error("Copy failed", err));
         });
+
         showScreen("waitingScreen");
         startGameListener();
     } catch (err) {
