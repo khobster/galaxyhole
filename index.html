@@ -120,13 +120,14 @@
 
     #hole {
       position: absolute;
-      width: 30px;
-      height: 30px;
+      width: 40px;
+      height: 40px;
       left: 50%;
       top: 25%;
       transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
 
     /* Bag styling */
@@ -289,29 +290,11 @@
       cursor: not-allowed;
     }
 
-    /* Copy status message */
     #copyStatus {
       margin-top: 8px;
       color: green;
       display: none;
       text-align: center;
-    }
-
-    /* Result screen styling */
-    #resultScreen {
-      text-align: center;
-    }
-
-    #resultScreen h2 {
-      font-size: 36px;
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    #resultMessage {
-      font-size: 24px;
-      margin: 20px 0;
-      color: #444;
     }
   </style>
 </head>
@@ -365,8 +348,6 @@
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
   <script>
     // Firebase initialization
     const firebaseConfig = {
@@ -393,7 +374,7 @@
     let isAnimating = false;
     let isDragging = false;
     let dragStart = null;
-    let minimumDragDistance = 20;
+    let minimumDragDistance = 10; // Reduced for more sensitivity
     let time = 0;
 
     // Scoring state
@@ -405,6 +386,7 @@
     const POINTS_IN_HOLE = 3;
     const POINTS_ON_BOARD = 1;
     const WINNING_SCORE = 21;
+    const HOLE_RADIUS = 20; // Increased for better playability
 
     // DOM Elements
     const tryCounterEl = document.getElementById('tryCounter');
@@ -548,36 +530,33 @@
       }
     }
 
-    // Bag recreation from state
+    // Recreate bags from saved state
     function recreateBagsFromState(bagsInPlay) {
       if (!bagsInPlay) return;
       
       // Clear existing bags
       document.querySelectorAll('.bag').forEach(bag => bag.remove());
 
-      // Recreate player 1 bags
-      if (bagsInPlay.player1) {
-        bagsInPlay.player1.forEach(bagData => {
+      // Sort bags by timestamp to maintain throw order
+      const recreateBagsForPlayer = (bags, color) => {
+        if (!bags) return;
+        const sortedBags = [...bags].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        
+        sortedBags.forEach(bagData => {
           const bag = document.createElement('div');
           bag.classList.add('bag');
-          bag.style.background = player1Color;
+          bag.style.background = color;
           sceneEl.appendChild(bag);
+          
+          // Add transition for smooth appearance
+          bag.style.transition = 'transform 0.3s ease-out';
           bag.style.transform =
-            `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + 2}px) rotate(${bagData.rotation || 0}deg)`;
+            `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + (bagData.isInHole ? 5 : 2)}px) rotate(${bagData.rotation || 0}deg)`;
         });
-      }
+      };
 
-      // Recreate player 2 bags
-      if (bagsInPlay.player2) {
-        bagsInPlay.player2.forEach(bagData => {
-          const bag = document.createElement('div');
-          bag.classList.add('bag');
-          bag.style.background = player2Color;
-          sceneEl.appendChild(bag);
-          bag.style.transform =
-            `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + 2}px) rotate(${bagData.rotation || 0}deg)`;
-        });
-      }
+      recreateBagsForPlayer(bagsInPlay.player1, player1Color);
+      recreateBagsForPlayer(bagsInPlay.player2, player2Color);
     }
 
     // Game state listener
@@ -620,7 +599,7 @@
       });
     }
 
-    // Drag mechanics with improved sensitivity
+    // Enhanced drag mechanics with improved sensitivity
     function startDrag(e) {
       if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
 
@@ -653,7 +632,7 @@
       const angle = Math.atan2(-deltaY, deltaX);
       const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
 
-      // Update power meter
+      // Update power meter with increased sensitivity
       const power = Math.min(100, (length / 200) * 100);
       powerFillEl.style.width = `${power}%`;
 
@@ -684,21 +663,19 @@
       const deltaY = dragStart.y - point.clientY;  // Inverted for upward throw
       const deltaTime = performance.now() - dragStart.time;
 
-      // More sensitive throwing, but only if dragged a minimum distance
+      // More sensitive throwing mechanics
       if (deltaTime < 500 && Math.sqrt(deltaX * deltaX + deltaY * deltaY) > minimumDragDistance) {
         const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
         const angle = Math.atan2(deltaY, deltaX);
-        const power = Math.min(100, speed * 200);
-        throwBag(power, angle, deltaX * 0.2);
+        const power = Math.min(100, speed * 300); // Increased from 200 for more sensitivity
+        throwBag(power, angle, deltaX * 0.3); // Increased from 0.2 for more sensitivity
       } else {
-        // Reset bag position if throw wasn't triggered
         setBagStartPosition(currentBagEl);
       }
 
       dragStart = null;
     }
-
-    // Throwing physics and animation
+    // Enhanced throwing physics
     function throwBag(power, angle, horizontalAdjustment) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
@@ -710,7 +687,7 @@
       const startY = window.innerHeight - 150;
       const startZ = 0;
 
-      // Enhanced throwing physics
+      // Enhanced throwing physics with improved sensitivity
       const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
       const gravity = currentPlanet.gravity * 0.01;
 
@@ -748,7 +725,7 @@
           createTrailParticle(posX, posY, posZ);
         }
 
-        // Check for landing on board
+        // Check for landing on board with improved collision detection
         if (posZ <= boardZ && !hasLanded) {
           const boardHitY = boardTop;
           const boardCenterX = window.innerWidth / 2;
@@ -817,31 +794,37 @@
         Math.pow(y - (boardTop + 30 / 2), 2)
       );
 
-      const isInHole = distanceFromHole <= 15;
+      const isInHole = distanceFromHole <= HOLE_RADIUS;
       const currentPlayerStr = `player${localPlayerNum}`;
 
-      // Store bag data
       const bagData = {
         x: x,
         y: y,
         isInHole: isInHole,
-        rotation: rotation
+        rotation: rotation,
+        timestamp: Date.now()
       };
 
-      // Update Firebase with new bag position
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      await gameRef.update({
-        [`bagsInPlay.${currentPlayerStr}`]: firebase.firestore.FieldValue.arrayUnion(bagData)
-      });
+      try {
+        const gameRef = db.collection('cornholeGames').doc(gameId);
+        const doc = await gameRef.get();
+        const currentBags = doc.data().bagsInPlay[currentPlayerStr] || [];
+        
+        await gameRef.update({
+          [`bagsInPlay.${currentPlayerStr}`]: [...currentBags, bagData]
+        });
 
-      if (isInHole) {
-        createHoleInEffect(x, y);
+        if (isInHole) {
+          createHoleInEffect(x, y);
+        }
+        
+        await finishThrow();
+      } catch (err) {
+        console.error("Error registering score:", err);
       }
-      finishThrow();
     }
 
     function createHoleInEffect(x, y) {
-      // Create particle effects for hole-in
       for (let i = 0; i < 20; i++) {
         const particle = document.createElement('div');
         particle.className = 'trail-particle';
@@ -868,26 +851,27 @@
       try {
         if (localPlayerNum === 1) {
           await gameRef.update({
-            player1Throws: firebase.firestore.FieldValue.increment(1)
+            player1Throws: firebase.firestore.FieldValue.increment(1),
+            currentPlayer: 2
           });
 
           if (player1Throws + 1 >= totalThrows && player2Throws >= totalThrows) {
             await calculateAndUpdateScore();
-          } else {
-            await gameRef.update({ currentPlayer: 2 });
           }
         } else {
           await gameRef.update({
-            player2Throws: firebase.firestore.FieldValue.increment(1)
+            player2Throws: firebase.firestore.FieldValue.increment(1),
+            currentPlayer: 1
           });
 
           if (player1Throws >= totalThrows && player2Throws + 1 >= totalThrows) {
             await calculateAndUpdateScore();
-          } else {
-            await gameRef.update({ currentPlayer: 1 });
           }
         }
+
         currentBagEl = null;
+        updateTryCounter();
+        updateScoreDisplay();
 
       } catch (err) {
         console.error("Error updating game state:", err);
@@ -900,7 +884,7 @@
       const doc = await gameRef.get();
       const data = doc.data();
 
-      // Calculate scores from bags in play
+      // Calculate scores with cancellation rules
       const p1Bags = data.bagsInPlay.player1 || [];
       const p2Bags = data.bagsInPlay.player2 || [];
 
@@ -909,15 +893,12 @@
       const p1OnBoard = p1Bags.filter(b => !b.isInHole).length;
       const p2OnBoard = p2Bags.filter(b => !b.isInHole).length;
 
-      // Calculate points with cancellation
       let p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
       let p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
 
-      // Net scoring after cancellation
       const netPoints = Math.abs(p1Points - p2Points);
       const winner = p1Points > p2Points ? 1 : (p1Points < p2Points ? 2 : 0);
 
-      // Update scores
       if (winner === 1) {
         gameScores.player1 += netPoints;
       } else if (winner === 2) {
@@ -925,14 +906,12 @@
       }
 
       try {
-        // Check for game end
         if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
           await gameRef.update({
             gameStatus: 'ended',
             gameScores: gameScores
           });
         } else {
-          // Start new round
           await gameRef.update({
             player1Throws: 0,
             player2Throws: 0,
@@ -965,8 +944,10 @@
     }
 
     function showResult() {
-      const winner = gameScores.player1 > gameScores.player2 ? 1 : (gameScores.player1 < gameScores.player2 ? 2 : 0);
-      const resultMessage = winner === localPlayerNum ? "You win!" : (winner === 0 ? "It's a tie!" : "You lose!");
+      const winner = gameScores.player1 > gameScores.player2 ? 1 : 
+                    (gameScores.player1 < gameScores.player2 ? 2 : 0);
+      const resultMessage = winner === localPlayerNum ? "You win!" : 
+                          (winner === 0 ? "It's a tie!" : "You lose!");
 
       document.getElementById("resultMessage").textContent =
         `${resultMessage} Final Score: Player 1: ${gameScores.player1} - Player 2: ${gameScores.player2}`;
@@ -991,7 +972,7 @@
       });
     }
 
-    // Event listeners
+    // Event Listeners
     gameScreenEl.addEventListener('mousedown', startDrag);
     gameScreenEl.addEventListener('mousemove', updateDrag);
     gameScreenEl.addEventListener('mouseup', endDrag);
@@ -1010,14 +991,14 @@
     });
     document.getElementById('restart-game').addEventListener('click', resetGame);
 
-    // Handle window resize
+    // Window resize handler
     window.addEventListener('resize', () => {
       if (currentBagEl) {
         setBagStartPosition(currentBagEl);
       }
     });
 
-    // Helper functions
+    // Helper function for generating player ID
     function generatePlayerId() {
       let stored = localStorage.getItem('playerId');
       if (stored) return stored;
