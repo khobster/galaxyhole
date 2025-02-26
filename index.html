@@ -1,4 +1,832 @@
-async function registerScore(x, y, rotation) {
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Space Cornhole - 2 Player</title>
+  <style>
+    /* General reset */
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Common style for all screens */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(#87CEEB, #90EE90);
+      z-index: 100;
+    }
+
+    #setupScreen {
+      display: flex;
+    }
+
+    #setupScreen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      color: #333;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    #setupScreen button,
+    #setupScreen input {
+      font-size: 18px;
+      margin: 10px;
+      padding: 12px 20px;
+      border-radius: 8px;
+    }
+
+    #setupScreen input {
+      width: 200px;
+      border: 2px solid #ddd;
+    }
+
+    /* Planet selection in setup screen */
+    #planetSelectSetup {
+      margin-bottom: 20px;
+      font-size: 18px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #waitingScreen p {
+      font-size: 20px;
+      margin: 15px;
+      color: #333;
+    }
+
+    #gameLink {
+      margin: 20px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    #gameLink input {
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 400px;
+    }
+
+    /* Game Screen */
+    #gameScreen {
+      position: relative;
+      cursor: grab;
+    }
+
+    #gameScreen.dragging {
+      cursor: grabbing;
+    }
+
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      perspective: 1500px;
+      perspective-origin: 50% 40%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #scene {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: rotateX(25deg);
+    }
+
+    /* Board positioning */
+    #board {
+      position: absolute;
+      width: 120px;
+      height: 240px;
+      left: 50%;
+      top: 25%;
+      transform-style: preserve-3d;
+      transform-origin: center bottom;
+      transform: translate(-50%, -50%) translateZ(-600px);
+      background: #8B4513;
+      border: 4px solid #654321;
+      border-radius: 4px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    #hole {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      left: 50%;
+      top: 25%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      border-radius: 50%;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    /* Bag styling */
+    .bag {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 5px;
+      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+      transition: transform 0.05s ease-out, opacity 0.3s ease-out;
+      transform-style: preserve-3d;
+    }
+
+    /* Trajectory styling */
+    #trajectory {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    .trail-particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 3px;
+      opacity: 0;
+      animation: fadeOut 0.6s forwards;
+      pointer-events: none;
+    }
+
+    @keyframes fadeOut {
+      0% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+
+    /* UI Elements */
+    #scoreDisplay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 101;
+    }
+
+    #selectedPlanet {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 101;
+    }
+
+    #tryCounter {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 101;
+    }
+
+    #throwInstructions {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 101;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    /* Power meter */
+    #powerMeter {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #powerFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4CAF50, #FFC107, #F44336);
+      transition: width 0.1s;
+    }
+
+    /* Throw preview */
+    #throwPreview {
+      position: absolute;
+      pointer-events: none;
+      z-index: 102;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .preview-line {
+      position: absolute;
+      width: 2px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.5);
+      transform-origin: top;
+    }
+
+    /* Common button styles */
+    button {
+      background: #c41e3a;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      text-transform: uppercase;
+      user-select: none;
+      transition: transform 0.1s, background 0.2s;
+      padding: 12px 24px;
+    }
+
+    button:hover {
+      background: #d42e4a;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    #copyStatus {
+      margin-top: 8px;
+      color: green;
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="setupScreen" class="screen">
+    <h1>Space Cornhole</h1>
+    <div id="planetSelectSetup">
+      <label for="planet-select-setup">Select Planet:</label>
+      <select id="planet-select-setup">
+        <option value="earth">Earth (9.81)</option>
+        <option value="moon">Moon (1.62)</option>
+        <option value="mars">Mars (3.72)</option>
+        <option value="jupiter">Jupiter (24.79)</option>
+      </select>
+    </div>
+    <button id="create-game">Create Game</button>
+    <input type="text" id="gameIdInput" placeholder="Game ID">
+    <button id="join-game">Join Game</button>
+  </div>
+
+  <div id="waitingScreen" class="screen">
+    <p>Game created! Share this link with your friend:</p>
+    <div id="gameLink"></div>
+    <p id="waitingMessage">Waiting for opponent to join...</p>
+  </div>
+
+  <div id="gameScreen" class="screen">
+    <div id="game-container">
+      <div id="scene">
+        <div id="trajectory"></div>
+        <div id="board">
+          <div id="hole"></div>
+        </div>
+      </div>
+      <div id="scoreDisplay">Score - Player 1: 0 | Player 2: 0</div>
+      <div id="selectedPlanet">Playing on: Earth</div>
+      <div id="tryCounter">Waiting for game...</div>
+      <div id="throwInstructions">Quick swipe up for more power! Angle for direction.</div>
+      <div id="powerMeter">
+        <div id="powerFill"></div>
+      </div>
+      <div id="throwPreview">
+        <div class="preview-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultScreen" class="screen">
+    <h2>Game Over!</h2>
+    <p id="resultMessage"></p>
+    <button id="restart-game">Play Again</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script>
+    // Firebase initialization
+    const firebaseConfig = {
+      apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+      authDomain: "galaxy-hole-53c76.firebaseapp.com",
+      projectId: "galaxy-hole-53c76",
+      storageBucket: "galaxy-hole-53c76.firebaseapp.com",
+      messagingSenderId: "592610380036",
+      appId: "1:592610380036:web:4b5c72ee181682b9262851",
+      measurementId: "G-6KWKF4T304"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Game state
+    let gameId = null;
+    let currentPlayer = null;
+    let localPlayerNum = null;
+    const totalThrows = 4;
+    let player1Throws = 0;
+    let player2Throws = 0;
+    const playerId = generatePlayerId();
+    let currentBagEl = null;
+    let isAnimating = false;
+    let isDragging = false;
+    let dragStart = null;
+    let minimumDragDistance = 10; // Reduced for more sensitivity
+    let time = 0;
+
+    // Scoring state
+    let gameScores = {
+      player1: 0,
+      player2: 0
+    };
+
+    const POINTS_IN_HOLE = 3;
+    const POINTS_ON_BOARD = 1;
+    const WINNING_SCORE = 21;
+    const HOLE_RADIUS = 20; // Increased for better playability
+
+    // DOM Elements
+    const tryCounterEl = document.getElementById('tryCounter');
+    const scoreDisplayEl = document.getElementById('scoreDisplay');
+    const planetSelectSetup = document.getElementById('planet-select-setup');
+    const selectedPlanetEl = document.getElementById('selectedPlanet');
+    const sceneEl = document.getElementById('scene');
+    const trajectoryContainer = document.getElementById('trajectory');
+    const gameLinkEl = document.getElementById('gameLink');
+    const boardEl = document.getElementById('board');
+    const gameScreenEl = document.getElementById('gameScreen');
+    const throwPreviewEl = document.getElementById('throwPreview');
+    const throwInstructionsEl = document.getElementById('throwInstructions');
+    const powerMeterEl = document.getElementById('powerMeter');
+    const powerFillEl = document.getElementById('powerFill');
+
+    // Constants
+    const player1Color = "#c41e3a";
+    const player2Color = "#4287f5";
+    const boardZ = -600;
+    const boardTop = window.innerHeight * 0.25;
+
+    // Planet settings
+    const planets = {
+      earth: { gravity: 9.81, throwAdjustment: 1.0 },
+      moon: { gravity: 1.62, throwAdjustment: 0.6 },
+      mars: { gravity: 3.72, throwAdjustment: 0.8 },
+      jupiter: { gravity: 24.79, throwAdjustment: 1.5 }
+    };
+    let currentPlanet = planets.earth;
+
+    // Screen management
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(screen => {
+        screen.style.display = screen.id === screenId ? "flex" : "none";
+      });
+    }
+
+    // Game creation with planet selection
+    async function createNewGame() {
+      try {
+        const selectedPlanet = planetSelectSetup.value;
+        const gameRef = await db.collection('cornholeGames').add({
+          player1Id: playerId,
+          player2Id: null,
+          currentPlayer: 1,
+          player1Throws: 0,
+          player2Throws: 0,
+          gameStatus: 'waiting',
+          gameScores: { player1: 0, player2: 0 },
+          planet: selectedPlanet,
+          bagsInPlay: {
+            player1: [],
+            player2: []
+          }
+        });
+
+        gameId = gameRef.id;
+        localPlayerNum = 1;
+        
+        // Set current planet based on selection
+        currentPlanet = planets[selectedPlanet];
+        selectedPlanetEl.textContent = `Playing on: ${selectedPlanet.charAt(0).toUpperCase() + selectedPlanet.slice(1)}`;
+
+        // Create shareable link with proper formatting
+        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+
+        // Add copy functionality with better UX
+        gameLinkEl.innerHTML = `
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" value="${shareLink}" readonly style="width: 400px; padding: 8px;">
+            <button id="copyLink" style="padding: 8px 16px;">Copy Link</button>
+          </div>
+          <div id="copyStatus" style="margin-top: 8px; color: green; display: none;">Link copied!</div>
+        `;
+
+        document.getElementById('copyLink').addEventListener('click', () => {
+          const input = gameLinkEl.querySelector('input');
+          input.select();
+          navigator.clipboard.writeText(shareLink)
+            .then(() => {
+              const status = document.getElementById('copyStatus');
+              status.style.display = 'block';
+              setTimeout(() => {
+                status.style.display = 'none';
+              }, 2000);
+            })
+            .catch(err => console.error("Copy failed", err));
+        });
+
+        showScreen("waitingScreen");
+        startGameListener();
+      } catch (err) {
+        console.error("Error creating game:", err);
+        alert("Failed to create game. Please try again.");
+      }
+    }
+
+    // Game joining with planet inheritance
+    async function joinGame(gameIdToJoin) {
+      if (!gameIdToJoin) {
+        alert("Please enter a game ID");
+        return;
+      }
+
+      try {
+        const gameRef = db.collection('cornholeGames').doc(gameIdToJoin);
+        const doc = await gameRef.get();
+
+        if (!doc.exists) {
+          alert("Game not found");
+          return;
+        }
+
+        const data = doc.data();
+        
+        // Set planet from game data
+        const gamePlanet = data.planet || 'earth';
+        currentPlanet = planets[gamePlanet];
+        selectedPlanetEl.textContent = `Playing on: ${gamePlanet.charAt(0).toUpperCase() + gamePlanet.slice(1)}`;
+
+        if (data.player1Id === playerId || data.player2Id === playerId) {
+          // Rejoining existing game
+          localPlayerNum = data.player1Id === playerId ? 1 : 2;
+          gameId = gameIdToJoin;
+          gameScores = data.gameScores || { player1: 0, player2: 0 };
+          player1Throws = data.player1Throws;
+          player2Throws = data.player2Throws;
+
+          // Recreate any bags that were in play
+          recreateBagsFromState(data.bagsInPlay);
+
+          updateScoreDisplay();
+          updateTryCounter();
+          showScreen("gameScreen");
+          startGameListener();
+        } else if (!data.player2Id && data.gameStatus === 'waiting') {
+          // Joining as player 2
+          await gameRef.update({
+            player2Id: playerId,
+            gameStatus: 'started'
+          });
+          localPlayerNum = 2;
+          gameId = gameIdToJoin;
+          showScreen("gameScreen");
+          startGameListener();
+        } else {
+          alert("Cannot join game - it may be full or already ended");
+        }
+      } catch (err) {
+        console.error("Error joining game:", err);
+        alert("Failed to join game. Please try again.");
+      }
+    }
+
+    // Improved bag persistence 
+    function recreateBagsFromState(bagsInPlay) {
+      if (!bagsInPlay) return;
+      
+      // Clear existing bags
+      document.querySelectorAll('.bag').forEach(bag => bag.remove());
+
+      // Sort bags by timestamp to maintain throw order
+      const recreateBagsForPlayer = (bags, color) => {
+        if (!bags || !Array.isArray(bags)) return;
+        
+        const sortedBags = [...bags].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        
+        sortedBags.forEach(bagData => {
+          const bag = document.createElement('div');
+          bag.classList.add('bag');
+          bag.style.background = color;
+          sceneEl.appendChild(bag);
+          
+          // Improved z-index for in-hole bags
+          const zOffset = bagData.isInHole ? 5 : 2;
+          
+          // Add transition for smooth appearance
+          bag.style.transition = 'transform 0.3s ease-out';
+          bag.style.transform =
+            `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + zOffset}px) rotate(${bagData.rotation || 0}deg)`;
+        });
+      };
+
+      recreateBagsForPlayer(bagsInPlay.player1, player1Color);
+      recreateBagsForPlayer(bagsInPlay.player2, player2Color);
+    }
+
+    // Game state listener with improved turn management
+    function startGameListener() {
+      const gameRef = db.collection('cornholeGames').doc(gameId);
+
+      gameRef.onSnapshot(doc => {
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        currentPlayer = data.currentPlayer;
+        player1Throws = data.player1Throws;
+        player2Throws = data.player2Throws;
+        gameScores = data.gameScores || gameScores;
+        
+        // Update planet from game state if available
+        if (data.planet) {
+          currentPlanet = planets[data.planet];
+          selectedPlanetEl.textContent = `Playing on: ${data.planet.charAt(0).toUpperCase() + data.planet.slice(1)}`;
+        }
+
+        // Recreate bags if they changed
+        if (data.bagsInPlay) {
+          recreateBagsFromState(data.bagsInPlay);
+        }
+
+        updateTryCounter();
+        updateScoreDisplay();
+
+        if (data.gameStatus === 'started') {
+          showScreen("gameScreen");
+          
+          // Create a new bag if it's player's turn and they haven't used all throws
+          if (!currentBagEl && localPlayerNum === currentPlayer &&
+              ((localPlayerNum === 1 && player1Throws < totalThrows) ||
+               (localPlayerNum === 2 && player2Throws < totalThrows))) {
+            currentBagEl = createBagElement();
+          }
+          
+          // Show/hide instructions based on turn
+          throwInstructionsEl.style.display = 
+            localPlayerNum === currentPlayer ? 'block' : 'none';
+          powerMeterEl.style.opacity = 
+            localPlayerNum === currentPlayer ? '1' : '0';
+        } else if (data.gameStatus === 'ended') {
+          showResult();
+        }
+      }, error => {
+        console.error("Game listener error:", error);
+      });
+    }
+
+    // Enhanced drag mechanics with improved sensitivity
+    function startDrag(e) {
+      if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
+
+      e.preventDefault();
+      isDragging = true;
+      gameScreenEl.classList.add('dragging');
+
+      const point = e.touches ? e.touches[0] : e;
+      dragStart = {
+        x: point.clientX,
+        y: point.clientY,
+        time: performance.now()
+      };
+
+      throwPreviewEl.style.opacity = '1';
+      throwPreviewEl.style.left = `${dragStart.x}px`;
+      throwPreviewEl.style.top = `${dragStart.y}px`;
+      powerMeterEl.style.opacity = '1';
+    }
+
+    function updateDrag(e) {
+      if (!isDragging) return;
+
+      e.preventDefault();
+      const point = e.touches ? e.touches[0] : e;
+      const deltaX = point.clientX - dragStart.x;
+      const deltaY = point.clientY - dragStart.y;
+
+      // Update throw preview line
+      const angle = Math.atan2(-deltaY, deltaX);
+      const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
+
+      // Update power meter with increased sensitivity
+      const power = Math.min(100, (length / 200) * 100);
+      powerFillEl.style.width = `${power}%`;
+
+      throwPreviewEl.style.transform = `rotate(${angle}rad)`;
+      throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
+
+      // Update bag position preview
+      if (currentBagEl) {
+        const previewX = dragStart.x + deltaX * 0.1;
+        const previewY = dragStart.y + deltaY * 0.1;
+        currentBagEl.style.transform =
+          `translate3d(${previewX - 20}px, ${previewY - 20}px, 0px)`;
+      }
+    }
+
+    function endDrag(e) {
+      if (!isDragging) return;
+
+      e.preventDefault();
+      isDragging = false;
+      gameScreenEl.classList.remove('dragging');
+      throwPreviewEl.style.opacity = '0';
+      powerMeterEl.style.opacity = '0';
+      powerFillEl.style.width = '0%';
+
+      const point = e.changedTouches ? e.changedTouches[0] : e;
+      const deltaX = point.clientX - dragStart.x;
+      const deltaY = dragStart.y - point.clientY;  // Inverted for upward throw
+      const deltaTime = performance.now() - dragStart.time;
+
+      // More sensitive throwing mechanics
+      if (deltaTime < 500 && Math.sqrt(deltaX * deltaX + deltaY * deltaY) > minimumDragDistance) {
+        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+        const angle = Math.atan2(deltaY, deltaX);
+        const power = Math.min(100, speed * 300); // Increased from 200 for more sensitivity
+        throwBag(power, angle, deltaX * 0.3); // Increased from 0.2 for more sensitivity
+      } else {
+        setBagStartPosition(currentBagEl);
+      }
+
+      dragStart = null;
+    }
+
+    // Enhanced throwing physics with planet gravity
+    function throwBag(power, angle, horizontalAdjustment) {
+      if (isAnimating || !currentBagEl) return;
+      isAnimating = true;
+      time = 0;
+
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - 150;
+      const startZ = 0;
+
+      // Enhanced throwing physics with planet adjustment
+      const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
+      const gravity = currentPlanet.gravity * 0.01;
+
+      // Better trajectory calculations
+      const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
+      const vy = throwVelocity * Math.sin(angle) * 2.5;
+      const vz = -throwVelocity * 2.0;
+
+      let posX = startX;
+      let posY = startY;
+      let posZ = startZ;
+      let rotationX = 0;
+      let rotationZ = 0;
+      let hasLanded = false;
+
+      function animate() {
+        time += 0.016;
+
+        // Update position with enhanced parabolic motion
+        posX = startX + vx * time;
+        posY = startY - (vy * time - 0.5 * gravity * time * time);
+        posZ = startZ + vz * time;
+
+        // Add realistic rotation
+        rotationX += 5;
+        rotationZ += 3;
+
+        // Update bag position and rotation
+        currentBagEl.style.transform = 
+          `translate3d(${posX - bagWidth/2}px, ${posY}px, ${posZ}px) 
+           rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
+
+        // Create trail effect
+        if (time * 1000 % 15 < 8) {
+          createTrailParticle(posX, posY, posZ);
+        }
+
+        // Check for landing on board with improved collision detection
+        if (posZ <= boardZ && !hasLanded) {
+          const boardHitY = boardTop;
+          const boardCenterX = window.innerWidth / 2;
+          const distanceFromCenter = Math.abs(posX - boardCenterX);
+
+          if (posY > boardHitY - 40 && posY < boardHitY + 240 && distanceFromCenter < 80) {
+            hasLanded = true;
+            const finalRotation = Math.random() * 360;
+            currentBagEl.style.transition = 'transform 0.3s ease-out';
+            currentBagEl.style.transform =
+              `translate3d(${posX - bagWidth/2}px, ${posY}px, ${boardZ + 2}px) rotate(${finalRotation}deg)`;
+            registerScore(posX, posY, finalRotation);
+          }
+        }
+
+        // Check if bag has missed the board
+        if ((posZ <= boardZ - 100 || posY > window.innerHeight) && !hasLanded) {
+          hasLanded = true;
+          currentBagEl.style.opacity = '0';
+          setTimeout(() => currentBagEl.remove(), 300);
+          finishThrow();
+        }
+
+        if (!hasLanded && time < 3) {
+          requestAnimationFrame(animate);
+        } else {
+          isAnimating = false;
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function createTrailParticle(x, y, z) {
+      const p = document.createElement('div');
+      p.className = 'trail-particle';
+      p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+      p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
+      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
+      p.style.zIndex = Math.floor(-z);
+      trajectoryContainer.appendChild(p);
+      setTimeout(() => p.remove(), 600);
+    }
+
+    function createBagElement() {
+      const bag = document.createElement('div');
+      bag.classList.add('bag');
+      bag.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+      sceneEl.appendChild(bag);
+      setBagStartPosition(bag);
+      return bag;
+    }
+
+    function setBagStartPosition(bag) {
+      const gameW = window.innerWidth;
+      const bagWidth = 40;
+      const startX = gameW * 0.5;
+      const startY = window.innerHeight - 150;
+      bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
+    }
+
+    async function registerScore(x, y, rotation) {
       const boardCenter = window.innerWidth / 2;
       const distanceFromHole = Math.sqrt(
         Math.pow(x - boardCenter, 2) +
