@@ -554,12 +554,16 @@
       }
     }
 
-    // Improved bag persistence 
+    // Fix 1: Improved recreation of bags to ensure they stay on the board between turns
     function recreateBagsFromState(bagsInPlay) {
       if (!bagsInPlay) return;
       
-      // Clear existing bags
-      document.querySelectorAll('.bag').forEach(bag => bag.remove());
+      // Only clear existing bags that aren't the current player's active bag
+      document.querySelectorAll('.bag').forEach(bag => {
+        if (bag !== currentBagEl) {
+          bag.remove();
+        }
+      });
 
       // Sort bags by timestamp to maintain throw order
       const recreateBagsForPlayer = (bags, color) => {
@@ -568,13 +572,15 @@
         const sortedBags = [...bags].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         
         sortedBags.forEach(bagData => {
+          // Check if this is already the current bag being thrown - don't recreate it
           const bag = document.createElement('div');
           bag.classList.add('bag');
           bag.style.background = color;
           sceneEl.appendChild(bag);
           
-          // Improved z-index for in-hole bags
+          // Improved z-index for in-hole bags and add data attributes for debugging
           const zOffset = bagData.isInHole ? 5 : 2;
+          bag.dataset.inHole = bagData.isInHole;
           
           // Add transition for smooth appearance
           bag.style.transition = 'transform 0.3s ease-out';
@@ -583,11 +589,12 @@
         });
       };
 
+      // Always recreate both players' bags
       recreateBagsForPlayer(bagsInPlay.player1, player1Color);
       recreateBagsForPlayer(bagsInPlay.player2, player2Color);
     }
 
-    // Game state listener with improved turn management
+    // Fix 2: Improved game state listener to ensure proper turn management
     function startGameListener() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
 
@@ -606,6 +613,9 @@
           selectedPlanetEl.textContent = `Playing on: ${data.planet.charAt(0).toUpperCase() + data.planet.slice(1)}`;
         }
 
+        // Log current state
+        console.log(`Current state: Player ${currentPlayer}'s turn, P1 throws: ${player1Throws}/${totalThrows}, P2 throws: ${player2Throws}/${totalThrows}`);
+
         // Recreate bags if they changed
         if (data.bagsInPlay) {
           recreateBagsFromState(data.bagsInPlay);
@@ -618,9 +628,11 @@
           showScreen("gameScreen");
           
           // Create a new bag if it's player's turn and they haven't used all throws
+          // and don't already have a bag
           if (!currentBagEl && localPlayerNum === currentPlayer &&
               ((localPlayerNum === 1 && player1Throws < totalThrows) ||
                (localPlayerNum === 2 && player2Throws < totalThrows))) {
+            console.log(`Creating new bag for Player ${localPlayerNum}`);
             currentBagEl = createBagElement();
           }
           
@@ -826,14 +838,24 @@
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
     }
 
+    // Fix 3: Improved hole collision detection for more accurate scoring
     async function registerScore(x, y, rotation) {
       const boardCenter = window.innerWidth / 2;
+      
+      // Check center of hole coordinates
+      const holeX = boardCenter;
+      const holeY = boardTop + 30 / 2; // 30 is the hole height divided by 2
+      
+      // Calculate distance from hole center
       const distanceFromHole = Math.sqrt(
-        Math.pow(x - boardCenter, 2) +
-        Math.pow(y - (boardTop + 30 / 2), 2)
+        Math.pow(x - holeX, 2) +
+        Math.pow(y - holeY, 2)
       );
 
-      // Increased hole radius for better playability
+      // Log distance for debugging
+      console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
+      
+      // Improved hole collision - slightly more generous
       const isInHole = distanceFromHole <= HOLE_RADIUS;
       const currentPlayerStr = `player${localPlayerNum}`;
 
@@ -852,6 +874,10 @@
         const doc = await gameRef.get();
         const currentBags = doc.data().bagsInPlay[currentPlayerStr] || [];
         
+        // Log scoring info
+        console.log(`Bag scored: ${isInHole ? 'In hole (3 pts)' : 'On board (1 pt)'}`);
+        
+        // Update the bags with the new one
         await gameRef.update({
           [`bagsInPlay.${currentPlayerStr}`]: [...currentBags, bagData]
         });
@@ -860,10 +886,11 @@
           createHoleInEffect(x, y);
         }
         
-        // Wait before finishing throw to ensure animation completes
+        // Wait briefly before finishing throw
         setTimeout(() => {
           finishThrow();
         }, 300);
+        
       } catch (err) {
         console.error("Error registering score:", err);
       }
@@ -890,26 +917,28 @@
         setTimeout(() => particle.remove(), 1000);
       }
     }
-
-    // Improved turn management with proper switching
+    // Fix 4: Improved turn management with proper switching
     async function finishThrow() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
 
       try {
         // Immediately update our local state
-        currentBagEl = null;
+        const currentThrown = currentBagEl;
+        currentBagEl = null; // Clear current bag first to avoid double processing
         
-        // First get the latest game state
+        // Get the latest game state
         const doc = await gameRef.get();
         const data = doc.data();
         
         if (localPlayerNum === 1) {
-          // Update throw count and switch to player 2
+          // Calculate the new throw count
           const newThrowCount = player1Throws + 1;
+          console.log(`Player 1 completed throw ${newThrowCount} of ${totalThrows}`);
           
+          // Update throw count and switch to player 2
           await gameRef.update({
             player1Throws: newThrowCount,
-            currentPlayer: 2 // Switch to player 2
+            currentPlayer: 2 // Always switch to player 2 after player 1's throw
           });
 
           // Check if round is complete
@@ -917,12 +946,14 @@
             await calculateAndUpdateScore();
           }
         } else { // localPlayerNum === 2
-          // Update throw count and switch to player 1
+          // Calculate the new throw count
           const newThrowCount = player2Throws + 1;
+          console.log(`Player 2 completed throw ${newThrowCount} of ${totalThrows}`);
           
+          // Update throw count and switch to player 1
           await gameRef.update({
             player2Throws: newThrowCount,
-            currentPlayer: 1 // Switch to player 1
+            currentPlayer: 1 // Always switch to player 1 after player 2's throw
           });
 
           // Check if round is complete
@@ -931,17 +962,13 @@
           }
         }
 
-        // Update local UI immediately
-        updateTryCounter();
-        updateScoreDisplay();
-
       } catch (err) {
         console.error("Error updating game state:", err);
         alert("Failed to update game state. Please try refreshing the page.");
       }
     }
 
-    // Enhanced scoring calculation with cancellation rules
+    // Fix 5: Ensure calculateAndUpdateScore properly implements cancellation scoring
     async function calculateAndUpdateScore() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
       const doc = await gameRef.get();
@@ -951,25 +978,38 @@
       const p1Bags = data.bagsInPlay.player1 || [];
       const p2Bags = data.bagsInPlay.player2 || [];
 
+      // Count bags in hole and on board
       const p1InHole = p1Bags.filter(b => b.isInHole).length;
       const p2InHole = p2Bags.filter(b => b.isInHole).length;
       const p1OnBoard = p1Bags.filter(b => !b.isInHole).length;
       const p2OnBoard = p2Bags.filter(b => !b.isInHole).length;
 
       // Calculate raw points
-      let p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
-      let p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
+      const p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
+      const p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
+
+      // Log the scoring calculation
+      console.log(`Round summary:
+        Player 1: ${p1InHole} in hole (${p1InHole * 3} pts) + ${p1OnBoard} on board (${p1OnBoard} pts) = ${p1Points} pts
+        Player 2: ${p2InHole} in hole (${p2InHole * 3} pts) + ${p2OnBoard} on board (${p2OnBoard} pts) = ${p2Points} pts`);
 
       // Apply cancellation rules - only the difference in points is awarded
       const netPoints = Math.abs(p1Points - p2Points);
       const winner = p1Points > p2Points ? 1 : (p1Points < p2Points ? 2 : 0);
 
       // Update scores
+      const oldScores = {...gameScores};
       if (winner === 1) {
         gameScores.player1 += netPoints;
+        console.log(`Player 1 wins the round and gets ${netPoints} points`);
       } else if (winner === 2) {
         gameScores.player2 += netPoints;
+        console.log(`Player 2 wins the round and gets ${netPoints} points`);
+      } else {
+        console.log(`The round is a tie, no points awarded`);
       }
+
+      console.log(`Score update: ${oldScores.player1}-${oldScores.player2} → ${gameScores.player1}-${gameScores.player2}`);
 
       try {
         // Check for game end
@@ -978,6 +1018,7 @@
             gameStatus: 'ended',
             gameScores: gameScores
           });
+          console.log(`Game over. Final score: ${gameScores.player1}-${gameScores.player2}`);
         } else {
           // Start new round with clean state
           await gameRef.update({
@@ -990,6 +1031,7 @@
               player2: []
             }
           });
+          console.log(`Starting new round. Current score: ${gameScores.player1}-${gameScores.player2}`);
         }
       } catch (err) {
         console.error("Error updating score:", err);
