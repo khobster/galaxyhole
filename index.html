@@ -99,8 +99,8 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 3500px; /* Increased from 2500px for better depth perception */
-      perspective-origin: 50% 30%; /* Changed from 40% to 30% to look more downward */
+      perspective: 2000px; /* Reduced for better visual */
+      perspective-origin: 50% 100%; /* Changed to look up from bottom */
       position: relative;
       overflow: hidden;
     }
@@ -112,19 +112,19 @@
       position: absolute;
       top: 0;
       left: 0;
-      transform: rotateX(15deg); /* Changed from 25deg to create more vertical separation */
+      transform: rotateX(20deg); /* Adjusted to better show perspective */
     }
 
     /* Board positioning */
     #board {
       position: absolute;
-      width: 80px; /* Reduced from 100px for a smaller board */
-      height: 160px; /* Reduced from 200px for a smaller board */
+      width: 120px; /* Increased size for visibility */
+      height: 240px;
       left: 50%;
-      top: 10%; /* Changed from 15% to move it higher */
+      top: 35%; /* Positioned toward top third of screen */
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-3500px); /* Updated to match boardZ constant */
+      transform: translate(-50%, -50%) translateZ(0px); /* Board is at z-index 0 */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -133,10 +133,10 @@
 
     #hole {
       position: absolute;
-      width: 25px; /* Smaller to match smaller board */
-      height: 25px; /* Smaller to match smaller board */
+      width: 35px; /* Adjusted size */
+      height: 35px;
       left: 50%;
-      top: 15%; /* Changed from 20% to match new board position */
+      top: 25%; /* Positioned on board */
       transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
@@ -418,8 +418,8 @@
     // Constants
     const player1Color = "#c41e3a";
     const player2Color = "#4287f5";
-    const boardZ = -3500; // Increased from -2000 to -3500 to make board appear much farther away
-    const boardTop = window.innerHeight * 0.10; // Reduced from 0.15 to 0.10 to move board higher up
+    const boardZ = 0; // Board is at z=0, player is behind
+    const boardTop = window.innerHeight * 0.35; // Align with CSS
 
     // Planet settings
     const planets = {
@@ -741,17 +741,17 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 120; // Updated to match setBagStartPosition
-      const startZ = 0;
+      const startY = window.innerHeight - 150; // Updated to match setBagStartPosition
+      const startZ = -1500; // Starting behind the board
 
       // Enhanced throwing physics with planet adjustment
       const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
       const gravity = currentPlanet.gravity * 0.01;
 
-      // Better trajectory calculations with more control - adjusted for longer distance
+      // Better trajectory calculations for throwing forward
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
       const vy = throwVelocity * Math.sin(angle) * 2.5;
-      const vz = -throwVelocity * 8.0; // Increased from 5.0 to 8.0 for much longer throws
+      const vz = throwVelocity * 6.0; // Now positive to move forward toward the board
 
       let posX = startX;
       let posY = startY;
@@ -783,12 +783,12 @@
         }
 
         // Check for landing on board with improved collision detection
-        if (posZ <= boardZ && !hasLanded) {
+        if (posZ >= -20 && posZ <= 20 && !hasLanded) {
           const boardHitY = boardTop;
           const boardCenterX = window.innerWidth / 2;
           const distanceFromCenter = Math.abs(posX - boardCenterX);
 
-          if (posY > boardHitY - 40 && posY < boardHitY + 200 && distanceFromCenter < 70) {
+          if (posY > boardHitY - 120 && posY < boardHitY + 120 && distanceFromCenter < 70) {
             hasLanded = true;
             const finalRotation = Math.random() * 360;
             currentBagEl.style.transition = 'transform 0.3s ease-out';
@@ -799,7 +799,7 @@
         }
 
         // Check if bag has missed the board
-        if ((posZ <= boardZ - 100 || posY > window.innerHeight) && !hasLanded) {
+        if ((posZ > 100 || posY > window.innerHeight) && !hasLanded) {
           hasLanded = true;
           currentBagEl.style.opacity = '0';
           setTimeout(() => {
@@ -846,8 +846,8 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 120; /* Moved lower from -80 to -120 to create more separation */
-      bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
+      const startY = window.innerHeight - 150; /* Position bag at bottom of screen */
+      bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, -1500px)`; /* Bag is behind the board */
     }
 
     // FIXED: Improved hole collision detection for more accurate scoring
