@@ -99,8 +99,8 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 2500px; /* Increased from 1500px for better depth perception */
-      perspective-origin: 50% 40%;
+      perspective: 3500px; /* Increased from 2500px for better depth perception */
+      perspective-origin: 50% 30%; /* Changed from 40% to 30% to look more downward */
       position: relative;
       overflow: hidden;
     }
@@ -112,19 +112,19 @@
       position: absolute;
       top: 0;
       left: 0;
-      transform: rotateX(25deg);
+      transform: rotateX(15deg); /* Changed from 25deg to create more vertical separation */
     }
 
     /* Board positioning */
     #board {
       position: absolute;
-      width: 100px; /* Reduced from 120px to make it look farther away */
-      height: 200px; /* Reduced from 240px to make it look farther away */
+      width: 80px; /* Reduced from 100px for a smaller board */
+      height: 160px; /* Reduced from 200px for a smaller board */
       left: 50%;
-      top: 15%; /* Changed from 25% to move it higher */
+      top: 10%; /* Changed from 15% to move it higher */
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-2000px); /* Updated to match boardZ constant */
+      transform: translate(-50%, -50%) translateZ(-3500px); /* Updated to match boardZ constant */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -133,10 +133,10 @@
 
     #hole {
       position: absolute;
-      width: 30px; /* Smaller to match smaller board */
-      height: 30px; /* Smaller to match smaller board */
+      width: 25px; /* Smaller to match smaller board */
+      height: 25px; /* Smaller to match smaller board */
       left: 50%;
-      top: 20%; /* Changed from 25% to match new board position */
+      top: 15%; /* Changed from 20% to match new board position */
       transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
@@ -418,8 +418,8 @@
     // Constants
     const player1Color = "#c41e3a";
     const player2Color = "#4287f5";
-    const boardZ = -2000; // Changed from -1000 to -2000 to make the board appear much farther away
-    const boardTop = window.innerHeight * 0.15; // Changed from 0.25 to 0.15 to move the board higher up
+    const boardZ = -3500; // Increased from -2000 to -3500 to make board appear much farther away
+    const boardTop = window.innerHeight * 0.10; // Reduced from 0.15 to 0.10 to move board higher up
 
     // Planet settings
     const planets = {
@@ -741,7 +741,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 80; // Updated to match setBagStartPosition
+      const startY = window.innerHeight - 120; // Updated to match setBagStartPosition
       const startZ = 0;
 
       // Enhanced throwing physics with planet adjustment
@@ -751,7 +751,7 @@
       // Better trajectory calculations with more control - adjusted for longer distance
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
       const vy = throwVelocity * Math.sin(angle) * 2.5;
-      const vz = -throwVelocity * 5.0; // Increased from 3.0 to 5.0 for much longer throws
+      const vz = -throwVelocity * 8.0; // Increased from 5.0 to 8.0 for much longer throws
 
       let posX = startX;
       let posY = startY;
@@ -846,7 +846,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 80; /* Moved higher up from -100 */
+      const startY = window.innerHeight - 120; /* Moved lower from -80 to -120 to create more separation */
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
     }
 
@@ -856,7 +856,7 @@
       
       // Check center of hole coordinates - use correct position
       const holeX = boardCenter;
-      const holeY = boardTop + 40; // Adjusted for better accuracy with the new board position
+      const holeY = boardTop + 25; // Adjusted for better accuracy with the new board position
       
       // Calculate distance from hole center
       const distanceFromHole = Math.sqrt(
@@ -868,7 +868,7 @@
       console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
       
       // More generous hole collision detection with scaled radius for distance
-      const scaledHoleRadius = HOLE_RADIUS * 0.8; // Adjusted for the smaller board
+      const scaledHoleRadius = HOLE_RADIUS * 0.6; // Adjusted for the smaller board
       const isInHole = distanceFromHole <= scaledHoleRadius;
       const currentPlayerStr = `player${localPlayerNum}`;
 
