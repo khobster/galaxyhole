@@ -99,8 +99,8 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 2000px; /* Reduced for better visual */
-      perspective-origin: 50% 100%; /* Changed to look up from bottom */
+      perspective: 2000px;
+      perspective-origin: 50% 100%;
       position: relative;
       overflow: hidden;
     }
@@ -112,19 +112,19 @@
       position: absolute;
       top: 0;
       left: 0;
-      transform: rotateX(20deg); /* Adjusted to better show perspective */
+      transform: rotateX(20deg);
     }
 
     /* Board positioning */
     #board {
       position: absolute;
-      width: 120px; /* Increased size for visibility */
+      width: 120px;
       height: 240px;
       left: 50%;
-      top: 35%; /* Positioned toward top third of screen */
+      top: 35%;
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(0px); /* Board is at z-index 0 */
+      transform: translate(-50%, -50%) translateZ(0px);
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -133,17 +133,18 @@
 
     #hole {
       position: absolute;
-      width: 35px; /* Adjusted size */
+      width: 35px;
       height: 35px;
       left: 50%;
-      top: 25%; /* Positioned on board */
+      top: 25%;
       transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
       box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
 
-.bag {
+    /* Bag styling */
+    .bag {
       position: absolute;
       width: 40px;
       height: 40px;
@@ -152,7 +153,7 @@
       z-index: 10;
       transition: transform 0.05s ease-out, opacity 0.3s ease-out;
       transform-style: preserve-3d;
-      will-change: transform, opacity, z-index; /* Optimize for animations */
+      will-change: transform, opacity, z-index;
     }
 
     /* Trajectory styling */
@@ -306,6 +307,33 @@
       display: none;
       text-align: center;
     }
+
+    /* Error message */
+    #errorScreen {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      padding: 20px;
+      text-align: center;
+    }
+
+    #errorScreen h2 {
+      color: #c41e3a;
+      margin-bottom: 20px;
+    }
+
+    #errorScreen p {
+      max-width: 600px;
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -358,858 +386,959 @@
     <button id="restart-game">Play Again</button>
   </div>
 
+  <div id="errorScreen">
+    <h2>Loading Error</h2>
+    <p>There was a problem loading Firebase. This might be due to ad blockers, network issues, or privacy extensions.</p>
+    <p>To fix this:</p>
+    <ol style="text-align: left; display: inline-block;">
+      <li>Disable ad blockers or privacy extensions for this page</li>
+      <li>Check your internet connection</li>
+      <li>Try using a different browser</li>
+    </ol>
+    <button id="retry-loading">Try Again</button>
+  </div>
+
+  <!-- Load Firebase with fallback handling -->
+  <script>
+    // This variable will track if we've attempted to reload
+    let firebaseReloadAttempt = false;
+    
+    // Function to check if Firebase is loaded
+    function isFirebaseLoaded() {
+      return typeof firebase !== 'undefined';
+    }
+    
+    // Function to show error screen
+    function showFirebaseError() {
+      document.getElementById('errorScreen').style.display = 'flex';
+    }
+    
+    // Function to retry loading
+    function retryLoading() {
+      if (!firebaseReloadAttempt) {
+        firebaseReloadAttempt = true;
+        document.getElementById('errorScreen').style.display = 'none';
+        
+        // Reload scripts
+        const appScript = document.createElement('script');
+        appScript.src = "https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js";
+        appScript.onload = function() {
+          const firestoreScript = document.createElement('script');
+          firestoreScript.src = "https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js";
+          firestoreScript.onload = function() {
+            initializeApp();
+          };
+          firestoreScript.onerror = showFirebaseError;
+          document.body.appendChild(firestoreScript);
+        };
+        appScript.onerror = showFirebaseError;
+        document.body.appendChild(appScript);
+      } else {
+        // If we've already tried once, provide more guidance
+        alert("Still having trouble loading Firebase. Please check your internet connection and browser extensions.");
+      }
+    }
+    
+    // Add event listener to retry button
+    document.getElementById('retry-loading').addEventListener('click', retryLoading);
+  </script>
+
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  
   <script>
-    // Firebase initialization
-    const firebaseConfig = {
-      apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
-      authDomain: "galaxy-hole-53c76.firebaseapp.com",
-      projectId: "galaxy-hole-53c76",
-      storageBucket: "galaxy-hole-53c76.firebaseapp.com",
-      messagingSenderId: "592610380036",
-      appId: "1:592610380036:web:4b5c72ee181682b9262851",
-      measurementId: "G-6KWKF4T304"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-
-    // Game state
-    let gameId = null;
-    let currentPlayer = null;
-    let localPlayerNum = null;
-    const totalThrows = 4;
-    let player1Throws = 0;
-    let player2Throws = 0;
-    const playerId = generatePlayerId();
-    let currentBagEl = null;
-    let isAnimating = false;
-    let isDragging = false;
-    let dragStart = null;
-    let minimumDragDistance = 10; // Reduced for more sensitivity
-    let time = 0;
-
-    // Scoring state
-    let gameScores = {
-      player1: 0,
-      player2: 0
-    };
-
-    const POINTS_IN_HOLE = 3;
-    const POINTS_ON_BOARD = 1;
-    const WINNING_SCORE = 21;
-    const HOLE_RADIUS = 20; // Increased for better playability
-
-    // DOM Elements
-    const tryCounterEl = document.getElementById('tryCounter');
-    const scoreDisplayEl = document.getElementById('scoreDisplay');
-    const planetSelectSetup = document.getElementById('planet-select-setup');
-    const selectedPlanetEl = document.getElementById('selectedPlanet');
-    const sceneEl = document.getElementById('scene');
-    const trajectoryContainer = document.getElementById('trajectory');
-    const gameLinkEl = document.getElementById('gameLink');
-    const boardEl = document.getElementById('board');
-    const gameScreenEl = document.getElementById('gameScreen');
-    const throwPreviewEl = document.getElementById('throwPreview');
-    const throwInstructionsEl = document.getElementById('throwInstructions');
-    const powerMeterEl = document.getElementById('powerMeter');
-    const powerFillEl = document.getElementById('powerFill');
-
-    // Constants
-    const player1Color = "#c41e3a";
-    const player2Color = "#4287f5";
-    const boardZ = 0; // Board is at z=0, player is behind
-    const boardTop = window.innerHeight * 0.35; // Align with CSS
-
-    // Planet settings
-    const planets = {
-      earth: { gravity: 9.81, throwAdjustment: 1.0 },
-      moon: { gravity: 1.62, throwAdjustment: 0.6 },
-      mars: { gravity: 3.72, throwAdjustment: 0.8 },
-      jupiter: { gravity: 24.79, throwAdjustment: 1.5 }
-    };
-    let currentPlanet = planets.earth;
-
-    // Screen management
-    function showScreen(screenId) {
-      document.querySelectorAll('.screen').forEach(screen => {
-        screen.style.display = screen.id === screenId ? "flex" : "none";
-      });
-    }
-
-    // Game creation with planet selection
-    async function createNewGame() {
-      try {
-        const selectedPlanet = planetSelectSetup.value;
-        const gameRef = await db.collection('cornholeGames').add({
-          player1Id: playerId,
-          player2Id: null,
-          currentPlayer: 1,
-          player1Throws: 0,
-          player2Throws: 0,
-          gameStatus: 'waiting',
-          gameScores: { player1: 0, player2: 0 },
-          planet: selectedPlanet,
-          bagsInPlay: {
-            player1: [],
-            player2: []
-          }
-        });
-
-        gameId = gameRef.id;
-        localPlayerNum = 1;
-        
-        // Set current planet based on selection
-        currentPlanet = planets[selectedPlanet];
-        selectedPlanetEl.textContent = `Playing on: ${selectedPlanet.charAt(0).toUpperCase() + selectedPlanet.slice(1)}`;
-
-        // Create shareable link with proper formatting
-        const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
-
-        // Add copy functionality with better UX
-        gameLinkEl.innerHTML = `
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <input type="text" value="${shareLink}" readonly style="width: 400px; padding: 8px;">
-            <button id="copyLink" style="padding: 8px 16px;">Copy Link</button>
-          </div>
-          <div id="copyStatus" style="margin-top: 8px; color: green; display: none;">Link copied!</div>
-        `;
-
-        document.getElementById('copyLink').addEventListener('click', () => {
-          const input = gameLinkEl.querySelector('input');
-          input.select();
-          navigator.clipboard.writeText(shareLink)
-            .then(() => {
-              const status = document.getElementById('copyStatus');
-              status.style.display = 'block';
-              setTimeout(() => {
-                status.style.display = 'none';
-              }, 2000);
-            })
-            .catch(err => console.error("Copy failed", err));
-        });
-
-        showScreen("waitingScreen");
-        startGameListener();
-      } catch (err) {
-        console.error("Error creating game:", err);
-        alert("Failed to create game. Please try again.");
-      }
-    }
-
-    // Game joining with planet inheritance
-    async function joinGame(gameIdToJoin) {
-      if (!gameIdToJoin) {
-        alert("Please enter a game ID");
+    // Initialize the application only when Firebase is available
+    function initializeApp() {
+      if (!isFirebaseLoaded()) {
+        showFirebaseError();
         return;
       }
-
-      try {
-        const gameRef = db.collection('cornholeGames').doc(gameIdToJoin);
-        const doc = await gameRef.get();
-
-        if (!doc.exists) {
-          alert("Game not found");
-          return;
-        }
-
-        const data = doc.data();
-        
-        // Set planet from game data
-        const gamePlanet = data.planet || 'earth';
-        currentPlanet = planets[gamePlanet];
-        selectedPlanetEl.textContent = `Playing on: ${gamePlanet.charAt(0).toUpperCase() + gamePlanet.slice(1)}`;
-
-        if (data.player1Id === playerId || data.player2Id === playerId) {
-          // Rejoining existing game
-          localPlayerNum = data.player1Id === playerId ? 1 : 2;
-          gameId = gameIdToJoin;
-          gameScores = data.gameScores || { player1: 0, player2: 0 };
-          player1Throws = data.player1Throws;
-          player2Throws = data.player2Throws;
-
-          // Recreate any bags that were in play
-          recreateBagsFromState(data.bagsInPlay);
-
-          updateScoreDisplay();
-          updateTryCounter();
-          showScreen("gameScreen");
-          startGameListener();
-        } else if (!data.player2Id && data.gameStatus === 'waiting') {
-          // Joining as player 2
-          await gameRef.update({
-            player2Id: playerId,
-            gameStatus: 'started'
-          });
-          localPlayerNum = 2;
-          gameId = gameIdToJoin;
-          showScreen("gameScreen");
-          startGameListener();
-        } else {
-          alert("Cannot join game - it may be full or already ended");
-        }
-      } catch (err) {
-        console.error("Error joining game:", err);
-        alert("Failed to join game. Please try again.");
-      }
-    }
-
-    // FIXED: Improved bag recreation and persistence
-    function recreateBagsFromState(bagsInPlay) {
-      if (!bagsInPlay) return;
       
-      // Only clear existing bags that aren't the current player's active bag
-      document.querySelectorAll('.bag').forEach(bag => {
-        // Fix the null error by checking if bag exists before removing
-        if (bag && bag !== currentBagEl) {
-          bag.remove();
-        }
-      });
+      try {
+        // Firebase initialization
+        const firebaseConfig = {
+          apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+          authDomain: "galaxy-hole-53c76.firebaseapp.com",
+          projectId: "galaxy-hole-53c76",
+          storageBucket: "galaxy-hole-53c76.firebaseapp.com",
+          messagingSenderId: "592610380036",
+          appId: "1:592610380036:web:4b5c72ee181682b9262851",
+          measurementId: "G-6KWKF4T304"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
-      // Sort bags by timestamp to maintain throw order
-      const recreateBagsForPlayer = (bags, color) => {
-        if (!bags || !Array.isArray(bags)) return;
-        
-        const sortedBags = [...bags].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        
-        sortedBags.forEach(bagData => {
-          // Check if this is already the current bag being thrown - don't recreate it
-          if (currentBagEl && 
-              Math.abs(parseFloat(currentBagEl.style.transform.split('translate3d(')[1]) - (bagData.x - 20)) < 5) {
+        // Game state
+        let gameId = null;
+        let currentPlayer = null;
+        let localPlayerNum = null;
+        const totalThrows = 4;
+        let player1Throws = 0;
+        let player2Throws = 0;
+        const playerId = generatePlayerId();
+        let currentBagEl = null;
+        let isAnimating = false;
+        let isDragging = false;
+        let dragStart = null;
+        let minimumDragDistance = 10; // Reduced for more sensitivity
+        let time = 0;
+
+        // Scoring state
+        let gameScores = {
+          player1: 0,
+          player2: 0
+        };
+
+        const POINTS_IN_HOLE = 3;
+        const POINTS_ON_BOARD = 1;
+        const WINNING_SCORE = 21;
+        const HOLE_RADIUS = 20; // Increased for better playability
+
+        // DOM Elements
+        const tryCounterEl = document.getElementById('tryCounter');
+        const scoreDisplayEl = document.getElementById('scoreDisplay');
+        const planetSelectSetup = document.getElementById('planet-select-setup');
+        const selectedPlanetEl = document.getElementById('selectedPlanet');
+        const sceneEl = document.getElementById('scene');
+        const trajectoryContainer = document.getElementById('trajectory');
+        const gameLinkEl = document.getElementById('gameLink');
+        const boardEl = document.getElementById('board');
+        const gameScreenEl = document.getElementById('gameScreen');
+        const throwPreviewEl = document.getElementById('throwPreview');
+        const throwInstructionsEl = document.getElementById('throwInstructions');
+        const powerMeterEl = document.getElementById('powerMeter');
+        const powerFillEl = document.getElementById('powerFill');
+
+        // Constants
+        const player1Color = "#c41e3a";
+        const player2Color = "#4287f5";
+        const boardZ = 0; // Board is at z=0, player is behind
+        const boardTop = window.innerHeight * 0.35; // Align with CSS
+
+        // Planet settings
+        const planets = {
+          earth: { gravity: 9.81, throwAdjustment: 1.0 },
+          moon: { gravity: 1.62, throwAdjustment: 0.6 },
+          mars: { gravity: 3.72, throwAdjustment: 0.8 },
+          jupiter: { gravity: 24.79, throwAdjustment: 1.5 }
+        };
+        let currentPlanet = planets.earth;
+
+        // Screen management
+        function showScreen(screenId) {
+          document.querySelectorAll('.screen').forEach(screen => {
+            screen.style.display = screen.id === screenId ? "flex" : "none";
+          });
+        }
+
+        // Game creation with planet selection
+        async function createNewGame() {
+          try {
+            const selectedPlanet = planetSelectSetup.value;
+            const gameRef = await db.collection('cornholeGames').add({
+              player1Id: playerId,
+              player2Id: null,
+              currentPlayer: 1,
+              player1Throws: 0,
+              player2Throws: 0,
+              gameStatus: 'waiting',
+              gameScores: { player1: 0, player2: 0 },
+              planet: selectedPlanet,
+              bagsInPlay: {
+                player1: [],
+                player2: []
+              }
+            });
+
+            gameId = gameRef.id;
+            localPlayerNum = 1;
+            
+            // Set current planet based on selection
+            currentPlanet = planets[selectedPlanet];
+            selectedPlanetEl.textContent = `Playing on: ${selectedPlanet.charAt(0).toUpperCase() + selectedPlanet.slice(1)}`;
+
+            // Create shareable link with proper formatting
+            const shareLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+
+            // Add copy functionality with better UX
+            gameLinkEl.innerHTML = `
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" value="${shareLink}" readonly style="width: 400px; padding: 8px;">
+                <button id="copyLink" style="padding: 8px 16px;">Copy Link</button>
+              </div>
+              <div id="copyStatus" style="margin-top: 8px; color: green; display: none;">Link copied!</div>
+            `;
+
+            document.getElementById('copyLink').addEventListener('click', () => {
+              const input = gameLinkEl.querySelector('input');
+              input.select();
+              navigator.clipboard.writeText(shareLink)
+                .then(() => {
+                  const status = document.getElementById('copyStatus');
+                  status.style.display = 'block';
+                  setTimeout(() => {
+                    status.style.display = 'none';
+                  }, 2000);
+                })
+                .catch(err => console.error("Copy failed", err));
+            });
+
+            showScreen("waitingScreen");
+            startGameListener();
+          } catch (err) {
+            console.error("Error creating game:", err);
+            alert("Failed to create game. Please try again.");
+          }
+        }
+
+        // Game joining with planet inheritance
+        async function joinGame(gameIdToJoin) {
+          if (!gameIdToJoin) {
+            alert("Please enter a game ID");
             return;
           }
+
+          try {
+            const gameRef = db.collection('cornholeGames').doc(gameIdToJoin);
+            const doc = await gameRef.get();
+
+            if (!doc.exists) {
+              alert("Game not found");
+              return;
+            }
+
+            const data = doc.data();
+            
+            // Set planet from game data
+            const gamePlanet = data.planet || 'earth';
+            currentPlanet = planets[gamePlanet];
+            selectedPlanetEl.textContent = `Playing on: ${gamePlanet.charAt(0).toUpperCase() + gamePlanet.slice(1)}`;
+
+            if (data.player1Id === playerId || data.player2Id === playerId) {
+              // Rejoining existing game
+              localPlayerNum = data.player1Id === playerId ? 1 : 2;
+              gameId = gameIdToJoin;
+              gameScores = data.gameScores || { player1: 0, player2: 0 };
+              player1Throws = data.player1Throws;
+              player2Throws = data.player2Throws;
+
+              // Recreate any bags that were in play
+              recreateBagsFromState(data.bagsInPlay);
+
+              updateScoreDisplay();
+              updateTryCounter();
+              showScreen("gameScreen");
+              startGameListener();
+            } else if (!data.player2Id && data.gameStatus === 'waiting') {
+              // Joining as player 2
+              await gameRef.update({
+                player2Id: playerId,
+                gameStatus: 'started'
+              });
+              localPlayerNum = 2;
+              gameId = gameIdToJoin;
+              showScreen("gameScreen");
+              startGameListener();
+            } else {
+              alert("Cannot join game - it may be full or already ended");
+            }
+          } catch (err) {
+            console.error("Error joining game:", err);
+            alert("Failed to join game. Please try again.");
+          }
+        }
+
+        // Improved bag recreation for consistent persistence
+        function recreateBagsFromState(bagsInPlay) {
+          if (!bagsInPlay) return;
           
+          // Only clear existing bags that aren't the current player's active bag
+          document.querySelectorAll('.bag').forEach(bag => {
+            // Fix the null error by checking if bag exists before removing
+            if (bag && bag !== currentBagEl) {
+              bag.remove();
+            }
+          });
+
+          // Sort bags by timestamp to maintain throw order
+          const recreateBagsForPlayer = (bags, color) => {
+            if (!bags || !Array.isArray(bags)) return;
+            
+            const sortedBags = [...bags].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            
+            sortedBags.forEach(bagData => {
+              // Check if this is already the current bag being thrown - don't recreate it
+              if (currentBagEl && 
+                  Math.abs(parseFloat(currentBagEl.style.transform.split('translate3d(')[1]) - (bagData.x - 20)) < 5) {
+                return;
+              }
+              
+              const bag = document.createElement('div');
+              bag.classList.add('bag');
+              bag.style.background = color;
+              sceneEl.appendChild(bag);
+              
+              // Improved z-index for in-hole bags and add data attributes for debugging
+              const zOffset = bagData.isInHole ? -5 : 5;
+              bag.dataset.inHole = bagData.isInHole;
+              
+              // Position appropriately based on if it's in the hole
+              if (bagData.isInHole) {
+                // Find hole position
+                const holeX = window.innerWidth / 2;
+                const holeY = boardTop + 25;
+                bag.style.transform = 
+                  `translate3d(${holeX - 20}px, ${holeY - 20}px, ${zOffset}px) scale(0.8) rotate(${bagData.rotation || 0}deg)`;
+                bag.style.opacity = '0.7';
+              } else {
+                bag.style.transform =
+                  `translate3d(${bagData.x - 20}px, ${bagData.y - 20}px, 5px) rotate(${bagData.rotation || 0}deg)`;
+              }
+              
+              // Set appropriate z-index
+              bag.style.zIndex = bagData.isInHole ? 500 : 1000;
+            });
+          };
+
+          // Always recreate both players' bags
+          recreateBagsForPlayer(bagsInPlay.player1, player1Color);
+          recreateBagsForPlayer(bagsInPlay.player2, player2Color);
+        }
+
+        // Game state listener with improved turn handling
+        function startGameListener() {
+          const gameRef = db.collection('cornholeGames').doc(gameId);
+
+          gameRef.onSnapshot(doc => {
+            if (!doc.exists) return;
+
+            const data = doc.data();
+            currentPlayer = data.currentPlayer;
+            player1Throws = data.player1Throws;
+            player2Throws = data.player2Throws;
+            gameScores = data.gameScores || gameScores;
+            
+            // Update planet from game state if available
+            if (data.planet) {
+              currentPlanet = planets[data.planet];
+              selectedPlanetEl.textContent = `Playing on: ${data.planet.charAt(0).toUpperCase() + data.planet.slice(1)}`;
+            }
+
+            // Log current state
+            console.log(`Current state: Player ${currentPlayer}'s turn, P1 throws: ${player1Throws}/${totalThrows}, P2 throws: ${player2Throws}/${totalThrows}`);
+
+            // Recreate bags if they changed
+            if (data.bagsInPlay) {
+              recreateBagsFromState(data.bagsInPlay);
+            }
+
+            updateTryCounter();
+            updateScoreDisplay();
+
+            if (data.gameStatus === 'started') {
+              showScreen("gameScreen");
+              
+              // Create a new bag if it's player's turn and they haven't used all throws
+              // and don't already have a bag
+              if (!currentBagEl && localPlayerNum === currentPlayer &&
+                  ((localPlayerNum === 1 && player1Throws < totalThrows) ||
+                   (localPlayerNum === 2 && player2Throws < totalThrows))) {
+                console.log(`Creating new bag for Player ${localPlayerNum}`);
+                currentBagEl = createBagElement();
+              }
+              
+              // Show/hide instructions based on turn
+              throwInstructionsEl.style.display = 
+                localPlayerNum === currentPlayer ? 'block' : 'none';
+              powerMeterEl.style.opacity = 
+                localPlayerNum === currentPlayer ? '1' : '0';
+            } else if (data.gameStatus === 'ended') {
+              showResult();
+            }
+          }, error => {
+            console.error("Game listener error:", error);
+          });
+        }
+
+        // Enhanced drag mechanics
+        function startDrag(e) {
+          if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
+
+          e.preventDefault();
+          isDragging = true;
+          gameScreenEl.classList.add('dragging');
+
+          const point = e.touches ? e.touches[0] : e;
+          dragStart = {
+            x: point.clientX,
+            y: point.clientY,
+            time: performance.now()
+          };
+
+          throwPreviewEl.style.opacity = '1';
+          throwPreviewEl.style.left = `${dragStart.x}px`;
+          throwPreviewEl.style.top = `${dragStart.y}px`;
+          powerMeterEl.style.opacity = '1';
+        }
+
+        function updateDrag(e) {
+          if (!isDragging) return;
+
+          e.preventDefault();
+          const point = e.touches ? e.touches[0] : e;
+          const deltaX = point.clientX - dragStart.x;
+          const deltaY = point.clientY - dragStart.y;
+
+          // Update throw preview line
+          const angle = Math.atan2(-deltaY, deltaX);
+          const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
+
+          // Update power meter with increased sensitivity
+          const power = Math.min(100, (length / 200) * 100);
+          powerFillEl.style.width = `${power}%`;
+
+          throwPreviewEl.style.transform = `rotate(${angle}rad)`;
+          throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
+
+          // Update bag position preview
+          if (currentBagEl) {
+            const previewX = dragStart.x + deltaX * 0.1;
+            const previewY = dragStart.y + deltaY * 0.1;
+            currentBagEl.style.transform =
+              `translate3d(${previewX - 20}px, ${previewY - 20}px, -1500px)`;
+          }
+        }
+
+        function endDrag(e) {
+          if (!isDragging) return;
+
+          e.preventDefault();
+          isDragging = false;
+          gameScreenEl.classList.remove('dragging');
+          throwPreviewEl.style.opacity = '0';
+          powerMeterEl.style.opacity = '0';
+          powerFillEl.style.width = '0%';
+
+          const point = e.changedTouches ? e.changedTouches[0] : e;
+          const deltaX = point.clientX - dragStart.x;
+          const deltaY = dragStart.y - point.clientY;  // Inverted for upward throw
+          const deltaTime = performance.now() - dragStart.time;
+
+          // More sensitive throwing mechanics
+          if (deltaTime < 500 && Math.sqrt(deltaX * deltaX + deltaY * deltaY) > minimumDragDistance) {
+            const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+            const angle = Math.atan2(deltaY, deltaX);
+            const power = Math.min(100, speed * 300); // Increased for more sensitivity
+            throwBag(power, angle, deltaX * 0.3); // Increased for more sensitivity
+          } else {
+            setBagStartPosition(currentBagEl);
+          }
+
+          dragStart = null;
+        }
+
+        // Optimized throwing physics
+        function throwBag(power, angle, horizontalAdjustment) {
+          if (isAnimating || !currentBagEl) return;
+          isAnimating = true;
+          time = 0;
+
+          const gameW = window.innerWidth;
+          const bagWidth = 40;
+          const startX = gameW * 0.5;
+          const startY = window.innerHeight - 200; // Updated to match setBagStartPosition
+          const startZ = -1500; // Starting behind the board
+
+          // Enhanced throwing physics with planet adjustment
+          const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
+          const gravity = currentPlanet.gravity * 0.01;
+
+          // Better trajectory calculations for throwing forward
+          const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
+          const vy = throwVelocity * Math.sin(angle) * 3.0; // Increased for better arc
+          const vz = throwVelocity * 5.0; // Now positive to move forward toward the board
+
+          let posX = startX;
+          let posY = startY;
+          let posZ = startZ;
+          let rotationX = 0;
+          let rotationZ = 0;
+          let hasLanded = false;
+
+          function animate() {
+            time += 0.016;
+
+            // Update position with enhanced parabolic motion
+            posX = startX + vx * time;
+            posY = startY - (vy * time - 0.5 * gravity * time * time);
+            posZ = startZ + vz * time;
+
+            // Add realistic rotation
+            rotationX += 5;
+            rotationZ += 3;
+
+            // Update bag position and rotation
+            currentBagEl.style.transform = 
+              `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${posZ}px) 
+               rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
+            
+            // Ensure bag stays visually on top
+            currentBagEl.style.zIndex = Math.floor(posZ) + 1000;
+
+            // Create trail effect
+            if (time * 1000 % 15 < 8) {
+              createTrailParticle(posX, posY, posZ);
+            }
+
+            // Check for landing on board with improved collision detection
+            if (posZ >= -50 && posZ <= 50 && !hasLanded) {
+              const boardHitY = boardTop;
+              const boardCenterX = window.innerWidth / 2;
+              const distanceFromCenter = Math.abs(posX - boardCenterX);
+
+              if (posY > boardHitY - 120 && posY < boardHitY + 120 && distanceFromCenter < 70) {
+                hasLanded = true;
+                const finalRotation = Math.random() * 360;
+                currentBagEl.style.transition = 'transform 0.3s ease-out';
+                currentBagEl.style.transform =
+                  `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, 10px) rotate(${finalRotation}deg)`;
+                currentBagEl.style.zIndex = 1001; // Ensure landed bag stays visible
+                registerScore(posX, posY, finalRotation);
+              }
+            }
+
+            // Check if bag has missed the board
+            if ((posZ > 100 || posY > window.innerHeight) && !hasLanded) {
+              hasLanded = true;
+              currentBagEl.style.opacity = '0';
+              setTimeout(() => {
+                if (currentBagEl) {
+                  currentBagEl.remove();
+                }
+                finishThrow();
+              }, 300);
+            } else if (!hasLanded && time < 5) { // Increased for longer animation time
+              requestAnimationFrame(animate);
+            } else {
+              isAnimating = false;
+              if (!hasLanded) {
+                // Safety fallback if animation ended but bag didn't land
+                finishThrow();
+              }
+            }
+          }
+
+          requestAnimationFrame(animate);
+        }
+
+        function createTrailParticle(x, y, z) {
+          const p = document.createElement('div');
+          p.className = 'trail-particle';
+          p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+          p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
+          p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z - 20}px)`;
+          p.style.zIndex = Math.floor(z);
+          
+          if (trajectoryContainer) {
+            trajectoryContainer.appendChild(p);
+            setTimeout(() => {
+              if (p && p.parentNode) {
+                p.remove();
+              }
+            }, 600);
+          }
+        }
+
+        function createBagElement() {
           const bag = document.createElement('div');
           bag.classList.add('bag');
-          bag.style.background = color;
+          bag.style.background = localPlayerNum === 1 ? player1Color : player2Color;
           sceneEl.appendChild(bag);
-          
-          // Improved z-index for in-hole bags and add data attributes for debugging
-          const zOffset = bagData.isInHole ? 5 : 2;
-          bag.dataset.inHole = bagData.isInHole;
-          
-          // Add transition for smooth appearance
-          bag.style.transition = 'transform 0.3s ease-out';
-          bag.style.transform =
-            `translate3d(${bagData.x - 20}px, ${bagData.y - 20}px, ${boardZ + zOffset}px) rotate(${bagData.rotation || 0}deg)`;
-        });
-      };
-
-      // Always recreate both players' bags
-      recreateBagsForPlayer(bagsInPlay.player1, player1Color);
-      recreateBagsForPlayer(bagsInPlay.player2, player2Color);
-    }
-
-    // FIXED: Improved game state listener for better turn management
-    function startGameListener() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-
-      gameRef.onSnapshot(doc => {
-        if (!doc.exists) return;
-
-        const data = doc.data();
-        currentPlayer = data.currentPlayer;
-        player1Throws = data.player1Throws;
-        player2Throws = data.player2Throws;
-        gameScores = data.gameScores || gameScores;
-        
-        // Update planet from game state if available
-        if (data.planet) {
-          currentPlanet = planets[data.planet];
-          selectedPlanetEl.textContent = `Playing on: ${data.planet.charAt(0).toUpperCase() + data.planet.slice(1)}`;
+          setBagStartPosition(bag);
+          return bag;
         }
 
-        // Log current state
-        console.log(`Current state: Player ${currentPlayer}'s turn, P1 throws: ${player1Throws}/${totalThrows}, P2 throws: ${player2Throws}/${totalThrows}`);
-
-        // Recreate bags if they changed
-        if (data.bagsInPlay) {
-          recreateBagsFromState(data.bagsInPlay);
+        function setBagStartPosition(bag) {
+          const gameW = window.innerWidth;
+          const bagWidth = 40;
+          const startX = gameW * 0.5;
+          const startY = window.innerHeight - 200;
+          bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, -1500px)`;
         }
 
-        updateTryCounter();
-        updateScoreDisplay();
-
-        if (data.gameStatus === 'started') {
-          showScreen("gameScreen");
+        // Enhanced scoring system with visual effects
+        async function registerScore(x, y, rotation) {
+          // Use a unique variable name to avoid conflicts
+          const playerStr = `player${localPlayerNum}`;
           
-          // Create a new bag if it's player's turn and they haven't used all throws
-          // and don't already have a bag
-          if (!currentBagEl && localPlayerNum === currentPlayer &&
-              ((localPlayerNum === 1 && player1Throws < totalThrows) ||
-               (localPlayerNum === 2 && player2Throws < totalThrows))) {
-            console.log(`Creating new bag for Player ${localPlayerNum}`);
-            currentBagEl = createBagElement();
+          const boardCenter = window.innerWidth / 2;
+          const holeX = boardCenter;
+          const holeY = boardTop + 25;
+          
+          // Calculate distance from hole
+          const distanceFromHole = Math.sqrt(
+            Math.pow(x - holeX, 2) +
+            Math.pow(y - holeY, 2)
+          );
+          
+          console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
+          
+          // Check if bag is in hole with appropriate radius
+          const scaledHoleRadius = HOLE_RADIUS * 0.8;
+          const isInHole = distanceFromHole <= scaledHoleRadius;
+          
+          // Prepare bag data object
+          const bagData = {
+            x: x,
+            y: y,
+            isInHole: isInHole,
+            rotation: rotation,
+            timestamp: Date.now()
+          };
+          
+          // Visual effect for hole-in
+          if (isInHole && currentBagEl) {
+            currentBagEl.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
+            currentBagEl.style.transform = 
+              `translate3d(${holeX - 20}px, ${holeY - 20}px, -5px) scale(0.8) rotate(${rotation}deg)`;
+            currentBagEl.style.opacity = '0.7';
+            createHoleInEffect(x, y);
           }
           
-          // Show/hide instructions based on turn
-          throwInstructionsEl.style.display = 
-            localPlayerNum === currentPlayer ? 'block' : 'none';
-          powerMeterEl.style.opacity = 
-            localPlayerNum === currentPlayer ? '1' : '0';
-        } else if (data.gameStatus === 'ended') {
-          showResult();
-        }
-      }, error => {
-        console.error("Game listener error:", error);
-      });
-    }
-
-    // Enhanced drag mechanics with improved sensitivity
-    function startDrag(e) {
-      if (isAnimating || !currentBagEl || currentPlayer !== localPlayerNum) return;
-
-      e.preventDefault();
-      isDragging = true;
-      gameScreenEl.classList.add('dragging');
-
-      const point = e.touches ? e.touches[0] : e;
-      dragStart = {
-        x: point.clientX,
-        y: point.clientY,
-        time: performance.now()
-      };
-
-      throwPreviewEl.style.opacity = '1';
-      throwPreviewEl.style.left = `${dragStart.x}px`;
-      throwPreviewEl.style.top = `${dragStart.y}px`;
-      powerMeterEl.style.opacity = '1';
-    }
-
-    function updateDrag(e) {
-      if (!isDragging) return;
-
-      e.preventDefault();
-      const point = e.touches ? e.touches[0] : e;
-      const deltaX = point.clientX - dragStart.x;
-      const deltaY = point.clientY - dragStart.y;
-
-      // Update throw preview line
-      const angle = Math.atan2(-deltaY, deltaX);
-      const length = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), 200);
-
-      // Update power meter with increased sensitivity
-      const power = Math.min(100, (length / 200) * 100);
-      powerFillEl.style.width = `${power}%`;
-
-      throwPreviewEl.style.transform = `rotate(${angle}rad)`;
-      throwPreviewEl.querySelector('.preview-line').style.height = `${length}px`;
-
-      // Update bag position preview
-      if (currentBagEl) {
-        const previewX = dragStart.x + deltaX * 0.1;
-        const previewY = dragStart.y + deltaY * 0.1;
-        currentBagEl.style.transform =
-          `translate3d(${previewX - 20}px, ${previewY - 20}px, 0px)`;
-      }
-    }
-
-    function endDrag(e) {
-      if (!isDragging) return;
-
-      e.preventDefault();
-      isDragging = false;
-      gameScreenEl.classList.remove('dragging');
-      throwPreviewEl.style.opacity = '0';
-      powerMeterEl.style.opacity = '0';
-      powerFillEl.style.width = '0%';
-
-      const point = e.changedTouches ? e.changedTouches[0] : e;
-      const deltaX = point.clientX - dragStart.x;
-      const deltaY = dragStart.y - point.clientY;  // Inverted for upward throw
-      const deltaTime = performance.now() - dragStart.time;
-
-      // More sensitive throwing mechanics
-      if (deltaTime < 500 && Math.sqrt(deltaX * deltaX + deltaY * deltaY) > minimumDragDistance) {
-        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
-        const angle = Math.atan2(deltaY, deltaX);
-        const power = Math.min(100, speed * 300); // Increased from 200 for more sensitivity
-        throwBag(power, angle, deltaX * 0.3); // Increased from 0.2 for more sensitivity
-      } else {
-        setBagStartPosition(currentBagEl);
-      }
-
-      dragStart = null;
-    }
-
-    // FIXED: Enhanced throwing physics with better trajectory and collision detection
-    function throwBag(power, angle, horizontalAdjustment) {
-      if (isAnimating || !currentBagEl) return;
-      isAnimating = true;
-      time = 0;
-
-      const gameW = window.innerWidth;
-      const bagWidth = 40;
-      const startX = gameW * 0.5;
-      const startY = window.innerHeight - 200; // Updated to match setBagStartPosition
-      const startZ = -1500; // Starting behind the board
-
-      // Enhanced throwing physics with planet adjustment
-      const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
-      const gravity = currentPlanet.gravity * 0.01;
-
-      // Better trajectory calculations for throwing forward
-      const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
-      const vy = throwVelocity * Math.sin(angle) * 3.0; // Increased to get better arc
-      const vz = throwVelocity * 5.0; // Now positive to move forward toward the board
-
-      let posX = startX;
-      let posY = startY;
-      let posZ = startZ;
-      let rotationX = 0;
-      let rotationZ = 0;
-      let hasLanded = false;
-
-      function animate() {
-        time += 0.016;
-
-        // Update position with enhanced parabolic motion
-        posX = startX + vx * time;
-        posY = startY - (vy * time - 0.5 * gravity * time * time);
-        posZ = startZ + vz * time;
-
-        // Add realistic rotation
-        rotationX += 5;
-        rotationZ += 3;
-
-        // Update bag position and rotation
-        currentBagEl.style.transform = 
-          `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${posZ}px) 
-           rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
-        
-        // Ensure bag stays visually on top
-        currentBagEl.style.zIndex = Math.floor(posZ) + 1000;
-
-        // Create trail effect
-        if (time * 1000 % 15 < 8) {
-          createTrailParticle(posX, posY, posZ);
-        }
-
-        // Check for landing on board with improved collision detection
-        if (posZ >= -50 && posZ <= 50 && !hasLanded) {
-          const boardHitY = boardTop;
-          const boardCenterX = window.innerWidth / 2;
-          const distanceFromCenter = Math.abs(posX - boardCenterX);
-
-          if (posY > boardHitY - 120 && posY < boardHitY + 120 && distanceFromCenter < 70) {
-            hasLanded = true;
-            const finalRotation = Math.random() * 360;
-            currentBagEl.style.transition = 'transform 0.3s ease-out';
-            currentBagEl.style.transform =
-              `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, 10px) rotate(${finalRotation}deg)`; /* Land on top of board */
-            currentBagEl.style.zIndex = 1001; /* Ensure landed bag stays visible */
-            registerScore(posX, posY, finalRotation);
-          }
-        }
-
-        // Check if bag has missed the board
-        if ((posZ > 100 || posY > window.innerHeight) && !hasLanded) {
-          hasLanded = true;
-          currentBagEl.style.opacity = '0';
-          setTimeout(() => {
-            if (currentBagEl) {
-              currentBagEl.remove();
+          // Update Firebase
+          try {
+            const gameRef = db.collection('cornholeGames').doc(gameId);
+            const doc = await gameRef.get();
+            
+            if (!doc.exists) {
+              console.error("Game document not found");
+              finishThrow();
+              return;
             }
+            
+            const currentBags = doc.data().bagsInPlay[playerStr] || [];
+            console.log(`Bag scored: ${isInHole ? 'In hole (3 pts)' : 'On board (1 pt)'}`);
+            
+            try {
+              await gameRef.update({
+                [`bagsInPlay.${playerStr}`]: [...currentBags, bagData]
+              });
+            } catch (updateError) {
+              console.error("Error updating bag position:", updateError);
+            }
+          } catch (err) {
+            console.error("Error registering score:", err);
+          }
+          
+          // Finish throw after delay
+          setTimeout(() => {
             finishThrow();
           }, 300);
-        } else if (!hasLanded && time < 5) { // Increased from 3 to 5 for longer animation time
-          requestAnimationFrame(animate);
-        } else {
-          isAnimating = false;
-          if (!hasLanded) {
-            // Safety fallback if animation ended but bag didn't land
-            finishThrow();
+        }
+
+        function createHoleInEffect(x, y) {
+          // Create particle effects for successful hole-in shots
+          for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'trail-particle';
+            particle.style.background = localPlayerNum === 1 ? player1Color : player2Color;
+            particle.style.animation = 'fadeOut 1s forwards';
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+            particle.style.zIndex = '2000'; // Ensure particles are visible
+
+            const angle = (i / 20) * Math.PI * 2;
+            const velocity = 2;
+            const vx = Math.cos(angle) * velocity;
+            const vy = Math.sin(angle) * velocity;
+
+            particle.style.transform = `translate(${vx * 20}px, ${vy * 20}px)`;
+            trajectoryContainer.appendChild(particle);
+
+            setTimeout(() => {
+              if (particle && particle.parentNode) {
+                particle.remove();
+              }
+            }, 1000);
           }
         }
-      }
 
-      requestAnimationFrame(animate);
-    }
+        // Improved turn management with error handling
+        async function finishThrow() {
+          const gameRef = db.collection('cornholeGames').doc(gameId);
 
-    function createTrailParticle(x, y, z) {
-      const p = document.createElement('div');
-      p.className = 'trail-particle';
-      p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
-      p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
-      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z - 20}px)`; /* Position trail behind bag */
-      p.style.zIndex = Math.floor(z);
-      trajectoryContainer.appendChild(p);
-      setTimeout(() => p.remove(), 600);
-    }
-
-    function createBagElement() {
-      const bag = document.createElement('div');
-      bag.classList.add('bag');
-      bag.style.background = localPlayerNum === 1 ? player1Color : player2Color;
-      sceneEl.appendChild(bag);
-      setBagStartPosition(bag);
-      return bag;
-    }
-
-    function setBagStartPosition(bag) {
-      const gameW = window.innerWidth;
-      const bagWidth = 40;
-      const startX = gameW * 0.5;
-      const startY = window.innerHeight - 200; /* Moved up so it's visible on screen */
-      bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, -1500px)`; /* Bag is behind the board */
-    }
-
-    // FIXED: Improved hole collision detection for more accurate scoring
-    async function registerScore(x, y, rotation) {
-      const boardCenter = window.innerWidth / 2;
-      
-      // Check center of hole coordinates - use correct position
-      const holeX = boardCenter;
-      const holeY = boardTop + 25; // Adjusted for better accuracy with the new board position
-      
-      // Calculate distance from hole center
-      const distanceFromHole = Math.sqrt(
-        Math.pow(x - holeX, 2) +
-        Math.pow(y - holeY, 2)
-      );
-
-      // Log distance for debugging
-      console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
-      
-      // More generous hole collision detection
-      const scaledHoleRadius = HOLE_RADIUS * 0.8; // Adjusted for the smaller board
-      const isInHole = distanceFromHole <= scaledHoleRadius;
-      const currentPlayerStr = `player${localPlayerNum}`;
-
-      // Store bag data with timestamp for persistence
-      const bagData = {
-        x: x,
-        y: y,
-        isInHole: isInHole,
-        rotation: rotation,
-        timestamp: Date.now()
-      };
-
-      // If bag is in hole, update visual position to reflect this
-      if (isInHole && currentBagEl) {
-        // Make the bag visually go into the hole
-        currentBagEl.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
-        currentBagEl.style.transform = 
-          `translate3d(${holeX - 20}px, ${holeY - 20}px, -5px) scale(0.8) rotate(${rotation}deg)`;
-        currentBagEl.style.opacity = '0.7'; // Partially visible in hole
-      }
-      const currentPlayerStr = `player${localPlayerNum}`;
-
-      // Store bag data with timestamp for persistence
-      const bagData = {
-        x: x,
-        y: y,
-        isInHole: isInHole,
-        rotation: rotation,
-        timestamp: Date.now()
-      };
-
-      try {
-        // Update Firebase with new bag position
-        const gameRef = db.collection('cornholeGames').doc(gameId);
-        const doc = await gameRef.get();
-        if (!doc.exists) {
-          console.error("Game document not found");
-          finishThrow();
-          return;
-        }
-        
-        const currentBags = doc.data().bagsInPlay[currentPlayerStr] || [];
-        
-        // Log scoring info
-        console.log(`Bag scored: ${isInHole ? 'In hole (3 pts)' : 'On board (1 pt)'}`);
-        
-        // Update the bags with the new one
-        try {
-          await gameRef.update({
-            [`bagsInPlay.${currentPlayerStr}`]: [...currentBags, bagData]
-          });
-        } catch (updateError) {
-          console.error("Error updating bag position:", updateError);
-          // Continue with local simulation for better user experience
-        }
-
-        if (isInHole) {
-          createHoleInEffect(x, y);
-        }
-        
-        // Wait briefly before finishing throw
-        setTimeout(() => {
-          finishThrow();
-        }, 300);
-        
-      } catch (err) {
-        console.error("Error registering score:", err);
-        // Continue with the game even if there's an error
-        setTimeout(() => {
-          finishThrow();
-        }, 300);
-      }
-    }
-
-    function createHoleInEffect(x, y) {
-      // Create particle effects for successful hole-in shots
-      for (let i = 0; i < 20; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'trail-particle';
-        particle.style.background = localPlayerNum === 1 ? player1Color : player2Color;
-        particle.style.animation = 'fadeOut 1s forwards';
-        particle.style.left = `${x}px`;
-        particle.style.top = `${y}px`;
-
-        const angle = (i / 20) * Math.PI * 2;
-        const velocity = 2;
-        const vx = Math.cos(angle) * velocity;
-        const vy = Math.sin(angle) * velocity;
-
-        particle.style.transform = `translate(${vx * 20}px, ${vy * 20}px)`;
-        trajectoryContainer.appendChild(particle);
-
-        setTimeout(() => particle.remove(), 1000);
-      }
-    }
-
-    // FIXED: Improved turn management with proper player switching and error handling
-    async function finishThrow() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-
-      try {
-        // Immediately update our local state
-        const currentThrown = currentBagEl;
-        currentBagEl = null; // Clear current bag first to avoid double processing
-        
-        // Get the latest game state
-        const doc = await gameRef.get();
-        const data = doc.data();
-        
-        if (localPlayerNum === 1) {
-          // Calculate the new throw count
-          const newThrowCount = player1Throws + 1;
-          console.log(`Player 1 completed throw ${newThrowCount} of ${totalThrows}`);
-          
-          // Update throw count and switch to player 2
           try {
-            await gameRef.update({
-              player1Throws: newThrowCount,
-              currentPlayer: 2 // Always switch to player 2 after player 1's throw
-            });
-            console.log("Successfully switched to Player 2's turn");
-          } catch (updateError) {
-            console.error("Error switching turns:", updateError);
-            // If Firebase update fails, still update local state to prevent UI from being stuck
-            player1Throws = newThrowCount;
-            currentPlayer = 2;
+            // Clear current bag first to avoid double processing
+            const currentThrown = currentBagEl;
+            currentBagEl = null;
+            
+            // Get the latest game state
+            const doc = await gameRef.get();
+            if (!doc.exists) {
+              console.error("Game document not found");
+              return;
+            }
+            
+            const data = doc.data();
+            
+            if (localPlayerNum === 1) {
+              // Calculate the new throw count
+              const newThrowCount = player1Throws + 1;
+              console.log(`Player 1 completed throw ${newThrowCount} of ${totalThrows}`);
+              
+              // Update throw count and switch to player 2
+              try {
+                await gameRef.update({
+                  player1Throws: newThrowCount,
+                  currentPlayer: 2 // Always switch to player 2 after player 1's throw
+                });
+                console.log("Successfully switched to Player 2's turn");
+              } catch (updateError) {
+                console.error("Error switching turns:", updateError);
+                // If Firebase update fails, still update local state
+                player1Throws = newThrowCount;
+                currentPlayer = 2;
+                updateTryCounter();
+              }
+
+              // Check if round is complete
+              try {
+                const updatedDoc = await gameRef.get();
+                if (!updatedDoc.exists) return;
+                
+                const updatedData = updatedDoc.data();
+                if (newThrowCount >= totalThrows && updatedData.player2Throws >= totalThrows) {
+                  await calculateAndUpdateScore();
+                }
+              } catch (checkError) {
+                console.error("Error checking round completion:", checkError);
+              }
+            } else { // localPlayerNum === 2
+              // Calculate the new throw count
+              const newThrowCount = player2Throws + 1;
+              console.log(`Player 2 completed throw ${newThrowCount} of ${totalThrows}`);
+              
+              // Update throw count and switch to player 1
+              try {
+                await gameRef.update({
+                  player2Throws: newThrowCount,
+                  currentPlayer: 1 // Always switch to player 1 after player 2's throw
+                });
+                console.log("Successfully switched to Player 1's turn");
+              } catch (updateError) {
+                console.error("Error switching turns:", updateError);
+                // If Firebase update fails, still update local state
+                player2Throws = newThrowCount;
+                currentPlayer = 1;
+                updateTryCounter();
+              }
+
+              // Check if round is complete
+              try {
+                const updatedDoc = await gameRef.get();
+                if (!updatedDoc.exists) return;
+                
+                const updatedData = updatedDoc.data();
+                if (updatedData.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
+                  await calculateAndUpdateScore();
+                }
+              } catch (checkError) {
+                console.error("Error checking round completion:", checkError);
+              }
+            }
+          } catch (err) {
+            console.error("Error updating game state:", err);
+            // Update local state to prevent UI from being stuck
+            if (localPlayerNum === 1) {
+              player1Throws++;
+              currentPlayer = 2;
+            } else {
+              player2Throws++;
+              currentPlayer = 1;
+            }
             updateTryCounter();
           }
+        }
 
-          // Check if round is complete with fresh data
+        // Proper cornhole scoring with cancellation rules
+        async function calculateAndUpdateScore() {
+          const gameRef = db.collection('cornholeGames').doc(gameId);
           try {
-            const updatedDoc = await gameRef.get();
-            const updatedData = updatedDoc.data();
-            if (newThrowCount >= totalThrows && updatedData.player2Throws >= totalThrows) {
-              await calculateAndUpdateScore();
+            const doc = await gameRef.get();
+            if (!doc.exists) {
+              console.error("Game document not found");
+              return;
             }
-          } catch (checkError) {
-            console.error("Error checking round completion:", checkError);
+            
+            const data = doc.data();
+
+            // Calculate scores with proper cancellation rules
+            const p1Bags = data.bagsInPlay.player1 || [];
+            const p2Bags = data.bagsInPlay.player2 || [];
+
+            // Count bags in hole and on board
+            const p1InHole = p1Bags.filter(b => b.isInHole).length;
+            const p2InHole = p2Bags.filter(b => b.isInHole).length;
+            const p1OnBoard = p1Bags.filter(b => !b.isInHole).length;
+            const p2OnBoard = p2Bags.filter(b => !b.isInHole).length;
+
+            // Calculate raw points
+            const p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
+            const p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
+
+            // Log the scoring calculation
+            console.log(`Round summary:
+              Player 1: ${p1InHole} in hole (${p1InHole * 3} pts) + ${p1OnBoard} on board (${p1OnBoard} pts) = ${p1Points} pts
+              Player 2: ${p2InHole} in hole (${p2InHole * 3} pts) + ${p2OnBoard} on board (${p2OnBoard} pts) = ${p2Points} pts`);
+
+            // Apply cancellation rules - only the difference in points is awarded
+            const netPoints = Math.abs(p1Points - p2Points);
+            const winner = p1Points > p2Points ? 1 : (p1Points < p2Points ? 2 : 0);
+
+            // Update scores
+            const oldScores = {...gameScores};
+            if (winner === 1) {
+              gameScores.player1 += netPoints;
+              console.log(`Player 1 wins the round and gets ${netPoints} points`);
+            } else if (winner === 2) {
+              gameScores.player2 += netPoints;
+              console.log(`Player 2 wins the round and gets ${netPoints} points`);
+            } else {
+              console.log(`The round is a tie, no points awarded`);
+            }
+
+            console.log(`Score update: ${oldScores.player1}-${oldScores.player2} → ${gameScores.player1}-${gameScores.player2}`);
+
+            try {
+              // Check for game end
+              if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
+                await gameRef.update({
+                  gameStatus: 'ended',
+                  gameScores: gameScores
+                });
+                console.log(`Game over. Final score: ${gameScores.player1}-${gameScores.player2}`);
+              } else {
+                // Start new round with clean state
+                await gameRef.update({
+                  player1Throws: 0,
+                  player2Throws: 0,
+                  currentPlayer: 1, // Player 1 starts each new round
+                  gameScores: gameScores,
+                  bagsInPlay: {
+                    player1: [],
+                    player2: []
+                  }
+                });
+                console.log(`Starting new round. Current score: ${gameScores.player1}-${gameScores.player2}`);
+              }
+            } catch (err) {
+              console.error("Error updating score:", err);
+            }
+          } catch (err) {
+            console.error("Error calculating score:", err);
           }
-        } else { // localPlayerNum === 2
-          // Calculate the new throw count
-          const newThrowCount = player2Throws + 1;
-          console.log(`Player 2 completed throw ${newThrowCount} of ${totalThrows}`);
+        }
+
+        function updateTryCounter() {
+          const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
+          const myTotal = totalThrows;
           
-          // Update throw count and switch to player 1
-          try {
-            await gameRef.update({
-              player2Throws: newThrowCount,
-              currentPlayer: 1 // Always switch to player 1 after player 2's throw
-            });
-            console.log("Successfully switched to Player 1's turn");
-          } catch (updateError) {
-            console.error("Error switching turns:", updateError);
-            // If Firebase update fails, still update local state to prevent UI from being stuck
-            player2Throws = newThrowCount;
-            currentPlayer = 1;
-            updateTryCounter();
-          }
-
-          // Check if round is complete with fresh data
-          try {
-            const updatedDoc = await gameRef.get();
-            const updatedData = updatedDoc.data();
-            if (updatedData.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
-              await calculateAndUpdateScore();
-            }
-          } catch (checkError) {
-            console.error("Error checking round completion:", checkError);
+          if (currentPlayer === localPlayerNum) {
+            tryCounterEl.textContent = `Your turn - Throw ${myThrows + 1} of ${myTotal}`;
+          } else {
+            const opponentThrows = currentPlayer === 1 ? player1Throws : player2Throws;
+            tryCounterEl.textContent = `Opponent's turn - Throw ${opponentThrows + 1} of ${totalThrows}`;
           }
         }
 
-      } catch (err) {
-        console.error("Error updating game state:", err);
-        // Update local state to prevent UI from being stuck
-        if (localPlayerNum === 1) {
-          player1Throws++;
-          currentPlayer = 2;
-        } else {
-          player2Throws++;
-          currentPlayer = 1;
+        function updateScoreDisplay() {
+          scoreDisplayEl.textContent =
+            `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
         }
-        updateTryCounter();
-      }
-    }
 
-    // FIXED: Proper implementation of cancellation scoring rules
-    async function calculateAndUpdateScore() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-      const doc = await gameRef.get();
-      const data = doc.data();
+        function showResult() {
+          const winner = gameScores.player1 > gameScores.player2 ? 1 : 
+                        (gameScores.player1 < gameScores.player2 ? 2 : 0);
+          const resultMessage = winner === localPlayerNum ? "You win!" : 
+                              (winner === 0 ? "It's a tie!" : "You lose!");
 
-      // Calculate scores with proper cancellation rules
-      const p1Bags = data.bagsInPlay.player1 || [];
-      const p2Bags = data.bagsInPlay.player2 || [];
+          document.getElementById("resultMessage").textContent =
+            `${resultMessage} Final Score: Player 1: ${gameScores.player1} - Player 2: ${gameScores.player2}`;
+          showScreen("resultScreen");
+        }
 
-      // Count bags in hole and on board
-      const p1InHole = p1Bags.filter(b => b.isInHole).length;
-      const p2InHole = p2Bags.filter(b => b.isInHole).length;
-      const p1OnBoard = p1Bags.filter(b => !b.isInHole).length;
-      const p2OnBoard = p2Bags.filter(b => !b.isInHole).length;
+        function resetGame() {
+          const gameRef = db.collection('cornholeGames').doc(gameId);
 
-      // Calculate raw points
-      const p1Points = (p1InHole * POINTS_IN_HOLE) + (p1OnBoard * POINTS_ON_BOARD);
-      const p2Points = (p2InHole * POINTS_IN_HOLE) + (p2OnBoard * POINTS_ON_BOARD);
-
-      // Log the scoring calculation
-      console.log(`Round summary:
-        Player 1: ${p1InHole} in hole (${p1InHole * 3} pts) + ${p1OnBoard} on board (${p1OnBoard} pts) = ${p1Points} pts
-        Player 2: ${p2InHole} in hole (${p2InHole * 3} pts) + ${p2OnBoard} on board (${p2OnBoard} pts) = ${p2Points} pts`);
-
-      // Apply cancellation rules - only the difference in points is awarded
-      const netPoints = Math.abs(p1Points - p2Points);
-      const winner = p1Points > p2Points ? 1 : (p1Points < p2Points ? 2 : 0);
-
-      // Update scores
-      const oldScores = {...gameScores};
-      if (winner === 1) {
-        gameScores.player1 += netPoints;
-        console.log(`Player 1 wins the round and gets ${netPoints} points`);
-      } else if (winner === 2) {
-        gameScores.player2 += netPoints;
-        console.log(`Player 2 wins the round and gets ${netPoints} points`);
-      } else {
-        console.log(`The round is a tie, no points awarded`);
-      }
-
-      console.log(`Score update: ${oldScores.player1}-${oldScores.player2} → ${gameScores.player1}-${gameScores.player2}`);
-
-      try {
-        // Check for game end
-        if (gameScores.player1 >= WINNING_SCORE || gameScores.player2 >= WINNING_SCORE) {
-          await gameRef.update({
-            gameStatus: 'ended',
-            gameScores: gameScores
-          });
-          console.log(`Game over. Final score: ${gameScores.player1}-${gameScores.player2}`);
-        } else {
-          // Start new round with clean state
-          await gameRef.update({
+          gameRef.update({
             player1Throws: 0,
             player2Throws: 0,
-            currentPlayer: 1, // Player 1 starts each new round
-            gameScores: gameScores,
-            bagsInPlay: {
-              player1: [],
-              player2: []
-            }
+            currentPlayer: 1,
+            gameStatus: 'started',
+            gameScores: { player1: 0, player2: 0 },
+            bagsInPlay: { player1: [], player2: [] }
+          }).then(() => {
+            document.querySelectorAll('.bag').forEach(bag => {
+              if (bag) bag.remove();
+            });
+            showScreen("gameScreen");
+          }).catch((error) => {
+            console.error("Error resetting game: ", error);
           });
-          console.log(`Starting new round. Current score: ${gameScores.player1}-${gameScores.player2}`);
         }
-      } catch (err) {
-        console.error("Error updating score:", err);
+
+        // Event Listeners
+        gameScreenEl.addEventListener('mousedown', startDrag);
+        gameScreenEl.addEventListener('mousemove', updateDrag);
+        gameScreenEl.addEventListener('mouseup', endDrag);
+        gameScreenEl.addEventListener('mouseleave', endDrag);
+        gameScreenEl.addEventListener('touchstart', startDrag);
+        gameScreenEl.addEventListener('touchmove', updateDrag);
+        gameScreenEl.addEventListener('touchend', endDrag);
+
+        document.getElementById('create-game').addEventListener('click', createNewGame);
+        document.getElementById('join-game').addEventListener('click', () => {
+          joinGame(document.getElementById('gameIdInput').value.trim());
+        });
+        document.getElementById('restart-game').addEventListener('click', resetGame);
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+          if (currentBagEl) {
+            setBagStartPosition(currentBagEl);
+          }
+        });
+
+        // Helper function for generating player ID
+        function generatePlayerId() {
+          let stored = localStorage.getItem('playerId');
+          if (stored) return stored;
+          let newId = Math.random().toString(36).substr(2, 9);
+          localStorage.setItem('playerId', newId);
+          return newId;
+        }
+
+        // Auto-join from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has("gameId")) {
+          joinGame(urlParams.get("gameId"));
+        }
+      } catch (error) {
+        console.error("Error initializing app:", error);
+        showFirebaseError();
       }
     }
 
-    function updateTryCounter() {
-      const myThrows = localPlayerNum === 1 ? player1Throws : player2Throws;
-      const myTotal = localPlayerNum === 1 ? totalThrows : totalThrows;
-      
-      if (currentPlayer === localPlayerNum) {
-        tryCounterEl.textContent = `Your turn - Throw ${myThrows + 1} of ${myTotal}`;
+    // Check if Firebase is loaded and initialize the app
+    window.addEventListener('load', function() {
+      if (isFirebaseLoaded()) {
+        initializeApp();
       } else {
-        const opponentThrows = currentPlayer === 1 ? player1Throws : player2Throws;
-        tryCounterEl.textContent = `Opponent's turn - Throw ${opponentThrows + 1} of ${totalThrows}`;
-      }
-    }
-
-    function updateScoreDisplay() {
-      scoreDisplayEl.textContent =
-        `Score - Player 1: ${gameScores.player1} | Player 2: ${gameScores.player2}`;
-    }
-
-    function showResult() {
-      const winner = gameScores.player1 > gameScores.player2 ? 1 : 
-                    (gameScores.player1 < gameScores.player2 ? 2 : 0);
-      const resultMessage = winner === localPlayerNum ? "You win!" : 
-                          (winner === 0 ? "It's a tie!" : "You lose!");
-
-      document.getElementById("resultMessage").textContent =
-        `${resultMessage} Final Score: Player 1: ${gameScores.player1} - Player 2: ${gameScores.player2}`;
-      showScreen("resultScreen");
-    }
-
-    function resetGame() {
-      const gameRef = db.collection('cornholeGames').doc(gameId);
-
-      gameRef.update({
-        player1Throws: 0,
-        player2Throws: 0,
-        currentPlayer: 1,
-        gameStatus: 'started',
-        gameScores: { player1: 0, player2: 0 },
-        bagsInPlay: { player1: [], player2: [] }
-      }).then(() => {
-        document.querySelectorAll('.bag').forEach(bag => bag.remove());
-        showScreen("gameScreen");
-      }).catch((error) => {
-        console.error("Error resetting game: ", error);
-      });
-    }
-
-    // Event Listeners
-    gameScreenEl.addEventListener('mousedown', startDrag);
-    gameScreenEl.addEventListener('mousemove', updateDrag);
-    gameScreenEl.addEventListener('mouseup', endDrag);
-    gameScreenEl.addEventListener('mouseleave', endDrag);
-    gameScreenEl.addEventListener('touchstart', startDrag);
-    gameScreenEl.addEventListener('touchmove', updateDrag);
-    gameScreenEl.addEventListener('touchend', endDrag);
-
-    document.getElementById('create-game').addEventListener('click', createNewGame);
-    document.getElementById('join-game').addEventListener('click', () => {
-      joinGame(document.getElementById('gameIdInput').value.trim());
-    });
-    document.getElementById('restart-game').addEventListener('click', resetGame);
-
-    // Window resize handler
-    window.addEventListener('resize', () => {
-      if (currentBagEl) {
-        setBagStartPosition(currentBagEl);
+        showFirebaseError();
       }
     });
-
-    // Helper function for generating player ID
-    function generatePlayerId() {
-      let stored = localStorage.getItem('playerId');
-      if (stored) return stored;
-      let newId = Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('playerId', newId);
-      return newId;
-    }
-
-    // Auto-join from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has("gameId")) {
-      joinGame(urlParams.get("gameId"));
-    }
   </script>
 </body>
 </html>
