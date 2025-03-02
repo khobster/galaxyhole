@@ -143,8 +143,7 @@
       box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
 
-    /* Bag styling */
-    .bag {
+.bag {
       position: absolute;
       width: 40px;
       height: 40px;
@@ -153,6 +152,7 @@
       z-index: 10;
       transition: transform 0.05s ease-out, opacity 0.3s ease-out;
       transform-style: preserve-3d;
+      will-change: transform, opacity, z-index; /* Optimize for animations */
     }
 
     /* Trajectory styling */
@@ -741,7 +741,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 150; // Updated to match setBagStartPosition
+      const startY = window.innerHeight - 200; // Updated to match setBagStartPosition
       const startZ = -1500; // Starting behind the board
 
       // Enhanced throwing physics with planet adjustment
@@ -750,8 +750,8 @@
 
       // Better trajectory calculations for throwing forward
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
-      const vy = throwVelocity * Math.sin(angle) * 2.5;
-      const vz = throwVelocity * 6.0; // Now positive to move forward toward the board
+      const vy = throwVelocity * Math.sin(angle) * 3.0; // Increased to get better arc
+      const vz = throwVelocity * 5.0; // Now positive to move forward toward the board
 
       let posX = startX;
       let posY = startY;
@@ -776,6 +776,9 @@
         currentBagEl.style.transform = 
           `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${posZ}px) 
            rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
+        
+        // Ensure bag stays visually on top
+        currentBagEl.style.zIndex = Math.floor(posZ) + 1000;
 
         // Create trail effect
         if (time * 1000 % 15 < 8) {
@@ -783,7 +786,7 @@
         }
 
         // Check for landing on board with improved collision detection
-        if (posZ >= -20 && posZ <= 20 && !hasLanded) {
+        if (posZ >= -50 && posZ <= 50 && !hasLanded) {
           const boardHitY = boardTop;
           const boardCenterX = window.innerWidth / 2;
           const distanceFromCenter = Math.abs(posX - boardCenterX);
@@ -793,7 +796,8 @@
             const finalRotation = Math.random() * 360;
             currentBagEl.style.transition = 'transform 0.3s ease-out';
             currentBagEl.style.transform =
-              `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${boardZ + 2}px) rotate(${finalRotation}deg)`;
+              `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, 10px) rotate(${finalRotation}deg)`; /* Land on top of board */
+            currentBagEl.style.zIndex = 1001; /* Ensure landed bag stays visible */
             registerScore(posX, posY, finalRotation);
           }
         }
@@ -827,8 +831,8 @@
       p.className = 'trail-particle';
       p.style.background = localPlayerNum === 1 ? player1Color : player2Color;
       p.style.boxShadow = `0 0 8px ${localPlayerNum === 1 ? player1Color : player2Color}`;
-      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z}px)`;
-      p.style.zIndex = Math.floor(-z);
+      p.style.transform = `translate3d(${x - 4}px, ${y - 4}px, ${z - 20}px)`; /* Position trail behind bag */
+      p.style.zIndex = Math.floor(z);
       trajectoryContainer.appendChild(p);
       setTimeout(() => p.remove(), 600);
     }
@@ -846,7 +850,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 150; /* Position bag at bottom of screen */
+      const startY = window.innerHeight - 200; /* Moved up so it's visible on screen */
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, -1500px)`; /* Bag is behind the board */
     }
 
@@ -867,9 +871,28 @@
       // Log distance for debugging
       console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
       
-      // More generous hole collision detection with scaled radius for distance
-      const scaledHoleRadius = HOLE_RADIUS * 0.6; // Adjusted for the smaller board
+      // More generous hole collision detection
+      const scaledHoleRadius = HOLE_RADIUS * 0.8; // Adjusted for the smaller board
       const isInHole = distanceFromHole <= scaledHoleRadius;
+      const currentPlayerStr = `player${localPlayerNum}`;
+
+      // Store bag data with timestamp for persistence
+      const bagData = {
+        x: x,
+        y: y,
+        isInHole: isInHole,
+        rotation: rotation,
+        timestamp: Date.now()
+      };
+
+      // If bag is in hole, update visual position to reflect this
+      if (isInHole && currentBagEl) {
+        // Make the bag visually go into the hole
+        currentBagEl.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
+        currentBagEl.style.transform = 
+          `translate3d(${holeX - 20}px, ${holeY - 20}px, -5px) scale(0.8) rotate(${rotation}deg)`;
+        currentBagEl.style.opacity = '0.7'; // Partially visible in hole
+      }
       const currentPlayerStr = `player${localPlayerNum}`;
 
       // Store bag data with timestamp for persistence
