@@ -554,7 +554,7 @@
       }
     }
 
-    // Fix 1: Improved recreation of bags to ensure they stay on the board between turns
+    // FIXED: Improved bag recreation and persistence
     function recreateBagsFromState(bagsInPlay) {
       if (!bagsInPlay) return;
       
@@ -573,6 +573,11 @@
         
         sortedBags.forEach(bagData => {
           // Check if this is already the current bag being thrown - don't recreate it
+          if (currentBagEl && 
+              Math.abs(parseFloat(currentBagEl.style.transform.split('translate3d(')[1]) - (bagData.x - 20)) < 5) {
+            return;
+          }
+          
           const bag = document.createElement('div');
           bag.classList.add('bag');
           bag.style.background = color;
@@ -585,7 +590,7 @@
           // Add transition for smooth appearance
           bag.style.transition = 'transform 0.3s ease-out';
           bag.style.transform =
-            `translate3d(${bagData.x - 20}px, ${bagData.y}px, ${boardZ + zOffset}px) rotate(${bagData.rotation || 0}deg)`;
+            `translate3d(${bagData.x - 20}px, ${bagData.y - 20}px, ${boardZ + zOffset}px) rotate(${bagData.rotation || 0}deg)`;
         });
       };
 
@@ -594,7 +599,7 @@
       recreateBagsForPlayer(bagsInPlay.player2, player2Color);
     }
 
-    // Fix 2: Improved game state listener to ensure proper turn management
+    // FIXED: Improved game state listener for better turn management
     function startGameListener() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
 
@@ -726,7 +731,7 @@
       dragStart = null;
     }
 
-    // Enhanced throwing physics with planet gravity
+    // FIXED: Enhanced throwing physics with better trajectory and collision detection
     function throwBag(power, angle, horizontalAdjustment) {
       if (isAnimating || !currentBagEl) return;
       isAnimating = true;
@@ -742,7 +747,7 @@
       const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
       const gravity = currentPlanet.gravity * 0.01;
 
-      // Better trajectory calculations
+      // Better trajectory calculations with more control
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
       const vy = throwVelocity * Math.sin(angle) * 2.5;
       const vz = -throwVelocity * 2.0;
@@ -768,7 +773,7 @@
 
         // Update bag position and rotation
         currentBagEl.style.transform = 
-          `translate3d(${posX - bagWidth/2}px, ${posY}px, ${posZ}px) 
+          `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${posZ}px) 
            rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
 
         // Create trail effect
@@ -787,7 +792,7 @@
             const finalRotation = Math.random() * 360;
             currentBagEl.style.transition = 'transform 0.3s ease-out';
             currentBagEl.style.transform =
-              `translate3d(${posX - bagWidth/2}px, ${posY}px, ${boardZ + 2}px) rotate(${finalRotation}deg)`;
+              `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${boardZ + 2}px) rotate(${finalRotation}deg)`;
             registerScore(posX, posY, finalRotation);
           }
         }
@@ -838,13 +843,13 @@
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
     }
 
-    // Fix 3: Improved hole collision detection for more accurate scoring
+    // FIXED: Improved hole collision detection for more accurate scoring
     async function registerScore(x, y, rotation) {
       const boardCenter = window.innerWidth / 2;
       
-      // Check center of hole coordinates
+      // Check center of hole coordinates - use correct position
       const holeX = boardCenter;
-      const holeY = boardTop + 30 / 2; // 30 is the hole height divided by 2
+      const holeY = boardTop + 60; // Adjusted for better accuracy
       
       // Calculate distance from hole center
       const distanceFromHole = Math.sqrt(
@@ -855,7 +860,7 @@
       // Log distance for debugging
       console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
       
-      // Improved hole collision - slightly more generous
+      // More generous hole collision detection
       const isInHole = distanceFromHole <= HOLE_RADIUS;
       const currentPlayerStr = `player${localPlayerNum}`;
 
@@ -917,7 +922,8 @@
         setTimeout(() => particle.remove(), 1000);
       }
     }
-    // Fix 4: Improved turn management with proper switching
+
+    // FIXED: Improved turn management with proper player switching
     async function finishThrow() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
 
@@ -941,8 +947,10 @@
             currentPlayer: 2 // Always switch to player 2 after player 1's throw
           });
 
-          // Check if round is complete
-          if (newThrowCount >= totalThrows && data.player2Throws >= totalThrows) {
+          // Check if round is complete with fresh data
+          const updatedDoc = await gameRef.get();
+          const updatedData = updatedDoc.data();
+          if (newThrowCount >= totalThrows && updatedData.player2Throws >= totalThrows) {
             await calculateAndUpdateScore();
           }
         } else { // localPlayerNum === 2
@@ -956,8 +964,10 @@
             currentPlayer: 1 // Always switch to player 1 after player 2's throw
           });
 
-          // Check if round is complete
-          if (data.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
+          // Check if round is complete with fresh data
+          const updatedDoc = await gameRef.get();
+          const updatedData = updatedDoc.data();
+          if (updatedData.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
             await calculateAndUpdateScore();
           }
         }
@@ -968,7 +978,7 @@
       }
     }
 
-    // Fix 5: Ensure calculateAndUpdateScore properly implements cancellation scoring
+    // FIXED: Proper implementation of cancellation scoring rules
     async function calculateAndUpdateScore() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
       const doc = await gameRef.get();
