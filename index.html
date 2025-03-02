@@ -99,7 +99,7 @@
     #game-container {
       width: 100vw;
       height: 100vh;
-      perspective: 1500px;
+      perspective: 2500px; /* Increased from 1500px for better depth perception */
       perspective-origin: 50% 40%;
       position: relative;
       overflow: hidden;
@@ -118,13 +118,13 @@
     /* Board positioning */
     #board {
       position: absolute;
-      width: 120px;
-      height: 240px;
+      width: 100px; /* Reduced from 120px to make it look farther away */
+      height: 200px; /* Reduced from 240px to make it look farther away */
       left: 50%;
-      top: 25%;
+      top: 15%; /* Changed from 25% to move it higher */
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-1000px); /* Updated to match boardZ constant */
+      transform: translate(-50%, -50%) translateZ(-2000px); /* Updated to match boardZ constant */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -133,10 +133,10 @@
 
     #hole {
       position: absolute;
-      width: 40px;
-      height: 40px;
+      width: 30px; /* Smaller to match smaller board */
+      height: 30px; /* Smaller to match smaller board */
       left: 50%;
-      top: 25%;
+      top: 20%; /* Changed from 25% to match new board position */
       transform: translate(-50%, -50%);
       background: #000;
       border-radius: 50%;
@@ -418,8 +418,8 @@
     // Constants
     const player1Color = "#c41e3a";
     const player2Color = "#4287f5";
-    const boardZ = -1000; // Changed from -600 to make the board appear farther away
-    const boardTop = window.innerHeight * 0.25;
+    const boardZ = -2000; // Changed from -1000 to -2000 to make the board appear much farther away
+    const boardTop = window.innerHeight * 0.15; // Changed from 0.25 to 0.15 to move the board higher up
 
     // Planet settings
     const planets = {
@@ -741,7 +741,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 100; // Updated to match setBagStartPosition
+      const startY = window.innerHeight - 80; // Updated to match setBagStartPosition
       const startZ = 0;
 
       // Enhanced throwing physics with planet adjustment
@@ -751,7 +751,7 @@
       // Better trajectory calculations with more control - adjusted for longer distance
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
       const vy = throwVelocity * Math.sin(angle) * 2.5;
-      const vz = -throwVelocity * 3.0; // Increased from 2.0 to 3.0 for longer throws
+      const vz = -throwVelocity * 5.0; // Increased from 3.0 to 5.0 for much longer throws
 
       let posX = startX;
       let posY = startY;
@@ -788,7 +788,7 @@
           const boardCenterX = window.innerWidth / 2;
           const distanceFromCenter = Math.abs(posX - boardCenterX);
 
-          if (posY > boardHitY - 40 && posY < boardHitY + 240 && distanceFromCenter < 80) {
+          if (posY > boardHitY - 40 && posY < boardHitY + 200 && distanceFromCenter < 70) {
             hasLanded = true;
             const finalRotation = Math.random() * 360;
             currentBagEl.style.transition = 'transform 0.3s ease-out';
@@ -802,14 +802,20 @@
         if ((posZ <= boardZ - 100 || posY > window.innerHeight) && !hasLanded) {
           hasLanded = true;
           currentBagEl.style.opacity = '0';
-          setTimeout(() => currentBagEl.remove(), 300);
-          finishThrow();
-        }
-
-        if (!hasLanded && time < 3) {
+          setTimeout(() => {
+            if (currentBagEl) {
+              currentBagEl.remove();
+            }
+            finishThrow();
+          }, 300);
+        } else if (!hasLanded && time < 5) { // Increased from 3 to 5 for longer animation time
           requestAnimationFrame(animate);
         } else {
           isAnimating = false;
+          if (!hasLanded) {
+            // Safety fallback if animation ended but bag didn't land
+            finishThrow();
+          }
         }
       }
 
@@ -840,7 +846,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 100; // Changed from -150 to -100 to position the bag higher
+      const startY = window.innerHeight - 80; /* Moved higher up from -100 */
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
     }
 
@@ -850,7 +856,7 @@
       
       // Check center of hole coordinates - use correct position
       const holeX = boardCenter;
-      const holeY = boardTop + 60; // Adjusted for better accuracy
+      const holeY = boardTop + 40; // Adjusted for better accuracy with the new board position
       
       // Calculate distance from hole center
       const distanceFromHole = Math.sqrt(
@@ -861,8 +867,9 @@
       // Log distance for debugging
       console.log(`Distance from hole: ${distanceFromHole}, Hole radius: ${HOLE_RADIUS}`);
       
-      // More generous hole collision detection
-      const isInHole = distanceFromHole <= HOLE_RADIUS;
+      // More generous hole collision detection with scaled radius for distance
+      const scaledHoleRadius = HOLE_RADIUS * 0.8; // Adjusted for the smaller board
+      const isInHole = distanceFromHole <= scaledHoleRadius;
       const currentPlayerStr = `player${localPlayerNum}`;
 
       // Store bag data with timestamp for persistence
@@ -878,15 +885,26 @@
         // Update Firebase with new bag position
         const gameRef = db.collection('cornholeGames').doc(gameId);
         const doc = await gameRef.get();
+        if (!doc.exists) {
+          console.error("Game document not found");
+          finishThrow();
+          return;
+        }
+        
         const currentBags = doc.data().bagsInPlay[currentPlayerStr] || [];
         
         // Log scoring info
         console.log(`Bag scored: ${isInHole ? 'In hole (3 pts)' : 'On board (1 pt)'}`);
         
         // Update the bags with the new one
-        await gameRef.update({
-          [`bagsInPlay.${currentPlayerStr}`]: [...currentBags, bagData]
-        });
+        try {
+          await gameRef.update({
+            [`bagsInPlay.${currentPlayerStr}`]: [...currentBags, bagData]
+          });
+        } catch (updateError) {
+          console.error("Error updating bag position:", updateError);
+          // Continue with local simulation for better user experience
+        }
 
         if (isInHole) {
           createHoleInEffect(x, y);
@@ -899,6 +917,10 @@
         
       } catch (err) {
         console.error("Error registering score:", err);
+        // Continue with the game even if there's an error
+        setTimeout(() => {
+          finishThrow();
+        }, 300);
       }
     }
 
@@ -924,7 +946,7 @@
       }
     }
 
-    // FIXED: Improved turn management with proper player switching
+    // FIXED: Improved turn management with proper player switching and error handling
     async function finishThrow() {
       const gameRef = db.collection('cornholeGames').doc(gameId);
 
@@ -943,16 +965,29 @@
           console.log(`Player 1 completed throw ${newThrowCount} of ${totalThrows}`);
           
           // Update throw count and switch to player 2
-          await gameRef.update({
-            player1Throws: newThrowCount,
-            currentPlayer: 2 // Always switch to player 2 after player 1's throw
-          });
+          try {
+            await gameRef.update({
+              player1Throws: newThrowCount,
+              currentPlayer: 2 // Always switch to player 2 after player 1's throw
+            });
+            console.log("Successfully switched to Player 2's turn");
+          } catch (updateError) {
+            console.error("Error switching turns:", updateError);
+            // If Firebase update fails, still update local state to prevent UI from being stuck
+            player1Throws = newThrowCount;
+            currentPlayer = 2;
+            updateTryCounter();
+          }
 
           // Check if round is complete with fresh data
-          const updatedDoc = await gameRef.get();
-          const updatedData = updatedDoc.data();
-          if (newThrowCount >= totalThrows && updatedData.player2Throws >= totalThrows) {
-            await calculateAndUpdateScore();
+          try {
+            const updatedDoc = await gameRef.get();
+            const updatedData = updatedDoc.data();
+            if (newThrowCount >= totalThrows && updatedData.player2Throws >= totalThrows) {
+              await calculateAndUpdateScore();
+            }
+          } catch (checkError) {
+            console.error("Error checking round completion:", checkError);
           }
         } else { // localPlayerNum === 2
           // Calculate the new throw count
@@ -960,22 +995,43 @@
           console.log(`Player 2 completed throw ${newThrowCount} of ${totalThrows}`);
           
           // Update throw count and switch to player 1
-          await gameRef.update({
-            player2Throws: newThrowCount,
-            currentPlayer: 1 // Always switch to player 1 after player 2's throw
-          });
+          try {
+            await gameRef.update({
+              player2Throws: newThrowCount,
+              currentPlayer: 1 // Always switch to player 1 after player 2's throw
+            });
+            console.log("Successfully switched to Player 1's turn");
+          } catch (updateError) {
+            console.error("Error switching turns:", updateError);
+            // If Firebase update fails, still update local state to prevent UI from being stuck
+            player2Throws = newThrowCount;
+            currentPlayer = 1;
+            updateTryCounter();
+          }
 
           // Check if round is complete with fresh data
-          const updatedDoc = await gameRef.get();
-          const updatedData = updatedDoc.data();
-          if (updatedData.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
-            await calculateAndUpdateScore();
+          try {
+            const updatedDoc = await gameRef.get();
+            const updatedData = updatedDoc.data();
+            if (updatedData.player1Throws >= totalThrows && newThrowCount >= totalThrows) {
+              await calculateAndUpdateScore();
+            }
+          } catch (checkError) {
+            console.error("Error checking round completion:", checkError);
           }
         }
 
       } catch (err) {
         console.error("Error updating game state:", err);
-        alert("Failed to update game state. Please try refreshing the page.");
+        // Update local state to prevent UI from being stuck
+        if (localPlayerNum === 1) {
+          player1Throws++;
+          currentPlayer = 2;
+        } else {
+          player2Throws++;
+          currentPlayer = 1;
+        }
+        updateTryCounter();
       }
     }
 
