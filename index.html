@@ -124,7 +124,7 @@
       top: 25%;
       transform-style: preserve-3d;
       transform-origin: center bottom;
-      transform: translate(-50%, -50%) translateZ(-600px);
+      transform: translate(-50%, -50%) translateZ(-1000px); /* Updated to match boardZ constant */
       background: #8B4513;
       border: 4px solid #654321;
       border-radius: 4px;
@@ -418,7 +418,7 @@
     // Constants
     const player1Color = "#c41e3a";
     const player2Color = "#4287f5";
-    const boardZ = -600;
+    const boardZ = -1000; // Changed from -600 to make the board appear farther away
     const boardTop = window.innerHeight * 0.25;
 
     // Planet settings
@@ -560,7 +560,8 @@
       
       // Only clear existing bags that aren't the current player's active bag
       document.querySelectorAll('.bag').forEach(bag => {
-        if (bag !== currentBagEl) {
+        // Fix the null error by checking if bag exists before removing
+        if (bag && bag !== currentBagEl) {
           bag.remove();
         }
       });
@@ -740,17 +741,17 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 150;
+      const startY = window.innerHeight - 100; // Updated to match setBagStartPosition
       const startZ = 0;
 
       // Enhanced throwing physics with planet adjustment
       const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
       const gravity = currentPlanet.gravity * 0.01;
 
-      // Better trajectory calculations with more control
+      // Better trajectory calculations with more control - adjusted for longer distance
       const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
       const vy = throwVelocity * Math.sin(angle) * 2.5;
-      const vz = -throwVelocity * 2.0;
+      const vz = -throwVelocity * 3.0; // Increased from 2.0 to 3.0 for longer throws
 
       let posX = startX;
       let posY = startY;
@@ -839,7 +840,7 @@
       const gameW = window.innerWidth;
       const bagWidth = 40;
       const startX = gameW * 0.5;
-      const startY = window.innerHeight - 150;
+      const startY = window.innerHeight - 100; // Changed from -150 to -100 to position the bag higher
       bag.style.transform = `translate3d(${startX - bagWidth / 2}px, ${startY}px, 0px)`;
     }
 
