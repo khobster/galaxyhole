@@ -151,11 +151,22 @@
       height: 40%;
       bottom: 0;
       left: 0;
-      background: rgba(144, 238, 144, 0.3);
+      background: rgba(144, 238, 144, 0.1);
       transform: rotateX(70deg) translateZ(-100px);
       transform-origin: bottom;
       box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.1);
       z-index: 100;
+    }
+
+    /* Debug position marker */
+    .position-marker {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      background: red;
+      border-radius: 50%;
+      z-index: 1000;
+      pointer-events: none;
     }
 
     /* Bag styling */
@@ -512,6 +523,7 @@
         let dragStart = null;
         let minimumDragDistance = 10; // Reduced for more sensitivity
         let time = 0;
+        let animationFrameId = null;
 
         // Scoring state
         let gameScores = {
@@ -545,6 +557,8 @@
         const boardZ = 0; // Board is at z=0 
         const boardY = window.innerHeight * 0.35; // Board position from top (35%)
         const bagStartY = window.innerHeight - 200; // Starting bag position
+        const boardWidth = 120; // Width of board in px
+        const boardHeight = 240; // Height of board in px
 
         // Planet settings
         const planets = {
@@ -872,8 +886,12 @@
           if (deltaTime < 500 && Math.sqrt(deltaX * deltaX + deltaY * deltaY) > minimumDragDistance) {
             const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
             const angle = Math.atan2(deltaY, deltaX);
-            const power = Math.min(100, speed * 300); // Increased for more sensitivity
-            throwBag(power, angle, deltaX * 0.3); // Increased for more sensitivity
+            
+            // Make power more directly related to drag speed/distance
+            const power = Math.min(100, speed * 300); // Scale based on speed
+            
+            // Pass the raw angle to influence where the bag lands
+            throwBag(power, angle, deltaX);
           } else {
             setBagStartPosition();
           }
@@ -918,8 +936,14 @@
           }
         }
 
-        // Optimized throwing physics with realistic arc
+        // COMPLETELY REDESIGNED: Realistic throw trajectory with dynamic landing positions
         function throwBag(power, angle, horizontalAdjustment) {
+          // Cancel any existing animation
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+          
           if (isAnimating || !currentBagEl) return;
           isAnimating = true;
           time = 0;
@@ -929,108 +953,151 @@
           const startX = gameW * 0.5;
           const startY = bagStartY;
           const startZ = 0;
+          
+          // Center of the board
+          const boardCenterX = window.innerWidth / 2;
+          const boardCenterY = boardY;
 
-          // Enhanced throwing physics with planet adjustment
-          const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment;
-          const gravity = currentPlanet.gravity * 0.01;
-
-          // Better trajectory calculations for natural arc
-          const vx = throwVelocity * Math.cos(angle) * 0.5 + horizontalAdjustment;
-          const vy = throwVelocity * Math.sin(angle) * 3.0; // For good arc
-          const vz = throwVelocity * 2.0; // For forward motion
-
+          // Enhanced throwing physics with planet adjustment and random variations
+          const throwVelocity = power * 0.8 * currentPlanet.throwAdjustment; 
+          const gravity = currentPlanet.gravity * 0.02;
+          
+          // Calculate landing position based on angle and power
+          // This now directly influences where the bag will land
+          const angleOffset = (angle / Math.PI) * 2; // Convert angle to a -2 to 2 range
+          
+          // Horizontal deviation based on angle (-60 to +60 pixels from center)
+          const horizontalDeviation = angleOffset * 80 + horizontalAdjustment * 0.3;
+          
+          // Calculate target position (where bag will land)
+          const targetX = boardCenterX + horizontalDeviation;
+          
+          // Vertical position based on power (higher power = further up the board)
+          // Power range: 0-100, board height: 240px
+          const verticalPosition = boardCenterY - 120 + (power / 100) * 240;
+          const targetY = Math.min(Math.max(verticalPosition, boardCenterY - 110), boardCenterY + 110);
+          
+          // Add slight randomness to landing position for realism
+          const randomX = targetX + (Math.random() * 20 - 10);
+          const randomY = targetY + (Math.random() * 20 - 10);
+          
+          // Finalize target position
+          const landX = randomX;
+          const landY = randomY;
+          
+          // Calculate if it's in the hole based on distance from hole center
+          const holeX = boardCenterX;
+          const holeY = boardCenterY + 60;
+          const distanceFromHole = Math.sqrt(
+            Math.pow(landX - holeX, 2) + 
+            Math.pow(landY - holeY, 2)
+          );
+          
+          // More accurate hole detection
+          // Higher chance of going in if it's very close to the hole
+          const isInHole = distanceFromHole <= HOLE_RADIUS;
+          
+          // Calculate path - we'll use a quadratic bezier curve for a natural arc
+          // Bag will fly up and then down in a natural arc
+          const midpointX = (startX + landX) / 2;
+          const arcHeight = Math.min(window.innerHeight * 0.6 - startY, 200) * (power / 100);
+          const midpointY = startY - arcHeight;
+          
+          // Animation will use cubic bezier for X/Y and linear for Z
+          const duration = 1.5; // Animation duration in seconds (slower for better visibility)
+          
+          // Starting properties
           let posX = startX;
           let posY = startY;
           let posZ = startZ;
+          let bagScale = 1.0;
           let rotationX = 0;
           let rotationZ = 0;
-          let bagScale = 1.0;
+          let shadowOpacity = 0.5;
+          let shadowScale = 0.3;
           let hasLanded = false;
-
-          // How far the bag travels in Z direction (to board)
-          const distanceToBoard = boardY - startY;
           
-          // For natural arc
-          const maxHeightPoint = 0.4; // 40% of the way to board
-          const maxHeightMultiplier = 1.5; // How much extra height at apex
+          // Function to calculate position at a given time using quadratic bezier
+          function bezier(t, p0, p1, p2) {
+            const mt = 1 - t;
+            return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
+          }
+
+          // Debug: Show target landing position
+          //const marker = document.createElement('div');
+          //marker.className = 'position-marker';
+          //marker.style.left = `${landX}px`;
+          //marker.style.top = `${landY}px`;
+          //document.body.appendChild(marker);
+          //setTimeout(() => marker.remove(), 2000);
 
           function animate() {
-            time += 0.016;
+            time += 0.016; // Roughly 60fps
+            const t = Math.min(time / duration, 1); // Normalized progress (0-1)
             
-            // Calculate progress toward the board (0 to 1)
-            let progress = Math.min(time * 2, 1); // Normalized progress (0-1)
+            // Smooth easing for beginning and end
+            const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
             
-            // Position based on physics
-            posX = startX + vx * time;
+            // Calculate current position using bezier curve for natural arc
+            posX = bezier(t, startX, midpointX, landX);
+            posY = bezier(t, startY, midpointY, landY);
             
-            // Parabolic arc along the path with more height in the middle
-            const arcHeight = Math.sin(progress * Math.PI) * maxHeightMultiplier;
+            // Z moves toward the board - linear interpolation
+            posZ = startZ + (t * 1000) - 500; // Max height at middle of throw
             
-            // Y position combines initial velocity, gravity and arc height
-            posY = startY - (vy * time - 0.5 * gravity * time * time);
-            
-            // Z moves toward the board
-            posZ = startZ + vz * time * 100;
-            
-            // Scale based on distance from viewer (smaller as it gets farther)
-            const distanceScale = 1 - (progress * 0.3); 
+            // Scale based on distance - bag appears smaller at apex of throw
+            const distanceScale = 1 - (Math.sin(t * Math.PI) * 0.2);
             bagScale = distanceScale;
             
-            // Add realistic rotation
-            rotationX += 5;
-            rotationZ += 3;
-
-            // Update bag position, rotation and scale
+            // Add realistic rotation - more rotation near the end
+            rotationX += 6 * (t * 2 + 0.5); // Faster rotation during arc
+            rotationZ += 4 * (t * 2 + 0.5);
+            
+            // Shadow gets fainter as bag gets higher
+            shadowOpacity = Math.max(0.1, 0.5 - Math.sin(t * Math.PI) * 0.4);
+            
+            // Shadow gets smaller as bag gets higher or farther
+            shadowScale = Math.max(0.1, 0.3 - Math.sin(t * Math.PI) * 0.2);
+            
+            // Position the bag
             currentBagEl.style.transform = 
               `translate3d(${posX - bagWidth/2}px, ${posY - bagWidth/2}px, ${posZ}px) 
                scale(${bagScale}) rotateX(${rotationX}deg) rotateZ(${rotationZ}deg)`;
-               
-            // Update shadow position and opacity based on height
+            
+            // Update shadow position and appearance
             if (currentBagShadowEl) {
-              // Shadow gets fainter as bag gets higher
-              const shadowOpacity = Math.max(0.1, 0.5 - arcHeight * 0.4);
-              // Shadow gets smaller as bag gets higher
-              const shadowScale = Math.max(0.1, 0.3 - arcHeight * 0.2);
+              const shadowX = posX; 
+              const shadowY = bezier(t, startY + 20, boardY - 80, landY + 20);
               
               currentBagShadowEl.style.transform = 
-                `translate3d(${posX - bagWidth/2}px, ${boardY - 60}px, 1px) 
-                 scaleY(${shadowScale}) scaleX(${distanceScale}) rotateX(90deg)`;
+                `translate3d(${shadowX - bagWidth/2}px, ${shadowY}px, 1px) 
+                 scaleY(${shadowScale}) scaleX(${distanceScale * 0.8}) rotateX(90deg)`;
               currentBagShadowEl.style.opacity = shadowOpacity;
             }
             
-            // Create trail effect
-            if (time * 1000 % 20 < 8) {
+            // Create trail effect - less frequent to match new flight time
+            if (time * 1000 % 40 < 8) {
               createTrailParticle(posX, posY, posZ);
             }
 
-            // Check if we've reached the board area
-            if (progress >= 0.95 && !hasLanded) {
+            // End of animation - bag has landed
+            if (t >= 0.98 && !hasLanded) {
               hasLanded = true;
               
-              // Determine where it landed
-              const boardCenterX = window.innerWidth / 2;
-              const distanceFromCenter = Math.abs(posX - boardCenterX);
+              // Final rotation
               const finalRotation = Math.random() * 360;
               
-              // On board checks - central 70px width
-              if (distanceFromCenter < 70) {
-                // Position on the board
+              // Check if the bag landed on the board (based on position)
+              const onBoard = Math.abs(landX - boardCenterX) < (boardWidth / 2) && 
+                            Math.abs(landY - boardCenterY) < (boardHeight / 2);
+              
+              if (onBoard) {
                 currentBagEl.style.transition = 'transform 0.3s ease-out';
                 
-                // Check if it's in the hole (center of board + random chance based on accuracy)
-                const holeX = boardCenterX;
-                const holeY = boardY + 60; // Hole position
-                const distanceFromHole = Math.sqrt(
-                  Math.pow(posX - holeX, 2) + 
-                  Math.pow(boardY - holeY, 2)
-                );
-                
-                const isInHole = distanceFromHole <= HOLE_RADIUS;
-                
                 if (isInHole) {
-                  // In the hole
+                  // In the hole!
                   currentBagEl.style.transform =
-                    `translate3d(${holeX - bagWidth/2}px, ${holeY - bagWidth/2}px, -5px) 
+                    `translate3d(${holeX - bagWidth/2}px, ${holeY - bagWidth/2}px, -10px) 
                      scale(0.8) rotate(${finalRotation}deg)`;
                   currentBagEl.style.zIndex = '490'; // Below board surface
                   currentBagEl.style.opacity = '0.7'; // Partially visible
@@ -1045,21 +1112,21 @@
                 } else {
                   // On the board
                   currentBagEl.style.transform =
-                    `translate3d(${posX - bagWidth/2}px, ${boardY - bagWidth/2}px, 5px) 
+                    `translate3d(${landX - bagWidth/2}px, ${landY - bagWidth/2}px, 5px) 
                      rotate(${finalRotation}deg)`;
                   currentBagEl.style.zIndex = '510'; // Above board surface
                   
                   // Position shadow
                   if (currentBagShadowEl) {
                     currentBagShadowEl.style.transform = 
-                      `translate3d(${posX - bagWidth/2}px, ${boardY}px, 1px) 
+                      `translate3d(${landX - bagWidth/2}px, ${landY}px, 1px) 
                        scaleY(0.2) rotateX(90deg)`;
                     currentBagShadowEl.style.opacity = '0.3';
                   }
                 }
                 
                 // Register the score
-                registerScore(posX, boardY, finalRotation, isInHole);
+                registerScore(landX, landY, finalRotation, isInHole);
               } else {
                 // Missed the board
                 currentBagEl.style.opacity = '0';
@@ -1075,10 +1142,12 @@
               }
             }
 
-            if (!hasLanded && progress < 1) {
-              requestAnimationFrame(animate);
+            if (!hasLanded && t < 1) {
+              animationFrameId = requestAnimationFrame(animate);
             } else {
               isAnimating = false;
+              animationFrameId = null;
+              
               if (!hasLanded) {
                 // Safety fallback if animation ended but bag didn't land
                 if (currentBagEl) currentBagEl.remove();
@@ -1088,7 +1157,7 @@
             }
           }
 
-          requestAnimationFrame(animate);
+          animationFrameId = requestAnimationFrame(animate);
         }
 
         function createTrailParticle(x, y, z) {
