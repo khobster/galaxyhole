@@ -49,7 +49,10 @@
   <!-- WAIT -->
   <div id="wait" class="screen">
     <p>Share this link with your friend:</p>
-    <input id="link" readonly style="width:340px" />
+    <div style="display:flex;gap:.5rem">
+      <input id="link" readonly style="width:340px" />
+      <button id="copy">Copy</button>
+    </div>
     <p id="waitMsg">Waiting for opponent…</p>
   </div>
 
@@ -97,6 +100,9 @@ show(screens.setup);
 const pid=(()=>{let s=localStorage.pid;if(!s){s=Math.random().toString(36).slice(2,9);localStorage.pid=s;}return s})();
 function pxPerMeter(){return window.innerHeight/8;} // dynamic scale
 
+// COPY LINK
+$('copy').onclick=()=>{navigator.clipboard.writeText($('link').value).then(()=>{$('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy',1500);});}
+
 // SETUP SCREEN
 $('planetSel').addEventListener('change',e=>planet=planets[e.target.value]);
 $('create').onclick=async()=>{
@@ -107,7 +113,12 @@ $('create').onclick=async()=>{
   listen();
 };
 $('join').onclick=()=>join($('joinId').value.trim());
-function join(id){if(!id)return;gameId=id;localNum=2;listen();}
+async function join(id){if(!id)return;gameId=id;localNum=2;
+  const ref=db.collection('cornhole').doc(gameId);const snap=await ref.get();if(!snap.exists){alert('Game not found');return;}
+  const data=snap.data();if(data.p2&&data.p2!==pid){alert('Game already has two players');return;}
+  await ref.update({p2:pid,state:'play'});
+  listen();
+}
 
 // URL auto‑join
 const q=new URLSearchParams(location.search);if(q.has('id'))join(q.get('id'));
@@ -117,16 +128,26 @@ function listen(){db.collection('cornhole').doc(gameId).onSnapshot(snap=>{if(!sn
 
 // UI UPDATE
 function updateUI(state){$('scores').textContent=`P1 ${scores[1]} – ${scores[2]} P2`;$('planetLabel').textContent=`Gravity: ${Object.keys(planets).find(k=>planets[k]===planet)}`;
-  if(state==='wait'){show(screens.wait)}
-  else if(state==='play'){show(screens.game);updateTurn();if(localNum===currentPlayer&&throws[localNum]<MAX_THROWS)spawnBag();}
-  else if(state==='end'){show(screens.result);$('msg').textContent=scores[localNum]>scores[3-localNum]?'You win!':'You lose!';}
+  if(state==='wait'){
+    // if I'm P1 stay on wait screen, if I'm P2 switch immediately to play
+    show(localNum===1?screens.wait:screens.game);
+    if(localNum===1 && currentPlayer===2){$('waitMsg').textContent='Opponent joined! Starting soon…';}
+    if(localNum===2 && state==='wait'){ // ensure P2 starts game
+      // handled by update earlier but safety
+      db.collection('cornhole').doc(gameId).update({state:'play'});
+    }
+  } else if(state==='play'){
+    show(screens.game);updateTurn();if(localNum===currentPlayer&&throws[localNum]<MAX_THROWS)spawnBag();
+  } else if(state==='end'){
+    show(screens.result);$('msg').textContent=scores[localNum]>scores[3-localNum]?'You win!':'You lose!';
+  }
 }
 function updateTurn(){$('turn').textContent=currentPlayer===localNum?'Your turn':'Opponent turn';}
 
-// BAG
+// BAG (unchanged)
 let active=null,shadow=null,start={};
 function spawnBag(){active=document.createElement('div');active.className='bag';active.style.setProperty('--clr',localNum===1?'#c41e3a':'#4287f5');shadow=document.createElement('div');shadow.className='shadow';document.body.append(active,shadow);placeBag();
-  window.addEventListener('mousedown',dragStart);window.addEventListener('touchstart',ts, {passive:false});}
+  window.addEventListener('mousedown',dragStart);window.addEventListener('touchstart',ts,{passive:false});}
 function placeBag(){active.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-140}px)`;shadow.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-100}px)`;}
 function ts(e){e.preventDefault();dragStart(e.touches[0]);}
 function dragStart(e){start={x:e.clientX,y:e.clientY,t:performance.now()};window.addEventListener('mousemove',dragMove);window.addEventListener('mouseup',dragEnd);window.addEventListener('touchmove',tm,{passive:false});window.addEventListener('touchend',te);}
@@ -160,7 +181,7 @@ function scoreRound(d){const pts1=d.bags[1].reduce((s,b)=>s+b.pts,0);const pts2=
   if(d.scores[1]>=WIN||d.scores[2]>=WIN)d.state='end';}
 
 // PLAY AGAIN
-$('again').onclick=()=>location.reload();
+$('again').onclick=()=>location.href=location.origin+location.pathname;
 </script>
 </body>
 </html>
