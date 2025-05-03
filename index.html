@@ -3,185 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Space Cornhole — Multiplayer</title>
+  <title>Space Cornhole — Multiplayer v2</title>
   <style>
-    /* RESET & BASICS */
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#87CEEB 0%,#90EE90 100%);overflow:hidden}
-    button,select,input{font:inherit}
-    
-    /* SCREENS */
     .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
-    #setup,#wait,#game,#result{background:transparent}
     #setup{display:flex}
-
-    /* UI ELEMENTS */
-    button{padding:.6rem 1.2rem;border-radius:.5rem;border:none;cursor:pointer;font-weight:600;color:#fff;background:#c41e3a;transition:background .2s}
-    button:hover{background:#d42e4a}
-    select,input{padding:.4rem .8rem;border-radius:.4rem;border:2px solid #444}
-
-    #board{position:absolute;width:120px;height:240px;left:50%;top:40%;transform:translate(-50%,-50%) rotateX(20deg);background:#8B4513;border:4px solid #654321;border-radius:4px;box-shadow:0 20px 40px rgba(0,0,0,.4);z-index:2}
-    #hole{position:absolute;width:38px;height:38px;left:50%;top:25%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px rgba(0,0,0,.6)}
-    .bag{position:absolute;width:40px;height:40px;border-radius:5px;box-shadow:0 5px 10px rgba(0,0,0,.3);will-change:transform;background:var(--clr)}
-    .shadow{position:absolute;width:40px;height:40px;border-radius:50%;background:#0003;transform:scale(.6) translateZ(-1px);pointer-events:none}
-
-    #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:.5rem}
-    #scores,#turn{background:#ffffffcc;padding:.3rem .8rem;border-radius:.4rem;font-weight:700;pointer-events:auto}
-    #planetLabel{position:absolute;top:.5rem;left:50%;transform:translateX(-50%);background:#ffffffcc;padding:.3rem .8rem;border-radius:.4rem;font-weight:600}
+    button{padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer}button:hover{background:#d42e4a}
+    select,input{padding:.4rem .8rem;border:2px solid #444;border-radius:.4rem;font:inherit}
+    #board{position:absolute;width:120px;height:240px;left:50%;top:45%;transform:translate(-50%,-50%);background:#8B4513;border:4px solid #654321;border-radius:4px;box-shadow:0 20px 40px #0005;}
+    #hole{position:absolute;width:38px;height:38px;left:50%;top:25%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px #0008}
+    .bag{position:absolute;width:40px;height:40px;border-radius:5px;background:var(--clr);box-shadow:0 5px 10px #0004;will-change:transform}
+    .shadow{position:absolute;width:40px;height:15px;border-radius:50%;background:#0003;will-change:transform;pointer-events:none}
+    #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:.4rem}
+    #scores,#turn,#planet{background:#ffffffcc;padding:.25rem .8rem;border-radius:.4rem;font-weight:700;pointer-events:auto}
+    #planet{top:.5rem;position:absolute;left:50%;transform:translateX(-50%);font-weight:600}
   </style>
 </head>
 <body>
-  <!-- SETUP -->
   <div id="setup" class="screen">
     <h1>Space Cornhole</h1>
     <label>Gravity:
       <select id="planetSel">
-        <option value="earth">Earth (9.81)</option>
-        <option value="moon">Moon (1.62)</option>
-        <option value="mars">Mars (3.72)</option>
-        <option value="jupiter">Jupiter (24.79)</option>
+        <option value="earth">Earth (9.8)</option>
+        <option value="moon">Moon (1.6)</option>
+        <option value="mars">Mars (3.7)</option>
+        <option value="jupiter">Jupiter (24.8)</option>
       </select></label>
-    <button id="create">Create Game</button>
+    <button id="create">Create</button>
     <input id="joinId" placeholder="Game ID" />
-    <button id="join">Join Game</button>
+    <button id="join">Join</button>
   </div>
 
-  <!-- WAIT -->
   <div id="wait" class="screen">
-    <p>Share this link with your friend:</p>
-    <div style="display:flex;gap:.5rem">
-      <input id="link" readonly style="width:340px" />
-      <button id="copy">Copy</button>
-    </div>
-    <p id="waitMsg">Waiting for opponent…</p>
+    <p>Share the link:</p>
+    <div style="display:flex;gap:.5rem"><input id="link" readonly style="width:340px"/><button id="copy">Copy</button></div>
+    <p id="waitMsg">Waiting…</p>
   </div>
 
-  <!-- GAME -->
   <div id="game" class="screen">
-    <div id="planetLabel"></div>
-    <div id="hud">
-      <div id="scores">P1 0 – 0 P2</div>
-      <div id="turn">Loading…</div>
-    </div>
+    <div id="planet"></div>
+    <div id="hud"><div id="scores">0 – 0</div><div id="turn"> </div></div>
     <div id="board"><div id="hole"></div></div>
   </div>
 
-  <!-- RESULT -->
-  <div id="result" class="screen">
-    <h2 id="msg"></h2>
-    <button id="again">Play Again</button>
-  </div>
+  <div id="result" class="screen"><h2 id="msg"></h2><button id="again">Play Again</button></div>
 
-  <!-- FIREBASE -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 <script>
-// CONFIG  ✱✱ Replace with env vars for production
+// ── Firebase config (keep as‑is) ────────────────────────────────────────────────
 const firebaseConfig={apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",authDomain:"galaxy-hole-53c76.firebaseapp.com",projectId:"galaxy-hole-53c76",storageBucket:"galaxy-hole-53c76.appspot.com",messagingSenderId:"592610380036",appId:"1:592610380036:web:4b5c72ee181682b9262851"};
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
 
-// PLANETS
-const planets={earth:{g:9.81,scale:1},moon:{g:1.62,scale:0.5},mars:{g:3.72,scale:0.7},jupiter:{g:24.79,scale:1.5}};
+// ── Physics presets ────────────────────────────────────────────────────────────
+const planets={earth:{g:9.8,scale:1},moon:{g:1.6,scale:.45},mars:{g:3.7,scale:.7},jupiter:{g:24.8,scale:1.4}};
 let planet=planets.earth;
 
-// STATE
-let gameId=null,localNum=null,currentPlayer=1,throws={1:0,2:0},scores={1:0,2:0},bags=[];
-const MAX_THROWS=4,WIN=21;
+// ── Basic state ────────────────────────────────────────────────────────────────
+let gameId=null,me=null,turn=1,throws={1:0,2:0},score={1:0,2:0};
+const MAX=4,WIN=21;
+const pid=(()=>{let v=localStorage.pid;if(!v){v=Math.random().toString(36).slice(2,9);localStorage.pid=v;}return v})();
 
-// DOM
-const $=id=>document.getElementById(id);
-const screens={setup:$('setup'),wait:$('wait'),game:$('game'),result:$('result')};
-function show(scr){Object.values(screens).forEach(s=>s.style.display=s===scr?"flex":"none")}
+// ── DOM helpers ────────────────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);const screens={setup:$('setup'),wait:$('wait'),game:$('game'),result:$('result')};
+const show=scr=>Object.values(screens).forEach(s=>s.style.display=s===scr?'flex':'none');
 show(screens.setup);
 
-// UTIL
-const pid=(()=>{let s=localStorage.pid;if(!s){s=Math.random().toString(36).slice(2,9);localStorage.pid=s;}return s})();
-function pxPerMeter(){return window.innerHeight/8;} // dynamic scale
+// ── UI actions ────────────────────────────────────────────────────────────────
+$('planetSel').onchange=e=>planet=planets[e.target.value];
+$('copy').onclick=()=>navigator.clipboard.writeText($('link').value);
+$('again').onclick=()=>location.href=location.pathname;
 
-// COPY LINK
-$('copy').onclick=()=>{navigator.clipboard.writeText($('link').value).then(()=>{$('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy',1500);});}
-
-// SETUP SCREEN
-$('planetSel').addEventListener('change',e=>planet=planets[e.target.value]);
-$('create').onclick=async()=>{
-  const doc=await db.collection('cornhole').add({p1:pid,p2:null,planet:$('planetSel').value,state:'wait',current:1,scores:{1:0,2:0},throws:{1:0,2:0},bags:{1:[],2:[]}});
-  gameId=doc.id;localNum=1;planet=planets[$('planetSel').value];
-  $('link').value=`${location.origin}${location.pathname}?id=${gameId}`;
-  show(screens.wait);
-  listen();
-};
+$('create').onclick=async()=>{const doc=await db.collection('cornhole').add({p1:pid,p2:null,planet:$('planetSel').value,st:'wait',turn:1,sc:{1:0,2:0},th:{1:0,2:0},bags:{1:[],2:[]}});gameId=doc.id;me=1;planet=planets[$('planetSel').value];$('link').value=`${location.origin}${location.pathname}?id=${gameId}`;show(screens.wait);listen();};
 $('join').onclick=()=>join($('joinId').value.trim());
-async function join(id){if(!id)return;gameId=id;localNum=2;
-  const ref=db.collection('cornhole').doc(gameId);const snap=await ref.get();if(!snap.exists){alert('Game not found');return;}
-  const data=snap.data();if(data.p2&&data.p2!==pid){alert('Game already has two players');return;}
-  await ref.update({p2:pid,state:'play'});
-  listen();
+async function join(id){if(!id)return;gameId=id;me=2;const ref=db.collection('cornhole').doc(id);const snap=await ref.get();if(!snap.exists){alert('Not found');return;}const d=snap.data();if(d.p2&&d.p2!==pid){alert('Full');return;}await ref.update({p2:pid,st:'play'});listen();}
+const qp=new URLSearchParams(location.search);if(qp.has('id'))join(qp.get('id'));
+
+// ── Firestore listener ────────────────────────────────────────────────────────
+function listen(){db.collection('cornhole').doc(gameId).onSnapshot(snap=>{if(!snap.exists)return;const d=snap.data();planet=planets[d.planet];turn=d.turn;throws=d.th;score=d.sc;updateUI(d.st,d.bags);});}
+
+// ── UI refresh ────────────────────────────────────────────────────────────────
+function updateUI(st,bags){$('scores').textContent=`${score[1]} – ${score[2]}`;$('turn').textContent=turn===me?'Your turn':'Opponent';$('planet').textContent=`Gravity: ${Object.keys(planets).find(k=>planets[k]===planet)}`;
+  if(st==='wait'){show(me===1?screens.wait:screens.game);}else if(st==='play'){show(screens.game);if(turn===me&&throws[me]<MAX)spawnBag();}else if(st==='end'){show(screens.result);$('msg').textContent=score[me]>score[3-me]?'You win!':'You lose!';}
 }
 
-// URL auto‑join
-const q=new URLSearchParams(location.search);if(q.has('id'))join(q.get('id'));
+// ── BAG DRAG & THROW ──────────────────────────────────────────────────────────
+let bag,shadow,start;
+function spawnBag(){bag=document.createElement('div');bag.className='bag';bag.style.setProperty('--clr',me===1?'#c41e3a':'#4287f5');shadow=document.createElement('div');shadow.className='shadow';document.body.append(bag,shadow);place();document.addEventListener('pointerdown',dragStart,{once:true});}
+function place(){bag.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-130}px)`;shadow.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-90}px)`;}
+function dragStart(e){start={x:e.clientX,y:e.clientY,t:performance.now()};document.addEventListener('pointermove',dragMove);document.addEventListener('pointerup',dragEnd,{once:true});}
+function dragMove(e){const dx=e.clientX-start.x,dy=e.clientY-start.y;bag.style.transform=`translate(${innerWidth/2-20+dx/3}px,${innerHeight-130+dy/3}px)`;shadow.style.transform=`translate(${innerWidth/2-20+dx/3}px,${innerHeight-90})`;} // shadow stays ground
+function dragEnd(e){document.removeEventListener('pointermove',dragMove);
+  const dx=e.clientX-start.x,dy=start.y-e.clientY;const dist=Math.hypot(dx,dy);if(dist<20){place();document.addEventListener('pointerdown',dragStart,{once:true});return;}
+  const t=(performance.now()-start.t)/1000;const power=dist/t*planet.scale*0.35;throwBag(dx,dy,power);} // tuned factor
 
-// LISTENER
-function listen(){db.collection('cornhole').doc(gameId).onSnapshot(snap=>{if(!snap.exists)return;const d=snap.data();planet=planets[d.planet];currentPlayer=d.current;scores=d.scores;throws=d.throws;bags=d.bags;updateUI(d.state);});}
-
-// UI UPDATE
-function updateUI(state){$('scores').textContent=`P1 ${scores[1]} – ${scores[2]} P2`;$('planetLabel').textContent=`Gravity: ${Object.keys(planets).find(k=>planets[k]===planet)}`;
-  if(state==='wait'){
-    // if I'm P1 stay on wait screen, if I'm P2 switch immediately to play
-    show(localNum===1?screens.wait:screens.game);
-    if(localNum===1 && currentPlayer===2){$('waitMsg').textContent='Opponent joined! Starting soon…';}
-    if(localNum===2 && state==='wait'){ // ensure P2 starts game
-      // handled by update earlier but safety
-      db.collection('cornhole').doc(gameId).update({state:'play'});
-    }
-  } else if(state==='play'){
-    show(screens.game);updateTurn();if(localNum===currentPlayer&&throws[localNum]<MAX_THROWS)spawnBag();
-  } else if(state==='end'){
-    show(screens.result);$('msg').textContent=scores[localNum]>scores[3-localNum]?'You win!':'You lose!';
-  }
+function throwBag(dx,dy,pwr){const dirX=dx/dist(dx,dy),dirY=dy/dist(dx,dy);const vx=dirX*pwr,vy=dirY*pwr;const g=planet.g*window.innerHeight/7;const sx=parseFloat(bag.style.transform.split('(')[1]);const sy=parseFloat(bag.style.transform.split(',')[1]);let t0=performance.now();
+  (function anim(now){const t=(now-t0)/1000;const x=sx+vx*t;const y=sy-vy*t+0.5*g*t*t;bag.style.transform=`translate(${x}px,${y}px)`;shadow.style.transform=`translate(${x}px,${innerHeight-90}px)`;if(y<innerHeight-40){requestAnimationFrame(anim);}else{finish(x+20,y+20);bag.remove();shadow.remove();}})(performance.now());
+  function dist(a,b){return Math.hypot(a,b);} // helper
 }
-function updateTurn(){$('turn').textContent=currentPlayer===localNum?'Your turn':'Opponent turn';}
 
-// BAG (unchanged)
-let active=null,shadow=null,start={};
-function spawnBag(){active=document.createElement('div');active.className='bag';active.style.setProperty('--clr',localNum===1?'#c41e3a':'#4287f5');shadow=document.createElement('div');shadow.className='shadow';document.body.append(active,shadow);placeBag();
-  window.addEventListener('mousedown',dragStart);window.addEventListener('touchstart',ts,{passive:false});}
-function placeBag(){active.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-140}px)`;shadow.style.transform=`translate(${innerWidth/2-20}px,${innerHeight-100}px)`;}
-function ts(e){e.preventDefault();dragStart(e.touches[0]);}
-function dragStart(e){start={x:e.clientX,y:e.clientY,t:performance.now()};window.addEventListener('mousemove',dragMove);window.addEventListener('mouseup',dragEnd);window.addEventListener('touchmove',tm,{passive:false});window.addEventListener('touchend',te);}
-function tm(e){e.preventDefault();dragMove(e.touches[0]);}
-function dragMove(e){const dx=e.clientX-start.x,dy=start.y-e.clientY;active.style.transform=`translate(${innerWidth/2-20+dx/5}px,${innerHeight-140-dy/5}px)`;shadow.style.transform=`translate(${innerWidth/2-20+dx/5}px,${innerHeight-100-dy/10}px)`;}
-function te(e){dragEnd(e.changedTouches[0]);}
-function dragEnd(e){window.removeEventListener('mousemove',dragMove);window.removeEventListener('mouseup',dragEnd);window.removeEventListener('touchmove',tm);window.removeEventListener('touchend',te);
-  const dx=e.clientX-start.x,dy=start.y-e.clientY,dist=Math.hypot(dx,dy);if(dist<15){placeBag();return;}
-  const t=performance.now()-start.t,v=dist/t*600*planet.scale,ang=Math.atan2(dy,dx);throwBag(v,ang);} 
-
-function throwBag(power,ang){const ppx=pxPerMeter();const g=planet.g*ppx;const bX=innerWidth/2-20,bY=innerHeight-140;
-  const vx=Math.cos(ang)*power,vy=Math.sin(ang)*power;
-  let t0=performance.now();function step(ts){const dt=(ts-t0)/1000;const x=bX+vx*dt;const y=bY-(vy*dt-0.5*g*dt*dt);active.style.transform=`translate(${x}px,${y}px)`;shadow.style.transform=`translate(${x}px,${innerHeight-100 - dt*200}px)`;
-    if(y<innerHeight){requestAnimationFrame(step);}else{land(x+20,y+20);active.remove();shadow.remove();}}
-  requestAnimationFrame(step);
-  function land(cx,cy){const br=$('#board').getBoundingClientRect(),hr=$('#hole').getBoundingClientRect();let pts=0;
-    if(pointCircle(cx,cy,hr))pts=3;else if(cx>br.left&&cx<br.right&&cy>br.top&&cy<br.bottom)pts=1;
-    recordThrow({cx,cy,pts});}
-}
-function pointCircle(x,y,r){const dx=x-(r.left+r.width/2),dy=y-(r.top+r.height/2);return Math.hypot(dx,dy)<r.width/2;}
-
-// RECORD & TURN LOGIC
-async function recordThrow(bag){const doc=db.collection('cornhole').doc(gameId);await db.runTransaction(async tx=>{
-  const snap=await tx.get(doc);const d=snap.data();const p=`${localNum}`;
-  d.bags[p].push(bag);d.throws[p]++;
-  if(d.throws[1]>=MAX_THROWS&&d.throws[2]>=MAX_THROWS){scoreRound(d);}else{d.current=3-d.current;}
-  d.state='play';tx.set(doc,d);
-});}
-function scoreRound(d){const pts1=d.bags[1].reduce((s,b)=>s+b.pts,0);const pts2=d.bags[2].reduce((s,b)=>s+b.pts,0);const diff=Math.abs(pts1-pts2);if(pts1>pts2)d.scores[1]+=diff;else if(pts2>pts1)d.scores[2]+=diff;
-  d.bags={1:[],2:[]};d.throws={1:0,2:0};d.current=1;
-  if(d.scores[1]>=WIN||d.scores[2]>=WIN)d.state='end';}
-
-// PLAY AGAIN
-$('again').onclick=()=>location.href=location.origin+location.pathname;
+// ── FINISH & SCORE ────────────────────────────────────────────────────────────
+function finish(cx,cy){const br=$('#board').getBoundingClientRect(),hr=$('#hole').getBoundingClientRect();let pts=0;if(Math.hypot(cx-(hr.left+hr.width/2),cy-(hr.top+hr.height/2))<hr.width/2)pts=3;else if(cx>br.left&&cx<br.right&&cy>br.top&&cy<br.bottom)pts=1;
+  db.runTransaction(async tx=>{const ref=db.collection('cornhole').doc(gameId);const snap=await tx.get(ref);const d=snap.data();d.bags[me].push({pts});d.th[me]++;if(d.th[1]>=MAX&&d.th[2]>=MAX)scoreRound(d);else d.turn=3-d.turn;d.st='play';tx.set(ref,d);});}
+function scoreRound(d){const p1=d.bags[1].reduce((s,b)=>s+b.pts,0);const p2=d.bags[2].reduce((s,b)=>s+b.pts,0);const diff=Math.abs(p1-p2);if(p1>p2)d.sc[1]+=diff;else if(p2>p1)d.sc[2]+=diff;d.bags={1:[],2:[]};d.th={1:0,2:0};d.turn=1;if(d.sc[1]>=WIN||d.sc[2]>=WIN)d.st='end';}
 </script>
 </body>
 </html>
