@@ -50,6 +50,7 @@
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
       transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
     }
     
     button:hover {
@@ -83,44 +84,44 @@
     
     #board {
       position: absolute;
-      width: 150px;
-      height: 300px;
+      width: 120px;
+      height: 200px;
       left: 50%;
-      top: 45%;
+      top: 40%;
       transform: translate(-50%, -50%);
       background: #8B4513;
       border: 8px solid #654321;
       border-radius: 8px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
     }
     
     #hole {
       position: absolute;
-      width: 48px;
-      height: 48px;
+      width: 35px;
+      height: 35px;
       left: 50%;
-      top: 25%;
+      top: 20%;
       transform: translate(-50%, -50%);
       border-radius: 50%;
       background: #000;
-      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
     }
     
     .bag {
       position: absolute;
-      width: 40px;
-      height: 40px;
+      width: 35px;
+      height: 35px;
       border-radius: 5px;
       background: var(--clr);
-      box-shadow: 0 5px 10px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
       will-change: transform;
-      transition: transform 0.1s;
+      z-index: 10;
     }
     
     .shadow {
       position: absolute;
-      width: 40px;
-      height: 15px;
+      width: 35px;
+      height: 12px;
       border-radius: 50%;
       background: rgba(0, 0, 0, 0.2);
       will-change: transform;
@@ -129,38 +130,47 @@
     
     #hud {
       position: absolute;
-      inset: 0;
-      pointer-events: none;
+      top: 0;
+      left: 0;
+      right: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.5rem;
-      padding-top: 1rem;
-    }
-    
-    #scores, #turn, #planet, #throws {
-      background: rgba(255, 255, 255, 0.8);
-      padding: 0.5rem 1rem;
-      border-radius: 0.4rem;
-      font-weight: 700;
-      pointer-events: auto;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      margin-bottom: 0.5rem;
+      gap: 0.3rem;
+      padding: 1rem;
+      pointer-events: none;
+      z-index: 20;
     }
     
     #planet {
-      top: 0.8rem;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 0.3rem 0.8rem;
+      border-radius: 0.4rem;
       font-weight: 600;
+      pointer-events: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 0.3rem;
+    }
+    
+    #scoreAndTurn {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 0.3rem 0.8rem;
+      border-radius: 0.4rem;
+      font-weight: 600;
+      pointer-events: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     
     #throws {
-      position: absolute;
-      top: 3rem;
-      left: 50%;
-      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 0.3rem 0.8rem;
+      border-radius: 0.4rem;
+      font-weight: 600;
+      pointer-events: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     
     #waitMsg {
@@ -284,10 +294,12 @@
   </div>
 
   <div id="game" class="screen">
-    <div id="planet"></div>
     <div id="hud">
-      <div id="scores">0 – 0</div>
-      <div id="turn"></div>
+      <div id="planet"></div>
+      <div id="scoreAndTurn">
+        <div id="scores">0 – 0</div>
+        <div id="turn"></div>
+      </div>
       <div id="throws"></div>
     </div>
     <div id="board"><div id="hole"></div></div>
@@ -503,21 +515,26 @@ function spawnBag() {
   place();
   
   // Add a small animation
-  bag.style.transform = `translate(${innerWidth/2-20}px,${innerHeight-80}px) scale(0)`;
+  bag.style.transform = `translate(${innerWidth/2-17}px,${innerHeight-50}px) scale(0)`;
   setTimeout(() => {
-    bag.style.transform = `translate(${innerWidth/2-20}px,${innerHeight-130}px) scale(1)`;
+    bag.style.transform = `translate(${innerWidth/2-17}px,${innerHeight-40}px)`;
     document.addEventListener('pointerdown', dragStart, {once: true});
   }, 300);
 }
 
 function place() {
-  bag.style.transform = `translate(${innerWidth/2-20}px,${innerHeight-130}px)`;
-  shadow.style.transform = `translate(${innerWidth/2-20}px,${innerHeight-90}px)`;
+  const startX = innerWidth/2-17; // Center the bag (35px width / 2)
+  const startY = innerHeight-40; // Bottom of the screen
+  bag.style.transform = `translate(${startX}px,${startY}px)`;
+  shadow.style.transform = `translate(${startX}px,${startY+35}px)`; // Shadow below bag
 }
 
 function dragStart(e) {
   // Prevent drag if it's not our turn
   if (turn !== me) return;
+  
+  // Prevent default to avoid text selection
+  e.preventDefault();
   
   start = {
     x: e.clientX,
@@ -527,6 +544,7 @@ function dragStart(e) {
   
   document.addEventListener('pointermove', dragMove);
   document.addEventListener('pointerup', dragEnd, {once: true});
+  document.addEventListener('pointercancel', dragEnd, {once: true});
 }
 
 function dragMove(e) {
@@ -534,17 +552,18 @@ function dragMove(e) {
   const dy = e.clientY - start.y;
   
   // Limit drag distance for better control
-  const maxDrag = 150;
+  const maxDrag = 100;
   const dragDistance = Math.min(Math.hypot(dx, dy), maxDrag);
   const angle = Math.atan2(dy, dx);
   
   const limitedDx = Math.cos(angle) * dragDistance;
   const limitedDy = Math.sin(angle) * dragDistance;
   
-  bag.style.transform = `translate(${innerWidth/2-20+limitedDx/2}px,${innerHeight-130+limitedDy/2}px)`;
+  const startX = innerWidth/2-17;
+  const startY = innerHeight-40;
   
-  // Shadow stays on ground
-  shadow.style.transform = `translate(${innerWidth/2-20+limitedDx/2}px,${innerHeight-90}px)`;
+  bag.style.transform = `translate(${startX+limitedDx}px,${startY+limitedDy}px)`;
+  shadow.style.transform = `translate(${startX+limitedDx}px,${startY+35}px)`;
 }
 
 function dragEnd(e) {
@@ -554,7 +573,7 @@ function dragEnd(e) {
   const dy = start.y - e.clientY; // Inverted for upward throws
   const dist = Math.hypot(dx, dy);
   
-  if (dist < 20) {
+  if (dist < 10) {
     // Too small of a movement, reset position
     place();
     document.addEventListener('pointerdown', dragStart, {once: true});
@@ -564,8 +583,7 @@ function dragEnd(e) {
   const t = (performance.now() - start.t) / 1000; // Time in seconds
   
   // Calculate power based on drag distance and time
-  // The faster and longer the drag, the more power
-  const power = dist / Math.max(t, 0.1) * planet.scale * 0.4; // Tuned factor
+  const power = Math.min(dist / Math.max(t, 0.1) * planet.scale * 0.15, 1200); // Capped power
   
   throwBag(dx, dy, power);
 }
@@ -573,6 +591,8 @@ function dragEnd(e) {
 function throwBag(dx, dy, pwr) {
   // Calculate direction
   const distance = Math.hypot(dx, dy);
+  if (distance === 0) return; // Prevent division by zero
+  
   const dirX = dx / distance;
   const dirY = dy / distance;
   
@@ -581,12 +601,11 @@ function throwBag(dx, dy, pwr) {
   const vy = dirY * pwr;
   
   // Get starting position
-  const transform = bag.style.transform;
-  const sx = parseFloat(transform.split('translate(')[1]) || innerWidth/2-20;
-  const sy = parseFloat(transform.split(',')[1]) || innerHeight-130;
+  const sx = innerWidth/2-17;
+  const sy = innerHeight-40;
   
   // Gravity scale factor (adjusted for screen size)
-  const g = planet.g * window.innerHeight / 800;
+  const g = planet.g * 40; // Gravity acceleration
   
   let t0 = performance.now();
   let landed = false;
@@ -596,29 +615,48 @@ function throwBag(dx, dy, pwr) {
     
     const t = (now - t0) / 1000; // Time in seconds
     
-    // Physics calculations
+    // Physics calculations - parabolic motion
     const x = sx + vx * t;
-    const y = sy - vy * t + 0.5 * g * t * t; // Gravity equation
+    const y = sy - vy * t + 0.5 * g * t * t; // Gravity pulls down
     
     // Update positions
     bag.style.transform = `translate(${x}px,${y}px)`;
-    shadow.style.transform = `translate(${x}px,${innerHeight-90}px) scale(${1 - Math.min(0.7, (innerHeight-90-y) / 500)})`;
+    
+    // Shadow stays on ground and scales with height
+    const groundY = sy + 35; // Where shadow would be on ground
+    const heightAboveGround = Math.max(0, groundY - y);
+    const shadowScale = Math.max(0.3, 1 - heightAboveGround / 300);
+    const shadowX = x + (heightAboveGround * 0.2); // Slight offset for perspective
+    shadow.style.transform = `translate(${shadowX}px,${groundY}px) scale(${shadowScale})`;
     
     // Check if the bag has landed
-    if (y < innerHeight-40) {
+    if (y < groundY - 20) { // Keep animating until just above ground
       requestAnimationFrame(anim);
     } else {
       landed = true;
-      finish(x+20, y+20); // Center of the bag
+      finish(x+17, y+17); // Center of the bag
       
-      // Animate bag landing
-      bag.style.transform = `translate(${x}px,${innerHeight-40}px) scale(1.1)`;
+      // Landing animation
+      const bounceHeight = Math.min(20, Math.abs(vy) * 0.2);
+      bag.style.transform = `translate(${x}px,${groundY-40}px) scale(1.1)`;
+      
       setTimeout(() => {
-        bag.style.transform = `translate(${x}px,${innerHeight-40}px) scale(1)`;
+        bag.style.transform = `translate(${x}px,${groundY-40-bounceHeight}px) scale(1)`;
         setTimeout(() => {
-          bag.remove();
-          shadow.remove();
-        }, 500);
+          bag.style.transform = `translate(${x}px,${groundY-40}px) scale(1)`;
+          
+          // After landing, keep the bag visible for a moment
+          setTimeout(() => {
+            bag.style.opacity = '0.7';
+            shadow.style.opacity = '0.7';
+            
+            // Remove after delay
+            setTimeout(() => {
+              bag.remove();
+              shadow.remove();
+            }, 1000);
+          }, 500);
+        }, 200);
       }, 100);
     }
   }
