@@ -551,19 +551,47 @@ function dragMove(e) {
   const dx = e.clientX - start.x;
   const dy = e.clientY - start.y;
   
-  // Limit drag distance for better control
-  const maxDrag = 100;
+  // Increase max drag distance for more power
+  const maxDrag = 300;
   const dragDistance = Math.min(Math.hypot(dx, dy), maxDrag);
   const angle = Math.atan2(dy, dx);
   
-  const limitedDx = Math.cos(angle) * dragDistance;
-  const limitedDy = Math.sin(angle) * dragDistance;
+  // Visual feedback with limited movement - rubber band effect
+  const limitedDx = Math.cos(angle) * Math.min(dragDistance, 150);
+  const limitedDy = Math.sin(angle) * Math.min(dragDistance, 150);
   
   const startX = innerWidth/2-17;
   const startY = innerHeight-40;
   
   bag.style.transform = `translate(${startX+limitedDx}px,${startY+limitedDy}px)`;
   shadow.style.transform = `translate(${startX+limitedDx}px,${startY+35}px)`;
+  
+  // Show trajectory preview
+  const power = Math.min(dragDistance * 8, 1500);
+  const vx = -Math.cos(angle) * power / 50;
+  const vy = Math.sin(angle) * power / 50;
+  
+  // Draw aim line
+  let aimLine = document.getElementById('aimLine');
+  if (!aimLine) {
+    aimLine = document.createElement('div');
+    aimLine.id = 'aimLine';
+    aimLine.style.position = 'absolute';
+    aimLine.style.height = '2px';
+    aimLine.style.background = 'rgba(255, 255, 255, 0.7)';
+    aimLine.style.transformOrigin = 'left center';
+    aimLine.style.pointerEvents = 'none';
+    aimLine.style.zIndex = '5';
+    document.body.appendChild(aimLine);
+  }
+  
+  const aimAngle = Math.atan2(-vy, -vx);
+  const aimLength = Math.min(dragDistance, 150);
+  
+  aimLine.style.width = `${aimLength}px`;
+  aimLine.style.left = `${startX+17}px`;
+  aimLine.style.top = `${startY+17}px`;
+  aimLine.style.transform = `rotate(${aimAngle}rad)`;
 }
 
 function dragEnd(e) {
@@ -589,23 +617,29 @@ function dragEnd(e) {
 }
 
 function throwBag(dx, dy, pwr) {
+  // Remove aim line
+  const aimLine = document.getElementById('aimLine');
+  if (aimLine) aimLine.remove();
+  
   // Calculate direction
   const distance = Math.hypot(dx, dy);
   if (distance === 0) return; // Prevent division by zero
   
-  const dirX = dx / distance;
-  const dirY = dy / distance;
+  // Invert dy for proper upward throws (reverse pull = forward throw)
+  const angle = Math.atan2(-dy, -dx);
   
-  // Initial velocity
-  const vx = dirX * pwr;
-  const vy = dirY * pwr;
+  // Initial velocity with power scaling
+  const power = Math.min(distance * 8, 1500);
+  const vx = Math.cos(angle) * power / 50;
+  const vy = Math.sin(angle) * power / 50;
   
   // Get starting position
   const sx = innerWidth/2-17;
   const sy = innerHeight-40;
   
-  // Gravity scale factor (adjusted for screen size)
-  const g = planet.g * 40; // Gravity acceleration
+  // Gravity scale factor based on planet and screen size
+  const baseGravity = 600; // Adjusted for better game feel
+  const g = baseGravity * planet.g / 9.8; // Scale by planetary gravity
   
   let t0 = performance.now();
   let landed = false;
@@ -619,44 +653,55 @@ function throwBag(dx, dy, pwr) {
     const x = sx + vx * t;
     const y = sy - vy * t + 0.5 * g * t * t; // Gravity pulls down
     
+    // Prevent going off screen horizontally
+    if (x < -50 || x > innerWidth + 50) {
+      landed = true;
+      return;
+    }
+    
     // Update positions
     bag.style.transform = `translate(${x}px,${y}px)`;
     
     // Shadow stays on ground and scales with height
-    const groundY = sy + 35; // Where shadow would be on ground
+    const groundY = innerHeight; // Actual ground level
     const heightAboveGround = Math.max(0, groundY - y);
-    const shadowScale = Math.max(0.3, 1 - heightAboveGround / 300);
-    const shadowX = x + (heightAboveGround * 0.2); // Slight offset for perspective
-    shadow.style.transform = `translate(${shadowX}px,${groundY}px) scale(${shadowScale})`;
+    const shadowScale = Math.max(0.2, 1 - heightAboveGround / 400);
+    const shadowX = x + (heightAboveGround * 0.15); // Slight offset for perspective
+    shadow.style.transform = `translate(${shadowX}px,${groundY-15}px) scale(${shadowScale})`;
     
     // Check if the bag has landed
-    if (y < groundY - 20) { // Keep animating until just above ground
+    if (y < groundY + 40) { // Keep animating until just above ground
       requestAnimationFrame(anim);
     } else {
       landed = true;
-      finish(x+17, y+17); // Center of the bag
       
-      // Landing animation
-      const bounceHeight = Math.min(20, Math.abs(vy) * 0.2);
-      bag.style.transform = `translate(${x}px,${groundY-40}px) scale(1.1)`;
+      // Calculate final position
+      const finalX = x + 17; // Center of bag
+      const finalY = y + 17;
+      
+      finish(finalX, finalY);
+      
+      // Landing animation with bounce
+      bag.style.transition = 'transform 0.1s cubic-bezier(0.25, 0, 0.5, 1)';
+      bag.style.transform = `translate(${x}px,${groundY-40}px) scale(1.2)`;
       
       setTimeout(() => {
-        bag.style.transform = `translate(${x}px,${groundY-40-bounceHeight}px) scale(1)`;
+        bag.style.transform = `translate(${x}px,${groundY-55}px) scale(1)`;
         setTimeout(() => {
           bag.style.transform = `translate(${x}px,${groundY-40}px) scale(1)`;
           
-          // After landing, keep the bag visible for a moment
+          // Fade out after landing
           setTimeout(() => {
-            bag.style.opacity = '0.7';
-            shadow.style.opacity = '0.7';
+            bag.style.opacity = '0.8';
+            shadow.style.opacity = '0.8';
             
             // Remove after delay
             setTimeout(() => {
               bag.remove();
               shadow.remove();
-            }, 1000);
-          }, 500);
-        }, 200);
+            }, 800);
+          }, 400);
+        }, 150);
       }, 100);
     }
   }
