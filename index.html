@@ -83,14 +83,14 @@ html, body {height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;backgro
   z-index:10; /* Shadow below bag */
 }
 /* —— trajectory —— */
-.trajectory-point { /* This class is not currently used by SVG trajectory */
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  pointer-events: none;
-  z-index: 15;
+#trajectory { /* Ensure trajectory div is set up for SVG */
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+    z-index:15;
 }
 /* —— misc UI elements —— */
 button {padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer}
@@ -195,7 +195,8 @@ select, input {padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font
   <button id="again">Play Again</button>
 </div>
 
-<div id="trajectory" style="display: none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:15;"></div>
+<div id="trajectory"></div>
+
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -219,7 +220,7 @@ createStars();
 
 /* ——— Firebase ——— */
 firebase.initializeApp({
-  apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+  apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4", // Replace with your actual API key
   authDomain:"galaxy-hole-53c76.firebaseapp.com",
   projectId:"galaxy-hole-53c76",
   storageBucket:"galaxy-hole-53c76.appspot.com",
@@ -237,14 +238,18 @@ const planets = {
 };
 let planet = planets.earth;
 const MAX = 4, WIN = 21;
-// const FRICTION = 0.7; // Not currently used in simplified launch
-const AIR_RESISTANCE = 0.99; // Slightly less resistance to ensure movement
+const AIR_RESISTANCE = 0.99; // For simplified throwing model
 let gameId = null, me = null, turn = 1;
 let throws = {1: 0, 2: 0}, score = {1: 0, 2: 0};
 const pid = (()=>{ let v=localStorage.pid; if(!v){v=Math.random().toString(36).slice(2,9); localStorage.pid=v;} return v; })();
 
 const $ = id => document.getElementById(id);
-const screens = { setup: $('setup'), wait: $('wait'), game: $('game'), result: $('result') };
+const screens = {
+    setup: $('setup'),
+    wait: $('wait'),
+    game: $('game'),
+    result: $('result')
+};
 
 /* ——— Debug Mode ——— */
 let debugMode = false;
@@ -252,132 +257,374 @@ document.addEventListener('keydown', e => {
   if (e.key === 'd' && e.ctrlKey) {
     debugMode = !debugMode;
     const existingDebug = document.getElementById('debug-panel');
-    if (debugMode && !existingDebug) {
-      const debugPanel = document.createElement('div');
-      debugPanel.id = 'debug-panel';
-      debugPanel.style.cssText = `position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.7);color:white;padding:10px;border-radius:5px;font-family:monospace;font-size:12px;z-index:1000;pointer-events:none;`;
-      document.body.appendChild(debugPanel);
-    } else if (!debugMode && existingDebug) {
+    if (debugMode) {
+      if (!existingDebug) {
+        const debugPanel = document.createElement('div');
+        debugPanel.id = 'debug-panel';
+        debugPanel.style.cssText = `
+          position: absolute; top: 10px; right: 10px;
+          background: rgba(0,0,0,0.7); color: white; padding: 10px;
+          border-radius: 5px; font-family: monospace; font-size: 12px;
+          z-index: 1000; pointer-events: none;
+        `;
+        document.body.appendChild(debugPanel);
+      }
+    } else if (existingDebug) {
       existingDebug.remove();
     }
     console.log("Debug mode:", debugMode);
   }
 });
-function updateDebugInfo(physics = {}) { /* Omitted for brevity, no changes */ }
+
+function updateDebugInfo(physics = {}) {
+  if (!debugMode) return;
+  const debugPanel = document.getElementById('debug-panel');
+  if (!debugPanel) return;
+  let debugContent = `
+    <div style="margin-bottom:5px;font-weight:bold;">Physics Debug</div>
+    <div>Gravity: ${planet.g.toFixed(1)}</div>
+    <div>Air Resistance: ${AIR_RESISTANCE}</div>`;
+  if (physics.x) {
+    debugContent += `
+      <div style="margin-top:5px;font-weight:bold;">Bag</div>
+      <div>Pos (logical): (${physics.x.toFixed(0)}, ${physics.y.toFixed(0)})</div>
+      <div>Vel (logical): (${physics.vx?.toFixed(1)||0}, ${physics.vy?.toFixed(1)||0})</div>`;
+  }
+  debugContent += `
+    <div style="margin-top:5px;font-weight:bold;">Game State</div>
+    <div>Turn: ${turn} (${turn===me?'You':'Opponent'})</div>
+    <div>Score: ${score[1]} - ${score[2]}</div>
+    <div>Throws: ${throws[1]}/${MAX} - ${throws[2]}/${MAX}</div>`;
+  debugPanel.innerHTML = debugContent;
+}
 
 /* ——— Sound effects system ——— */
-class SoundEffects { /* Omitted for brevity, no changes */ }
+class SoundEffects {
+  constructor() {
+    this.audioContext = null; this.sounds = {};
+    const initAudio = () => {
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.createSounds();
+      }
+      document.removeEventListener('click', initAudio);
+    };
+    document.addEventListener('click', initAudio);
+  }
+  createSounds() { this.createThrowSound(); this.createBoardHitSound(); this.createHoleSound(); this.createMissSound(); }
+  _createSoundBoilerplate(type, freq1, freq2, dur, gainVal, rampDur1, rampDur2, waveType = 'sine') {
+    if (!this.audioContext) return null;
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+    osc.type = waveType;
+    osc.frequency.setValueAtTime(freq1, this.audioContext.currentTime);
+    if (freq2) osc.frequency.exponentialRampToValueAtTime(freq2, this.audioContext.currentTime + (dur * 0.7));
+    gain.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gain.gain.linearRampToValueAtTime(gainVal, this.audioContext.currentTime + rampDur1);
+    gain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + rampDur2);
+    osc.connect(gain);
+    gain.connect(this.audioContext.destination);
+    return { oscillatorNode: osc, gainNode: gain, baseFreq: freq1, endFreq: freq2, duration: rampDur2, baseGain: gainVal, waveType: waveType };
+  }
+  createThrowSound() { this.sounds.throw = this._createSoundBoilerplate('sine', 440, 220, 0.2, 0.1, 0.01, 0.3); }
+  createBoardHitSound() { this.sounds.boardHit = this._createSoundBoilerplate('triangle', 150, null, 0.0, 0.2, 0.01, 0.3); }
+  createHoleSound() { this.sounds.hole = this._createSoundBoilerplate('sine', 660, 220, 0.5, 0.2, 0.01, 0.5); }
+  createMissSound() { this.sounds.miss = this._createSoundBoilerplate('sine', 110, 70, 0.2, 0.1, 0.01, 0.2); }
+  playSound(type) {
+    if (!this.audioContext || !this.sounds[type]) return;
+    const soundParams = this.sounds[type];
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+    osc.type = soundParams.waveType;
+    osc.frequency.setValueAtTime(soundParams.baseFreq, this.audioContext.currentTime);
+    if (soundParams.endFreq) {
+        if (type === 'throw' || type === 'hole') osc.frequency.exponentialRampToValueAtTime(soundParams.endFreq, this.audioContext.currentTime + soundParams.duration * 0.7);
+        else osc.frequency.linearRampToValueAtTime(soundParams.endFreq, this.audioContext.currentTime + soundParams.duration * 0.7);
+    }
+    gain.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gain.gain.linearRampToValueAtTime(soundParams.baseGain, this.audioContext.currentTime + 0.01);
+    gain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + soundParams.duration);
+    osc.connect(gain);
+    gain.connect(this.audioContext.destination);
+    osc.start();
+    osc.stop(this.audioContext.currentTime + soundParams.duration + 0.1);
+  }
+}
 const soundEffects = new SoundEffects();
 
 /* ——— UI handlers ——— */
-$('planetSel').onchange = e => { /* Omitted for brevity, no changes */ };
-$('copy').onclick = () => { /* Omitted for brevity, no changes */ };
+$('planetSel').onchange = e => {
+  planet = planets[e.target.value];
+  localStorage.setItem('lastPlanet', e.target.value);
+  document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+};
+$('copy').onclick = () => {
+  navigator.clipboard.writeText($('link').value);
+  $('copy').textContent = "Copied!";
+  setTimeout(() => $('copy').textContent = "Copy", 2000);
+};
 $('again').onclick = () => location.href = location.pathname;
 
 /* ——— Loading Indicator ——— */
-function showLoadingIndicator() { /* Omitted for brevity, no changes */ }
-function hideLoadingIndicator() { /* Omitted for brevity, no changes */ }
+function showLoadingIndicator() {
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.id = 'loading-overlay';
+  loadingOverlay.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:1000;opacity:0;transition:opacity .2s ease;`;
+  const loadingSpinner = document.createElement('div');
+  loadingSpinner.style.cssText = `width:50px;height:50px;border:5px solid #f3f3f3;border-top:5px solid #c41e3a;border-radius:50%;animation:spin 1s linear infinite;`;
+  const spinnerStyle = document.createElement('style');
+  spinnerStyle.textContent = `@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`;
+  document.head.appendChild(spinnerStyle);
+  loadingOverlay.appendChild(loadingSpinner);
+  document.body.appendChild(loadingOverlay);
+  void loadingOverlay.offsetWidth; // trigger reflow
+  loadingOverlay.style.opacity = '1';
+}
+function hideLoadingIndicator() {
+  const loadingOverlay = document.getElementById('loading-overlay');
+  if (loadingOverlay) {
+    loadingOverlay.style.opacity = '0';
+    setTimeout(() => loadingOverlay.remove(), 300); // Remove after fade
+  }
+}
 
 /* ——— Tutorial ——— */
-function showTutorial() { /* Omitted for brevity, no changes */ }
+function showTutorial() {
+  if (localStorage.getItem('tutorialSeen')) return;
+  const o=document.createElement('div');o.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:2000;opacity:0;transition:opacity .3s ease;';
+  const c=document.createElement('div');c.style.cssText='max-width:80%;max-height:80%;background:rgba(255,255,255,0.95);border-radius:10px;padding:20px;color:#333;text-align:center;overflow:auto;';
+  c.innerHTML='<h2 style="margin-bottom:15px;color:#c41e3a">Space Cornhole Tutorial</h2><div style="margin-bottom:20px"><p>Welcome to Space Cornhole! Here\'s how to play:</p><ul style="text-align:left;margin:15px 0;padding-left:20px"><li><strong>Goal:</strong> Land your bag on the board (1pt) or in the hole (3pts)</li><li><strong>Throwing:</strong> Drag your bag backward, then release to throw</li><li><strong>Physics:</strong> Different planets have different gravity!</li><li><strong>Scoring:</strong> After all bags are thrown, only the team with more points scores the difference</li><li><strong>Win:</strong> First to 21 points wins the game</li></ul><p>The direction line and trajectory prediction will help you aim accurately.</p></div><button id="close-tutorial" style="padding:8px 16px;background:#c41e3a;color:white;border:none;border-radius:5px;cursor:pointer">Got it!</button>';
+  o.appendChild(c);document.body.appendChild(o); void o.offsetWidth; o.style.opacity='1';
+  $('close-tutorial').onclick=()=>{o.style.opacity='0';setTimeout(()=>{o.remove();localStorage.setItem('tutorialSeen','true')},300)};
+}
 
 /* ——— Restart Button ——— */
-function addRestartButton() { /* Omitted for brevity, no changes */ }
+function addRestartButton() {
+  if ($('restartBtn')) return; // Prevent multiple buttons
+  const btn = document.createElement('button'); btn.id = 'restartBtn'; btn.textContent = 'New Game';
+  btn.style.cssText = `position:absolute;top:10px;right:10px;padding:5px 10px;background:rgba(255,255,255,0.7);border:none;border-radius:4px;font-size:12px;cursor:pointer;color:#333;z-index:40;`;
+  btn.onclick = () => { if (confirm('Are you sure you want to start a new game?')) location.href = location.pathname; };
+  $('game').appendChild(btn); // Add to game screen
+}
 
 /* ——— Trajectory Toggle ——— */
-function addTrajectoryToggle() { /* Omitted for brevity, no changes */ }
+function addTrajectoryToggle() {
+  if ($('trajectory-toggle')) return;
+  const btn=document.createElement('button'); btn.id='trajectory-toggle';
+  btn.style.cssText=`position:absolute;top:10px;right:100px;padding:5px 10px;background:rgba(255,255,255,0.7);border:none;border-radius:4px;font-size:12px;cursor:pointer;color:#333;z-index:40;`;
+  let enabled=localStorage.getItem('trajectoryEnabled')!=='false';
+  btn.textContent=enabled?'Hide Trajectory':'Show Trajectory';
+  btn.onclick=()=>{enabled=!enabled;localStorage.setItem('trajectoryEnabled',enabled);btn.textContent=enabled?'Hide Trajectory':'Show Trajectory';if(!enabled){document.querySelectorAll('#trajectory svg').forEach(el=>el.remove());trajectoryPoints=[];}};
+  $('game').appendChild(btn);
+}
 
 
 /* ——— Screen Transitions (REVISED) ——— */
-function show(scr) {
-  let currentScreen = null;
-  // Find the currently displayed screen
-  for (const screenKey in screens) {
-    if (screens.hasOwnProperty(screenKey)) {
-      // Check display style OR a specific class if you prefer
-      if (screens[screenKey].style.display === 'flex' || getComputedStyle(screens[screenKey]).display === 'flex') {
-        if (screens[screenKey] !== scr) { // Don't mark the target screen as current if it's already the one
-          currentScreen = screens[screenKey];
-        }
-        break;
-      }
+function show(targetScreen) {
+    console.log("Attempting to show screen:", targetScreen ? targetScreen.id : "Undefined target");
+    if (!targetScreen || typeof targetScreen.id === 'undefined') { // Check if targetScreen or its id is undefined
+        console.error("Target screen is undefined or invalid in show()", targetScreen);
+        return;
     }
-  }
 
-  // If there's a different screen currently visible, fade it out
-  if (currentScreen) {
-    currentScreen.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    currentScreen.style.opacity = '0';
-    currentScreen.style.transform = 'scale(0.95)';
-    
-    setTimeout(() => {
-      currentScreen.style.display = 'none'; // Crucially hide it
+    Object.values(screens).forEach(s => {
+        if (!s || typeof s.id === 'undefined') { // Skip if a screen in the screens object is invalid
+            console.warn("Invalid screen found in screens object", s);
+            return;
+        }
 
-      // Now show the new screen
-      scr.style.display = 'flex';
-      scr.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-      scr.style.opacity = '0'; // Start transparent
-      scr.style.transform = 'scale(0.95)'; // Start scaled down
-      
-      void scr.offsetWidth; // Trigger reflow for transition
-      
-      scr.style.opacity = '1';
-      scr.style.transform = 'scale(1)';
-    }, 300); // This timeout should match the transition duration
-  } else {
-    // No other screen is actively displayed, or we are showing the same screen (e.g. on initial load)
-    // Ensure all other screens are definitely hidden
-     Object.values(screens).forEach(s => {
-        if (s !== scr) {
-            s.style.display = 'none';
-            s.style.opacity = '0';
-            s.style.transform = 'scale(0.95)';
+        if (s.id === targetScreen.id) { // Compare by ID for safety
+            // This is the screen to show
+            if (s.style.display !== 'flex' || s.style.opacity !== '1') { // Animate only if not already fully visible
+                console.log("Showing new screen:", s.id);
+                s.style.display = 'flex';
+                s.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                s.style.opacity = '0'; // Start transparent for fade-in
+                s.style.transform = 'scale(0.95)'; // Start small for zoom-in
+                void s.offsetWidth; // Trigger reflow for transition
+                s.style.opacity = '1';
+                s.style.transform = 'scale(1)';
+            }
+        } else {
+            // This is a screen to hide
+            if (s.style.display === 'flex' || s.style.opacity === '1') { // If it's currently somewhat visible
+                console.log("Hiding screen:", s.id);
+                s.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                s.style.opacity = '0';
+                s.style.transform = 'scale(0.95)';
+                setTimeout(() => { // Set display to none after transition
+                    s.style.display = 'none';
+                }, 300);
+            } else { // Ensure it's fully hidden if it wasn't the target and wasn't visible
+                s.style.display = 'none';
+                s.style.opacity = '0';
+                s.style.transform = 'scale(0.95)';
+            }
         }
     });
 
-    scr.style.display = 'flex';
-    scr.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    scr.style.opacity = '0';
-    scr.style.transform = 'scale(0.95)';
-    
-    void scr.offsetWidth; // Trigger reflow
-    
-    scr.style.opacity = '1';
-    scr.style.transform = 'scale(1)';
-  }
-
-  if (planet && planet.color) {
-    document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
-  }
+    if (planet && planet.color) {
+        document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+    }
 }
 
 
 /* ——— Game Logic (Create, Join, Listen, UI Update) ——— */
-$('create').onclick = async() => { /* Omitted for brevity, no changes */ };
-async function join(id) { /* Omitted for brevity, no changes */ }
+$('create').onclick = async () => {
+  console.log("Create button clicked");
+  showLoadingIndicator();
+  console.log("Loading indicator should be shown");
+  try {
+    console.log("Attempting to add game to Firebase...");
+    const doc = await db.collection('cornhole').add({
+      p1: pid, p2: null, planet: $('planetSel').value, st: 'wait',
+      turn: 1, sc: {1: 0, 2: 0}, th: {1: 0, 2: 0}, bags: {1: [], 2: []}
+    });
+    console.log("Game created with ID:", doc.id);
+    gameId = doc.id;
+    me = 1;
+    planet = planets[$('planetSel').value];
+    if($('link')) $('link').value = `${location.origin}${location.pathname}?id=${gameId}`;
+    else console.error("'link' element not found for wait screen");
+
+    console.log("Calling show(screens.wait)");
+    show(screens.wait);
+    console.log("show(screens.wait) called. Starting to listen...");
+    listen();
+    console.log("listen() called.");
+    // Deferring these until the game screen is shown or based on game state
+    // addRestartButton();
+    // addTrajectoryToggle();
+    setTimeout(showTutorial, 500); // Tutorial can show on wait screen
+  } catch (error) {
+    console.error("Error creating game:", error.message, error.stack);
+    alert('Error creating game: ' + error.message);
+  } finally {
+    console.log("Finally block reached. Hiding loading indicator.");
+    hideLoadingIndicator();
+  }
+};
+
+async function join(id) {
+    console.log("Join function called with ID:", id);
+    if(!id){alert("Enter Game ID"); return;}
+    showLoadingIndicator();
+    try{
+        const ref = db.collection('cornhole').doc(id);
+        const snap = await ref.get();
+        if(!snap.exists){alert("Game not found"); hideLoadingIndicator(); return;}
+        if(snap.data().p2 && snap.data().p2 !== pid){alert("Game full"); hideLoadingIndicator();return;}
+        gameId = id; me = 2;
+        planet = planets[snap.data().planet];
+        await ref.update({p2:pid, st:'play'}); // Triggers listener, which calls updateUI
+        // show(screens.game) will be called by updateUI via listener
+        listen(); // Start listening for game updates
+        // addRestartButton(); // Will be added by updateUI when game screen shown
+        // addTrajectoryToggle(); // Will be added by updateUI
+        setTimeout(showTutorial, 500);
+    } catch(error){
+        console.error("Error joining game:", error);
+        alert('Error joining: '+error.message);
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
 let unsub = null;
-function listen() { /* Omitted for brevity, no changes */ }
-function animateScoreChange(oldScore, newScore) { /* Omitted for brevity, no changes */ }
-function updateUI(st) { /* Omitted for brevity, no changes, but calls spawnBag */ }
-function createConfetti() { /* Omitted for brevity, no changes */ }
-function createConfettiPiece(container, color) { /* Omitted for brevity, no changes */ }
-function showInningSummary(p1, p2) { /* Omitted for brevity, no changes */ }
+function listen() {
+  if(unsub) unsub();
+  unsub = db.collection('cornhole').doc(gameId).onSnapshot(snap => {
+    if(!snap.exists) { alert("Game deleted"); location.href = location.pathname; return; }
+    const d = snap.data();
+    const oldPlanetName = planet ? planet.name : null;
+    planet = planets[d.planet] || planets.earth; // Fallback to earth if planet from DB is invalid
+    turn = d.turn; throws = d.th; score = d.sc;
+    if (oldPlanetName !== planet.name) { // If planet changed via cheat or DB
+        console.log("Planet changed to:", planet.name);
+        if ($('planetSel')) $('planetSel').value = Object.keys(planets).find(k => planets[k].name === planet.name) || 'earth';
+        if ($('planet')) $('planet').textContent = `Gravity: ${planet.name}`;
+        document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+    }
+    const scoresText = $('scores').textContent.split(' – ');
+    const oldScoreP1 = parseInt(scoresText[0]); const oldScoreP2 = parseInt(scoresText[1]);
+    if (!isNaN(oldScoreP1) && !isNaN(oldScoreP2)) {
+        if (oldScoreP1 !== score[1] || oldScoreP2 !== score[2]) animateScoreChange({1:oldScoreP1, 2:oldScoreP2}, score);
+    }
+    updateUI(d.st); // This is the main function to refresh UI based on state
+    updateDebugInfo();
+  });
+  window.addEventListener('beforeunload', unsub);
+}
 
+function animateScoreChange(oldScore, newScore) { /* Full function as before */
+    const scoreElement=$('scores');const oC=scoreElement.style.color;
+    if(oldScore[1]!==newScore[1])scoreElement.style.color='#c41e3a';
+    else if(oldScore[2]!==newScore[2])scoreElement.style.color='#4287f5';
+    scoreElement.style.transition='transform .3s ease,color .3s ease';scoreElement.style.transform='scale(1.2)';
+    setTimeout(()=>{scoreElement.style.transform='scale(1)';setTimeout(()=>{scoreElement.style.color=oC;scoreElement.style.transition=''},300)},300);
+}
 
-/* ——— bag / drag / throw (REVISED THROWING) ——— */
+function updateUI(st) {
+  if($('scores')) $('scores').textContent = `${score[1]} – ${score[2]}`;
+  if($('turn')) $('turn').textContent = turn === me ? 'Your turn' : "Opponent's turn";
+  if($('throws')) $('throws').textContent = `Throws: ${throws[1]}/${MAX} – ${throws[2]}/${MAX}`;
+  if($('planet')) $('planet').textContent = `Gravity: ${planet.name}`;
+
+  if($('turn') && turn === me) { $('turn').style.color = me===1?'#c41e3a':'#4287f5'; $('turn').style.fontWeight='bold';}
+  else if($('turn')) { $('turn').style.color=''; $('turn').style.fontWeight='';}
+
+  if (st === 'wait') { show(screens.wait); }
+  else if (st === 'play') {
+    show(screens.game);
+    if (!document.getElementById('restartBtn')) addRestartButton(); // Add buttons if not present
+    if (!document.getElementById('trajectory-toggle')) addTrajectoryToggle();
+
+    if ($('turn') && turn === me) { const tI=$('turn');tI.style.animation='none';void tI.offsetWidth;tI.style.animation='pulse 2s infinite';}
+    if (turn === me && throws[me] < MAX && !document.querySelector('.bag')) {
+      spawnBag();
+    }
+  } else if (st === 'end') {
+    show(screens.result);
+    const isWinner = score[me] > score[3-me];
+    if($('msg')) $('msg').textContent = isWinner ? 'You win!' : 'You lose!';
+    if (isWinner) createConfetti();
+  }
+}
+function createConfetti() { /* Full function as before */
+    const o=document.createElement('div');o.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;overflow:hidden';
+    screens.result.appendChild(o);const c=['#c41e3a','#4287f5','#ffcc00','#00cc66','#ff6699'],n=150;
+    for(let i=0;i<n;i++)createConfettiPiece(o,c[Math.floor(Math.random()*c.length)]);
+    setTimeout(()=>o.remove(),10000);
+}
+function createConfettiPiece(container, color) { /* Full function as before */
+    const f=document.createElement('div');const s=Math.random()*10+5,r=Math.random()*360,t=Math.floor(Math.random()*3);let sh;
+    if(t===0){sh='square';f.style.borderRadius='0'}else if(t===1){sh='rect';f.style.width=`${s*1.5}px`;f.style.borderRadius='0'}else{sh='circle';f.style.borderRadius='50%'}
+    f.style.cssText=`position:absolute;left:${Math.random()*100}%;top:-20px;width:${sh==='rect'?s*1.5:s}px;height:${s}px;background-color:${color};border-radius:${sh==='circle'?'50%':'0'};transform:rotate(${r}deg);opacity:${Math.random()*.6+.4};z-index:51`;
+    container.appendChild(f);const d=Math.random()*3+2,sT=Date.now(),hS=(Math.random()-.5)*10,vS=Math.random()*2+1,rS=(Math.random()-.5)*5;
+    function a(){const e=(Date.now()-sT)/1000,p=e/d;if(p>=1){f.remove();return}const x=parseFloat(f.style.left)+hS*(1/60),y=p*innerHeight*vS,cR=r+rS*e*60;
+    f.style.left=`${x}%`;f.style.top=`${y}px`;f.style.transform=`rotate(${cR}deg)`;if(p>.8)f.style.opacity=(1-p)*5*(Math.random()*.6+.4);requestAnimationFrame(a)}requestAnimationFrame(a);
+}
+function showInningSummary(p1, p2) { /* Full function as before */
+    const s=document.createElement('div');s.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:1rem 2rem;border-radius:8px;box-shadow:0 0 20px rgba(0,0,0,0.4);z-index:100;text-align:center;opacity:0;transition:opacity .3s ease';
+    const d=Math.abs(p1-p2);let w='';if(p1>p2)w=me===1?'You':'Opponent';else if(p2>p1)w=me===2?'You':'Opponent';else w='No one';
+    s.innerHTML=`<h3 style="margin-bottom:.5rem">Round Summary</h3><div style="display:flex;justify-content:space-between;margin-bottom:.5rem"><div>Player 1: ${p1} pts</div><div>Player 2: ${p2} pts</div></div><div style="font-weight:bold;margin-top:.5rem;font-size:1.2rem">${w} scored ${d} point${d!==1?'s':''}!</div>`;
+    document.body.appendChild(s);setTimeout(()=>{s.style.opacity='1';setTimeout(()=>{s.style.opacity='0';setTimeout(()=>s.remove(),300)},3000)},10);
+}
+
+/* ——— bag / drag / throw (Simplified throw from previous response) ——— */
 let bag, shadow, isDragging = false, startX, startY, aimLine;
-let trajectoryPoints = [];
+let trajectoryPoints = []; // This is now for SVG paths
 
 function spawnBag() {
   document.querySelectorAll('.bag,.shadow').forEach(el => el.remove());
-  document.querySelectorAll('#trajectory svg').forEach(el => el.remove());
+  document.querySelectorAll('#trajectory svg').forEach(el => el.remove()); // Clear SVG paths
   if(aimLine) aimLine.remove();
   trajectoryPoints = [];
 
   bag = document.createElement('div');
   bag.className = 'bag';
   bag.style.setProperty('--clr', me === 1 ? '#c41e3a' : '#4287f5');
-  const bagInner = document.createElement('div'); /* Bag inner omitted for brevity */
+  const bagInner = document.createElement('div');
   bagInner.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;height:70%;border-radius:3px;background:${me===1?'#d5354f':'#5c9fff'};display:flex;align-items:center;justify-content:center;font-weight:bold;color:white;font-size:10px;`;
   bagInner.textContent = me === 1 ? 'P1' : 'P2';
   bag.appendChild(bagInner);
@@ -386,24 +633,63 @@ function spawnBag() {
   shadow.className = 'shadow';
   document.body.append(bag, shadow);
 
-  const x = innerWidth/2 - 17.5, yVal = innerHeight - 60; // Initial screen Y
+  const xPos = innerWidth/2 - 17.5, yPos = innerHeight - 60;
   bag.style.opacity = '0';
-  bag.style.transform = `translate(${x}px, ${yVal}px) scale(0.5)`;
+  bag.style.transform = `translate(${xPos}px, ${yPos}px) scale(0.5)`;
   shadow.style.opacity = '0';
-  shadow.style.transform = `translate(${x}px, ${innerHeight-6}px) scale(0.5)`;
+  shadow.style.transform = `translate(${xPos}px, ${innerHeight-6}px) scale(0.5)`;
   
-  setTimeout(() => { /* Spawn animation omitted for brevity */
+  setTimeout(() => { 
     bag.style.transition = shadow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    bag.style.opacity = '1'; bag.style.transform = `translate(${x}px, ${yVal}px) scale(1)`;
-    shadow.style.opacity = '0.6'; shadow.style.transform = `translate(${x}px, ${innerHeight-6}px) scale(0.9)`;
+    bag.style.opacity = '1'; bag.style.transform = `translate(${xPos}px, ${yPos}px) scale(1)`;
+    shadow.style.opacity = '0.6'; shadow.style.transform = `translate(${xPos}px, ${innerHeight-6}px) scale(0.9)`;
     if(turn===me) bag.style.boxShadow = `0 0 15px ${me===1?'rgba(196,30,58,0.7)':'rgba(66,135,245,0.7)'}`;
     setTimeout(() => { bag.style.transition = shadow.style.transition = ''; bag.addEventListener('pointerdown', dragStart, {once: true}); }, 300);
   }, 10);
-  /* Tooltip omitted for brevity */
 }
 
-function dragStart(e) { /* Omitted for brevity, no changes */ }
-function dragMove(e) { /* Omitted for brevity, no changes, uses predictTrajectory */ }
+function dragStart(e) {
+  if(turn !== me || !bag) return; // Ensure bag exists
+  e.preventDefault(); 
+  isDragging = true;
+  const rect = bag.getBoundingClientRect();
+  startX = rect.left + rect.width/2; 
+  startY = rect.top + rect.height/2;
+
+  aimLine = document.createElement('div');
+  aimLine.style.cssText = 'position:absolute;height:3px;background:#fff;transform-origin:left center;pointer-events:none;z-index:25;box-shadow:0 0 5px rgba(255,255,255,0.7);';
+  document.body.appendChild(aimLine);
+  
+  const aimIndicator = document.createElement('div');
+  aimIndicator.id = 'aim-indicator';
+  aimIndicator.style.cssText = `position:absolute;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.4);border:2px solid white;transform:translate(-50%,-50%);pointer-events:none;z-index:26;box-shadow:0 0 10px rgba(255,255,255,0.5);`;
+  document.body.appendChild(aimIndicator);
+
+  document.addEventListener('pointermove', dragMove);
+  document.addEventListener('pointerup', dragEnd);
+  document.addEventListener('pointercancel', dragEnd);
+}
+
+function dragMove(e) {
+  if(!isDragging || !bag) return;
+  const x = e.clientX, y = e.clientY;
+  bag.style.transform = `translate(${x-17.5}px, ${y-17.5}px)`;
+  if (shadow) shadow.style.transform = `translate(${x-17.5}px, ${innerHeight-6}px) scale(.9)`;
+  
+  const dx = x - startX, dy = y - startY;
+  const len = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx);
+  if (aimLine) {
+    aimLine.style.width = len + 'px';
+    aimLine.style.transform = `translate(${startX}px, ${startY}px) rotate(${ang}rad)`;
+  }
+  
+  const aimIndicator = document.getElementById('aim-indicator');
+  if(aimIndicator){const i=Math.min(1,len/200),p=i*1.5,oX=startX-dx*p,oY=startY-dy*p;aimIndicator.style.transform=`translate(${oX-10}px,${oY-10}px) scale(${1+i})`;const rM=Math.floor(255*i),gM=Math.floor(255*(1-i));aimIndicator.style.backgroundColor=`rgba(${rM},${gM},100,0.4)`;aimIndicator.style.borderColor=`rgb(${rM},${gM},100)`;}
+  
+  document.querySelectorAll('#trajectory svg').forEach(el=>el.remove()); trajectoryPoints=[];
+  if(len > 10){const P=14,pV_x=(startX-x)*P,pV_y=(startY-y)*P; predictTrajectory(startX,startY,pV_x,pV_y);}
+}
 
 function dragEnd(e) {
   if(!isDragging) return; 
@@ -411,6 +697,7 @@ function dragEnd(e) {
   document.removeEventListener('pointermove', dragMove);
   document.removeEventListener('pointerup', dragEnd);
   document.removeEventListener('pointercancel', dragEnd);
+
   if(aimLine) { aimLine.remove(); aimLine = null; }
   const aimIndicator = document.getElementById('aim-indicator');
   if (aimIndicator) aimIndicator.remove();
@@ -422,21 +709,26 @@ function dragEnd(e) {
   const dist = Math.hypot(pullX, pullY);
   
   if(dist < 10) { 
-    if (turn === me && throws[me] < MAX && !document.querySelector('.bag')) { // Check if a bag needs to be spawned
+    // If bag still exists and it's our turn and we haven't thrown max bags, respawn it.
+    // This also handles if player just clicks without dragging.
+    if (bag && turn === me && throws[me] < MAX ) { // Check if bag element is still there
         spawnBag(); 
     }
     return; 
   }
 
-  const POWER = 14; // Slightly increased power
+  const POWER = 14; 
   const vx = (startX - e.clientX) * POWER;
   const vy = (startY - e.clientY) * POWER;
-  console.log("Calculated Velocities: vx=", vx, "vy=", vy); // DEBUGGING LINE
+  console.log("DragEnd - Calculated Velocities: vx=", vx, "vy=", vy);
 
-  launchBag(vx, vy);
+  if (bag) { // Ensure bag exists before trying to launch it
+    launchBag(vx, vy);
+  } else {
+    console.error("DragEnd: Bag does not exist to launch!");
+  }
 }
 
-// SIMPLIFIED predictTrajectory for testing core throw
 function predictTrajectory(startX, startY, vx, vy) {
     const trajectoryEnabled = localStorage.getItem('trajectoryEnabled') !== 'false';
     if (!trajectoryEnabled) {
@@ -447,37 +739,31 @@ function predictTrajectory(startX, startY, vx, vy) {
     document.querySelectorAll('#trajectory svg').forEach(el => el.remove());
     trajectoryPoints = [];
 
-    const g = planet.g * 100; // Adjusted gravity for prediction if needed
-    const dt = 1/30; // Smoother prediction
+    const g = planet.g * 100; 
+    const dt = 1/30; 
     const MAX_POINTS = 30;
     let currentX = startX;
     let currentY = startY;
     let currentVx = vx;
-    let currentVy = vy; // This is the 2D plane vy
+    let currentVy = vy;
 
-    const pathPoints = [{x: currentX, y: currentY}]; // Start with the initial point
+    const pathPoints = [{x: currentX, y: currentY}];
 
     for (let i = 0; i < MAX_POINTS; i++) {
-        currentVx *= AIR_RESISTANCE; // Apply air resistance
-        currentVy += g * dt;      // Apply gravity to the main vy
+        currentVx *= AIR_RESISTANCE; 
+        currentVy += g * dt;      
         currentVy *= AIR_RESISTANCE;
-
         currentX += currentVx * dt;
         currentY += currentVy * dt;
         pathPoints.push({x: currentX, y: currentY});
-
-        // Basic collision prediction (simplified)
         const boardRect = $('board').getBoundingClientRect();
-        if (currentY > boardRect.top && currentY < boardRect.bottom && currentX > boardRect.left && currentX < boardRect.right) {
-            break; // Stop prediction at board
-        }
-        if (currentY > innerHeight - 20) {
-            break; // Stop at ground
-        }
+        if (currentY > boardRect.top && currentY < boardRect.bottom && currentX > boardRect.left && currentX < boardRect.right) break;
+        if (currentY > innerHeight - 20) break;
     }
     
     if (pathPoints.length > 1) {
         const trajectoryContainer = $('trajectory');
+        if (!trajectoryContainer) { console.error("Trajectory container not found!"); return; }
         let pathSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         pathSvg.setAttribute('width', '100%');
         pathSvg.setAttribute('height', '100%');
@@ -492,38 +778,38 @@ function predictTrajectory(startX, startY, vx, vy) {
         pathElement.setAttribute('stroke-dasharray', '5,5');
         pathSvg.appendChild(pathElement);
         trajectoryContainer.appendChild(pathSvg);
-        trajectoryPoints.push(pathSvg);
+        trajectoryPoints.push(pathSvg); // For potential future direct manipulation, though removal is by querySelectorAll
     }
 }
 
-
-// REVISED launchBag - focusing on basic 2D plane movement first
 function launchBag(vx_plane, vy_plane) {
+  if (!bag || !shadow) {
+    console.error("LaunchBag: Bag or Shadow element is missing.");
+    // Attempt to respawn if conditions met, or just log error
+    if (turn === me && throws[me] < MAX) spawnBag();
+    return;
+  }
   soundEffects.playSound('throw');
   
-  const initialBagRect = bag.getBoundingClientRect();
-  let x = initialBagRect.left + initialBagRect.width/2; // Logical X
-  let y = initialBagRect.top + initialBagRect.height/2; // Logical Y (for depth and screen Y for now)
+  const initialBagRect = bag.getBoundingClientRect(); // Get current position if available
+  let x = initialBagRect.left + initialBagRect.width/2; 
+  let y = initialBagRect.top + initialBagRect.height/2; 
   
   let currentVx = vx_plane;
   let currentVy = vy_plane;
 
-  const g_plane = planet.g * 100; // Gravity for the 2D plane motion (less aggressive for testing)
-  const ground = innerHeight - 10; // Ground Y threshold
+  const g_plane = planet.g * 100; 
+  const ground = innerHeight - 10; 
   
   let last = performance.now();
   let done = false;
   let animationFrameId = null;
 
   let rotation = 0;
-  const rotationSpeed = Math.hypot(currentVx, currentVy) / 200; // Slower rotation
-
-  // Visual arc variables (SIMPLIFIED FOR NOW - h will represent a small visual bounce/settle on landing)
-  let h = 0; // Represents a slight visual offset, not a full arc yet.
-             // We will re-introduce the proper arc once basic movement is confirmed.
-
-  console.log(`Launching bag. Initial x:${x}, y:${y}, vx:${currentVx}, vy:${currentVy}`);
-
+  const rotationSpeed = Math.hypot(currentVx, currentVy) / 200; 
+  let h = 0; // Simplified: no complex arc yet, h is for minor visual adjustments
+  
+  console.log(`Launching bag. Initial x:${x.toFixed(1)}, y:${y.toFixed(1)}, vx:${currentVx.toFixed(1)}, vy:${currentVy.toFixed(1)}`);
 
   function step(now) {
     if (done) {
@@ -532,23 +818,20 @@ function launchBag(vx_plane, vy_plane) {
     }
     animationFrameId = requestAnimationFrame(step);
     
-    const dt = Math.min(0.032, (now - last) / 1000); // Cap dt to prevent large jumps
+    const dt = Math.min(0.032, (now - last) / 1000); 
     last = now;
     
-    // Update logical plane position
     currentVx *= AIR_RESISTANCE;
     currentVy += g_plane * dt; 
     currentVy *= AIR_RESISTANCE;
     
     x += currentVx * dt;
-    y += currentVy * dt; // This is the primary movement we need to see
+    y += currentVy * dt; 
     
     rotation += rotationSpeed * dt * 60;
     
-    // For now, visualScreenY is just y + a small h for landing settle
     const visualScreenY = y + h; 
 
-    // Simplified Scaling (based on y for depth)
     let depthProgress = (y - (innerHeight * 0.1)) / (ground - (innerHeight * 0.1));
     depthProgress = Math.max(0, Math.min(1, depthProgress));
     let currentScale = 1.1 - depthProgress * 0.6; 
@@ -556,116 +839,139 @@ function launchBag(vx_plane, vy_plane) {
 
     if (bag) {
         bag.style.transform = `translate(${x - 17.5}px, ${visualScreenY - 17.5}px) rotate(${rotation}deg) scale(${currentScale})`;
-    }
+    } else { done = true; return; } // Stop if bag removed mid-flight
     
-    // Simplified Shadow
     if (shadow) {
-        const shadowBaseY = y - 6 + 10 * currentScale; // Shadow slightly below bag's logical y
+        const shadowBaseY = y - 6 + 10 * currentScale; 
         const shadowScaleFactor = currentScale * 0.8;
         shadow.style.transform = `translate(${x - 17.5}px, ${shadowBaseY}px) scale(${shadowScaleFactor})`;
-        shadow.style.opacity = (0.5 * (1-depthProgress)).toString(); // Fade shadow with distance
-    }
+        shadow.style.opacity = (0.5 * (1-depthProgress)).toString();
+    } else { done = true; return; } // Stop if shadow removed
     
-    // --- Collision Detection ---
     const boardRect = $('board').getBoundingClientRect();
     const holeRect = $('hole').getBoundingClientRect();
 
-    // Ground Collision
     if (y >= ground - (bag.offsetHeight * currentScale / 2)) {
       if (done) return; done = true;
-      soundEffects.playSound('miss');
-      console.log("Ground collision");
-      if (bag) {
-        bag.style.transition = 'opacity 0.2s ease-out, transform 0.2s ease-out';
-        bag.style.opacity = '0';
-        bag.style.transform = `translate(${x - 17.5}px, ${visualScreenY - 17.5}px) scale(${currentScale * 0.8})`;
-      }
-      if (shadow) shadow.style.opacity = '0';
-      setTimeout(() => { if(bag) bag.remove(); if(shadow) shadow.remove(); finishThrow(0); }, 200);
-      return;
+      soundEffects.playSound('miss'); console.log("Ground collision");
+      if(bag){bag.style.transition='opacity .2s ease-out,transform .2s ease-out';bag.style.opacity='0';bag.style.transform=`translate(${x-17.5}px,${visualScreenY-17.5}px) scale(${currentScale*.8})`;}
+      if(shadow)shadow.style.opacity='0';
+      setTimeout(()=>{if(bag)bag.remove();if(shadow)shadow.remove();finishThrow(0);},200);return;
     }
 
-    // Board/Hole Collision (Simplified check)
     if (currentVy > 0 && x > boardRect.left && x < boardRect.right && y > boardRect.top && y < boardRect.bottom + 10) {
       if (done) return; 
-      
-      const cxHole = holeRect.left + holeRect.width/2;
-      const cyHole = holeRect.top + holeRect.height/2;
-      const inHole = Math.hypot(x - cxHole, y - cyHole) < holeRect.width/2 * 0.85;
-
-      if (inHole) {
-        done = true; soundEffects.playSound('hole'); console.log("In hole!");
-        // Simplified hole animation
-        if (bag) {
-            bag.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            bag.style.opacity = '0';
-            bag.style.transform = `translate(${x-17.5}px, ${y-17.5 + 20}px) scale(0.3)`; // Fall down
-        }
-        if (shadow) shadow.style.opacity = '0';
-        setTimeout(() => { if(bag) bag.remove(); if(shadow) shadow.remove(); finishThrow(3); }, 300);
-        return;
-      } else { // On Board
-        done = true; soundEffects.playSound('boardHit'); console.log("On board!");
-        // Simplified board landing: Stop movement, make it stick
-        currentVx = 0; currentVy = 0; // Stop logical movement
-        h = -5; // Slight visual lift to appear on board surface
-        if (bag) {
-            bag.style.transform = `translate(${x - 17.5}px, ${y + h - 17.5}px) rotate(${rotation}deg) scale(${currentScale})`;
-        }
-        if(shadow) shadow.style.opacity = '0.1'; // Dim shadow on board
-        // Bag stays, finishThrow will handle next turn logic
-        setTimeout(() => { finishThrow(1); }, 50); // Short delay before scoring
-        return; 
+      const cxHole=holeRect.left+holeRect.width/2,cyHole=holeRect.top+holeRect.height/2;
+      const inHole=Math.hypot(x-cxHole,y-cyHole)<holeRect.width/2*0.85;
+      if(inHole){done=true;soundEffects.playSound('hole');console.log("In hole!");
+        if(bag){bag.style.transition='opacity .3s ease,transform .3s ease';bag.style.opacity='0';bag.style.transform=`translate(${x-17.5}px,${y-17.5+20}px) scale(0.3)`;}
+        if(shadow)shadow.style.opacity='0';
+        setTimeout(()=>{if(bag)bag.remove();if(shadow)shadow.remove();finishThrow(3);},300);return;
+      }else{done=true;soundEffects.playSound('boardHit');console.log("On board!");
+        currentVx=0;currentVy=0; h=-5; // Slight lift
+        if(bag)bag.style.transform=`translate(${x-17.5}px,${y+h-17.5}px) rotate(${rotation}deg) scale(${currentScale})`;
+        if(shadow)shadow.style.opacity='0.1';
+        setTimeout(()=>{finishThrow(1);},50);return;
       }
     }
-
-    // Off-screen failsafe
-    if (x < -100 || x > innerWidth + 100 || y < -100 || y > innerHeight + 200) { // Increased y bound
-      if (done) return; done = true;
-      console.log("Off-screen failsafe");
-      soundEffects.playSound('miss');
-      if(bag) bag.remove(); if(shadow) shadow.remove();
-      finishThrow(0);
-      return;
-    }
+    if(x<-100||x>innerWidth+100||y<-100||y>innerHeight+200){if(done)return;done=true;console.log("Off-screen");soundEffects.playSound('miss');if(bag)bag.remove();if(shadow)shadow.remove();finishThrow(0);return;}
   }
   animationFrameId = requestAnimationFrame(step);
 }
 
 
 /* ——— scoring ——— */
-function finishThrow(pts) { /* Omitted for brevity, no changes */ }
-function showFlyText(pts) { /* Omitted for brevity, no changes */ }
+function finishThrow(pts) {
+  setTimeout(() => { // Delayed removal as safeguard
+      if (bag && bag.parentElement) bag.remove();
+      if (shadow && shadow.parentElement) shadow.remove();
+      bag = null; shadow = null; // Clear references
+  }, 1000);
+
+  db.runTransaction(async tx => {
+    const ref = db.collection('cornhole').doc(gameId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) { console.error("Game doc not found in transaction"); return; }
+    const d = snap.data();
+    if(!d.bags) d.bags = {1: [], 2: []}; if(!d.bags[me]) d.bags[me] = [];
+    d.bags[me].push({pts}); d.th[me]++;
+    showFlyText(pts);
+    if(d.th[1] >= MAX && d.th[2] >= MAX) {
+      const p1=d.bags[1].reduce((s,b)=>s+b.pts,0), p2=d.bags[2].reduce((s,b)=>s+b.pts,0);
+      showInningSummary(p1, p2); const diff=Math.abs(p1-p2);
+      if(p1>p2)d.sc[1]+=diff; else if(p2>p1)d.sc[2]+=diff;
+      d.bags={1:[],2:[]}; d.th={1:0,2:0}; d.turn=1; // P1 starts next round
+      if(d.sc[1]>=WIN||d.sc[2]>=WIN)d.st='end'; else d.st='play';
+    } else { d.turn=3-d.turn; d.st='play';}
+    tx.set(ref, d);
+  }).catch(err => console.error("Transaction error:", err));
+}
+
+function showFlyText(pts) {
+  const t=document.createElement('div');t.style.cssText='position:absolute;top:42%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:60px;font-weight:bold;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.6);transition:.3s ease-out;z-index:40;pointer-events:none;';
+  if(pts===3){t.textContent='+3!';t.style.color='#FFD700';}else if(pts===1){t.textContent='+1';t.style.color='#FFFFFF';}else{t.textContent='Miss';t.style.color='#FF6B6B';}
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.transform='translate(-50%,-50%) scale(1.1)';t.style.opacity='1';setTimeout(()=>{t.style.transform='translate(-50%,-150%) scale(.7)';t.style.opacity='0';setTimeout(()=>t.remove(),300)},700)},20);
+}
 
 /* ——— Board perspective tilting based on mouse position ——— */
-document.addEventListener('mousemove', (e) => { /* Omitted for brevity, no changes */ });
+document.addEventListener('mousemove', (e) => {
+  if (screens.game.style.display === 'flex') {
+    const boardEl = $('board');
+    if (!boardEl) return;
+    const mX=e.clientX/innerWidth-.5,mY=e.clientY/innerHeight-.5;
+    const maxT=5,tX=-mY*maxT,tY=mX*maxT;
+    boardEl.style.transform=`translate(-50%,-50%) perspective(800px) rotateX(${10+tX}deg) rotateY(${tY}deg)`;
+  }
+});
 
-/* ——— Cheat Code ——— */
+/* ——— Add cheat code for fun features ——— */
 const cheatSequence = [];
-document.addEventListener('keydown', e => { /* Omitted for brevity, no changes */ });
-function activateZeroGravity() { /* Omitted for brevity, no changes */ }
+document.addEventListener('keydown', e => {
+  cheatSequence.push(e.key.toLowerCase());
+  if (cheatSequence.length > 15) cheatSequence.shift();
+  if (cheatSequence.join('').includes('spacegravity')) {
+    cheatSequence.length = 0; activateZeroGravity();
+  }
+});
+function activateZeroGravity() {
+  planets.zero={g:0.05,name:"Zero-G",color:"#FF00FF"}; planet=planets.zero;
+  if($('planet')){$('planet').textContent=`Gravity: ${planet.name} (CHEAT MODE)`;$('planet').style.color='magenta';$('planet').style.fontWeight='bold';}
+  document.body.style.background=`linear-gradient(${planet.color} 0%, #111 50%, #00aaff 100%)`;
+  const n=document.createElement('div');n.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,0,20,0.85);color:#FF00FF;padding:25px;border-radius:10px;text-align:center;font-size:26px;z-index:1000;text-shadow:0 0 12px #FF00FF,0 0 5px #FFF;border:2px solid #FF00FF;transition:opacity 1s ease-out,transform 1s ease-out';
+  n.textContent='🚀 ZERO GRAVITY MODE ACTIVATED! 🚀';document.body.appendChild(n);
+  setTimeout(()=>{n.style.opacity='0';n.style.transform='translate(-50%,-50%) scale(0.5)';setTimeout(()=>n.remove(),1000)},3500);
+  if(gameId&&me===turn){db.collection('cornhole').doc(gameId).update({planet:'zero'}).catch(err=>console.error("Cheat gravity update error:",err));}
+}
 
-/* ——— Mobile Optimizations ——— */
-function optimizeForMobile() { /* Omitted for brevity, no changes */ }
+/* ——— Mobile device detection and optimizations ——— */
+function optimizeForMobile() {
+  const iM=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if(iM){const s=document.createElement('style');s.textContent='button{padding:12px 20px;font-size:16px}#board{width:100px;height:180px}#hole{width:30px;height:30px}.bag{width:30px;height:30px}.shadow{width:30px;height:10px}#instructions{font-size:14px;max-width:90%}#hud>div{padding:.2rem .5rem;font-size:.8rem}#scoreAndTurn{gap:.5rem}';document.head.appendChild(s);
+  let v=document.querySelector('meta[name="viewport"]');if(!v){v=document.createElement('meta');v.name="viewport";document.head.appendChild(v);}v.setAttribute('content','width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no');}
+}
 
 // Initialize all enhanced features when DOM is loaded
 window.addEventListener('DOMContentLoaded', () => {
   optimizeForMobile();
   const lastPlanet = localStorage.getItem('lastPlanet');
-  if (lastPlanet && planets[lastPlanet]) { /* Omitted for brevity */ }
+  if (lastPlanet && planets[lastPlanet]) {
+    if($('planetSel')) $('planetSel').value = lastPlanet;
+    planet = planets[lastPlanet];
+    document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+  }
   
-  let trajectoryToggleAdded = false;
-  const checkInterval = setInterval(() => { /* Omitted for brevity */ }, 1000);
-
+  // Auto-join logic
   const qp = new URLSearchParams(location.search);
   if (qp.has('id')) {
-    const gameToJoin = qp.get('id');
-    $('joinId').value = gameToJoin; 
-    join(gameToJoin);
+      const gameToJoin = qp.get('id');
+      if($('joinId')) $('joinId').value = gameToJoin;
+      join(gameToJoin); // This will call show() internally if successful
   } else {
-    show(screens.setup); // Show setup if not joining
+      show(screens.setup); // Explicitly show setup if not auto-joining
   }
 });
+
 </script>
 </body>
 </html>
