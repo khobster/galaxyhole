@@ -1367,8 +1367,8 @@ function predictTrajectory(startX, startY, vx, vy) {
     if (currVy > 0 && x > board.left && x < board.right && y > board.top && y < board.bottom) {
       const cx = hole.left + hole.width/2;
       const cy = hole.top + hole.height/2;
-      const inHole = Math.hypot(x - cx, y - cy)
-      const inHole = Math.hypot(x - cx, y - cy) < hole.width/2;
+      // const inHole = Math.hypot(x - cx, y - cy) // <--- REMOVE THIS LINE
+      const inHole = Math.hypot(x - cx, y - cy) < hole.width/2; // This is the correct one
       
       collision = true;
       collisionType = inHole ? 'hole' : 'board';
