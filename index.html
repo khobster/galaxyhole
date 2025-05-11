@@ -1,263 +1,45 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Space Cornhole — Multiplayer v2</title>
+  <title>Space Cornhole — Multiplayer v2 (fixed arc)</title>
+
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    html, body {
-      height: 100%;
-      font-family: system-ui, Segoe UI, Roboto, sans-serif;
-      background: linear-gradient(#87CEEB 0%, #90EE90 100%);
-      overflow: hidden;
-    }
-    
-    h1 {
-      color: #333;
-      margin-bottom: 1.5rem;
-      text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.7);
-    }
-    
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 1.5rem;
-      padding: 2rem;
-      transition: opacity 0.3s ease;
-    }
-    
-    #setup {
-      display: flex;
-    }
-    
-    button {
-      padding: 0.6rem 1.2rem;
-      border: none;
-      border-radius: 0.5rem;
-      font-weight: 600;
-      color: #fff;
-      background: #c41e3a;
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      transition: background 0.2s, transform 0.1s;
-      white-space: nowrap;
-    }
-    
-    button:hover {
-      background: #d42e4a;
-      transform: translateY(-2px);
-    }
-    
-    button:active {
-      transform: translateY(0);
-    }
-    
-    label {
-      font-weight: 500;
-      margin-bottom: 0.5rem;
-      display: block;
-    }
-    
-    select, input {
-      padding: 0.5rem 1rem;
-      border: 2px solid #444;
-      border-radius: 0.4rem;
-      font: inherit;
-      width: 100%;
-      margin-top: 0.25rem;
-    }
-    
-    .input-group {
-      width: 300px;
-      margin-bottom: 1rem;
-    }
-    
-    #board {
-      position: absolute;
-      width: 120px;
-      height: 200px;
-      left: 50%;
-      top: 30%; /* Moved higher up on screen to show proper perspective */
-      transform: translate(-50%, -50%);
-      background: #8B4513;
-      border: 8px solid #654321;
-      border-radius: 8px;
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-    }
-    
-    #hole {
-      position: absolute;
-      width: 35px;
-      height: 35px;
-      left: 50%;
-      top: 20%;
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      background: #000;
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
-    }
-    
-    .bag {
-      position: absolute;
-      width: 35px;
-      height: 35px;
-      border-radius: 5px;
-      background: var(--clr);
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
-      will-change: transform;
-      z-index: 10;
-    }
-    
-    .shadow {
-      position: absolute;
-      width: 35px;
-      height: 12px;
-      border-radius: 50%;
-      background: rgba(0, 0, 0, 0.2);
-      will-change: transform;
-      pointer-events: none;
-    }
-    
-    #hud {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.3rem;
-      padding: 1rem;
-      pointer-events: none;
-      z-index: 20;
-    }
-    
-    #planet {
-      background: rgba(255, 255, 255, 0.8);
-      padding: 0.3rem 0.8rem;
-      border-radius: 0.4rem;
-      font-weight: 600;
-      pointer-events: auto;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      margin-bottom: 0.3rem;
-    }
-    
-    #scoreAndTurn {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 0.3rem 0.8rem;
-      border-radius: 0.4rem;
-      font-weight: 600;
-      pointer-events: auto;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-    
-    #throws {
-      background: rgba(255, 255, 255, 0.8);
-      padding: 0.3rem 0.8rem;
-      border-radius: 0.4rem;
-      font-weight: 600;
-      pointer-events: auto;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      margin-top: 0.3rem;
-    }
-    
-    #waitMsg {
-      font-weight: 500;
-      color: #333;
-    }
-    
-    #result h2 {
-      color: #333;
-      text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.7);
-    }
-    
-    .link-container {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    
-    #link {
-      width: 340px;
-    }
-    
-    .waiting-animation {
-      display: inline-block;
-      position: relative;
-      width: 80px;
-      height: 12px;
-    }
-    
-    .waiting-animation div {
-      position: absolute;
-      top: 0;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #c41e3a;
-      animation-timing-function: cubic-bezier(0, 1, 1, 0);
-    }
-    
-    .waiting-animation div:nth-child(1) {
-      left: 8px;
-      animation: waiting1 1s infinite;
-    }
-    
-    .waiting-animation div:nth-child(2) {
-      left: 8px;
-      animation: waiting2 1s infinite;
-    }
-    
-    .waiting-animation div:nth-child(3) {
-      left: 32px;
-      animation: waiting2 1s infinite;
-    }
-    
-    .waiting-animation div:nth-child(4) {
-      left: 56px;
-      animation: waiting3 1s infinite;
-    }
-    
-    @keyframes waiting1 {
-      0% { transform: scale(0); }
-      100% { transform: scale(1); }
-    }
-    
-    @keyframes waiting2 {
-      0% { transform: translate(0, 0); }
-      100% { transform: translate(24px, 0); }
-    }
-    
-    @keyframes waiting3 {
-      0% { transform: scale(1); }
-      100% { transform: scale(0); }
-    }
-    
-    #instructions {
-      background: rgba(255, 255, 255, 0.8);
-      padding: 1rem;
-      border-radius: 0.5rem;
-      margin-top: 1rem;
-      max-width: 400px;
-      font-size: 0.9rem;
-      line-height: 1.4;
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#87CEEB 0%,#90EE90 100%);overflow:hidden}
+    h1{color:#333;margin-bottom:1.5rem;text-shadow:1px 1px 3px rgba(255,255,255,.7)}
+    .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;transition:opacity .3s ease}
+    #setup{display:flex}
+    button{padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:background .2s,transform .1s;white-space:nowrap}
+    button:hover{background:#d42e4a;transform:translateY(-2px)}
+    button:active{transform:translateY(0)}
+    label{font-weight:500;margin-bottom:.5rem;display:block}
+    select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:inherit;width:100%;margin-top:.25rem}
+    .input-group{width:300px;margin-bottom:1rem}
+    #board{position:absolute;width:120px;height:200px;left:50%;top:30%;transform:translate(-50%,-50%);background:#8B4513;border:8px solid #654321;border-radius:8px;box-shadow:0 10px 20px rgba(0,0,0,.3)}
+    #hole{position:absolute;width:35px;height:35px;left:50%;top:20%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px rgba(0,0,0,.5)}
+    .bag{position:absolute;width:35px;height:35px;border-radius:5px;background:var(--clr);box-shadow:0 2px 5px rgba(0,0,0,.25);will-change:transform;z-index:10}
+    .shadow{position:absolute;width:35px;height:12px;border-radius:50%;background:rgba(0,0,0,.2);will-change:transform;pointer-events:none}
+    #hud{position:absolute;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1rem;pointer-events:none;z-index:20}
+    #planet,#scoreAndTurn,#throws{background:rgba(255,255,255,.8);padding:.3rem .8rem;border-radius:.4rem;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1);pointer-events:auto}
+    #scoreAndTurn{display:flex;align-items:center;gap:1rem}
+    #instructions{background:rgba(255,255,255,.8);padding:1rem;border-radius:.5rem;margin-top:1rem;max-width:400px;font-size:.9rem;line-height:1.4}
+    /* waiting animation dots */
+    .waiting-animation{display:inline-block;position:relative;width:80px;height:12px}
+    .waiting-animation div{position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:#c41e3a;animation-timing-function:cubic-bezier(0,1,1,0)}
+    .waiting-animation div:nth-child(1){left:8px;animation:waiting1 1s infinite}
+    .waiting-animation div:nth-child(2){left:8px;animation:waiting2 1s infinite}
+    .waiting-animation div:nth-child(3){left:32px;animation:waiting2 1s infinite}
+    .waiting-animation div:nth-child(4){left:56px;animation:waiting3 1s infinite}
+    @keyframes waiting1{0%{transform:scale(0)}100%{transform:scale(1)}}
+    @keyframes waiting2{0%{transform:translate(0,0)}100%{transform:translate(24px,0)}}
+    @keyframes waiting3{0%{transform:scale(1)}100%{transform:scale(0)}}
   </style>
 </head>
 <body>
+
+  <!-- SETUP SCREEN -->
   <div id="setup" class="screen">
     <h1>Space Cornhole</h1>
     <div class="input-group">
@@ -275,14 +57,12 @@ a<!DOCTYPE html>
       <input id="joinId" placeholder="Enter Game ID" />
     </div>
     <button id="join">Join Game</button>
-    
     <div id="instructions">
-      <p><strong>How to play:</strong> Drag and release to throw your bean bags toward the board. 
-      Score 1 point for landing on the board, 3 points for getting in the hole. 
-      First to 21 points wins!</p>
+      <p><strong>How to play:</strong> Drag and release to throw your bean bags toward the board. Score 1 point for landing on the board, 3 points for getting in the hole. First to 21 points wins!</p>
     </div>
   </div>
 
+  <!-- WAIT SCREEN -->
   <div id="wait" class="screen">
     <h2>Game Created!</h2>
     <p>Share this link with your opponent:</p>
@@ -290,10 +70,11 @@ a<!DOCTYPE html>
       <input id="link" readonly />
       <button id="copy">Copy</button>
     </div>
-    <p id="waitMsg">Waiting for opponent to join...</p>
+    <p id="waitMsg">Waiting for opponent to join…</p>
     <div class="waiting-animation"><div></div><div></div><div></div><div></div></div>
   </div>
 
+  <!-- GAME SCREEN -->
   <div id="game" class="screen">
     <div id="hud">
       <div id="planet"></div>
@@ -306,6 +87,7 @@ a<!DOCTYPE html>
     <div id="board"><div id="hole"></div></div>
   </div>
 
+  <!-- RESULT SCREEN -->
   <div id="result" class="screen">
     <h2 id="msg"></h2>
     <button id="again">Play Again</button>
@@ -314,814 +96,265 @@ a<!DOCTYPE html>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 <script>
-// ── Firebase config (keep as‑is) ────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
-  authDomain: "galaxy-hole-53c76.firebaseapp.com",
-  projectId: "galaxy-hole-53c76",
-  storageBucket: "galaxy-hole-53c76.appspot.com",
-  messagingSenderId: "592610380036",
-  appId: "1:592610380036:web:4b5c72ee181682b9262851"
-};
-firebase.initializeApp(firebaseConfig);
+/* –––– Firebase –––– */
+firebase.initializeApp({
+  apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
+  authDomain:"galaxy-hole-53c76.firebaseapp.com",
+  projectId:"galaxy-hole-53c76",
+  storageBucket:"galaxy-hole-53c76.appspot.com",
+  messagingSenderId:"592610380036",
+  appId:"1:592610380036:web:4b5c72ee181682b9262851"
+});
 const db = firebase.firestore();
 
-// ── Physics presets ────────────────────────────────────────────────────────────
-const planets = {
-  earth: { g: 9.8, scale: 1, name: "Earth" },
-  moon: { g: 1.6, scale: 0.45, name: "Moon" },
-  mars: { g: 3.7, scale: 0.7, name: "Mars" },
-  jupiter: { g: 24.8, scale: 1.4, name: "Jupiter" }
+/* –––– Physics presets –––– */
+const planets={
+  earth:{g:9.8,name:"Earth"},
+  moon:{g:1.6,name:"Moon"},
+  mars:{g:3.7,name:"Mars"},
+  jupiter:{g:24.8,name:"Jupiter"}
 };
 let planet = planets.earth;
 
-// ── Basic state ────────────────────────────────────────────────────────────────
-let gameId = null;
-let me = null;
-let turn = 1;
-let throws = { 1: 0, 2: 0 };
-let score = { 1: 0, 2: 0 };
-const MAX = 4;  // Maximum throws per player per round
-const WIN = 21; // Score needed to win
-const pid = (() => {
-  let v = localStorage.pid;
-  if (!v) {
-    v = Math.random().toString(36).slice(2, 9);
-    localStorage.pid = v;
-  }
-  return v;
-})();
+/* –––– State –––– */
+let gameId=null,me=null,turn=1;
+let throws={1:0,2:0},score={1:0,2:0};
+const MAX=4,WIN=21;
+const pid=(()=>{let v=localStorage.pid;if(!v){v=Math.random().toString(36).slice(2,9);localStorage.pid=v;}return v;})();
 
-// ── DOM helpers ────────────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const screens = {
-  setup: $('setup'),
-  wait: $('wait'),
-  game: $('game'),
-  result: $('result')
-};
-
-const show = scr => {
-  Object.values(screens).forEach(s => {
-    s.style.display = s === scr ? 'flex' : 'none';
-    // Add a small animation
-    if (s === scr) {
-      s.style.opacity = 0;
-      setTimeout(() => s.style.opacity = 1, 10);
-    }
-  });
-};
-
+/* –––– DOM helpers –––– */
+const $=id=>document.getElementById(id);
+const screens={setup:$('setup'),wait:$('wait'),game:$('game'),result:$('result')};
+function show(scr){Object.values(screens).forEach(s=>{s.style.display=s===scr?'flex':'none';if(s===scr){s.style.opacity=0;setTimeout(()=>s.style.opacity=1,10);}})}
 show(screens.setup);
 
-// ── UI actions ────────────────────────────────────────────────────────────────
-$('planetSel').onchange = e => planet = planets[e.target.value];
-$('copy').onclick = () => {
-  navigator.clipboard.writeText($('link').value);
-  $('copy').textContent = "Copied!";
-  setTimeout(() => $('copy').textContent = "Copy", 2000);
-};
-$('again').onclick = () => location.href = location.pathname;
+/* –––– UI actions –––– */
+$('planetSel').onchange=e=>planet=planets[e.target.value];
+$('copy').onclick=()=>{navigator.clipboard.writeText($('link').value);$('copy').textContent="Copied!";setTimeout(()=>$('copy').textContent="Copy",2000);};
+$('again').onclick=()=>location.href=location.pathname;
 
-$('create').onclick = async () => {
-  try {
-    const doc = await db.collection('cornhole').add({
-      p1: pid,
-      p2: null,
-      planet: $('planetSel').value,
-      st: 'wait',
-      turn: 1,
-      sc: { 1: 0, 2: 0 },
-      th: { 1: 0, 2: 0 },
-      bags: { 1: [], 2: [] }
+$('create').onclick=async()=>{
+  try{
+    const doc=await db.collection('cornhole').add({
+      p1:pid,p2:null,planet:$('planetSel').value,st:'wait',
+      turn:1,sc:{1:0,2:0},th:{1:0,2:0},bags:{1:[],2:[]}
     });
-    gameId = doc.id;
-    me = 1;
-    planet = planets[$('planetSel').value];
-    $('link').value = `${location.origin}${location.pathname}?id=${gameId}`;
+    gameId=doc.id;me=1;planet=planets[$('planetSel').value];
+    $('link').value=`${location.origin}${location.pathname}?id=${gameId}`;
     show(screens.wait);
     listen();
-  } catch (err) {
-    alert(`Error creating game: ${err.message}`);
-  }
+  }catch(err){alert("Error creating game: "+err.message);}
 };
 
-$('join').onclick = () => join($('joinId').value.trim());
-
-async function join(id) {
-  if (!id) {
-    alert("Please enter a Game ID");
-    return;
-  }
-  
-  try {
-    gameId = id;
-    me = 2;
-    const ref = db.collection('cornhole').doc(id);
-    const snap = await ref.get();
-    
-    if (!snap.exists) {
-      alert('Game not found. Please check the ID and try again.');
-      return;
-    }
-    
-    const d = snap.data();
-    if (d.p2 && d.p2 !== pid) {
-      alert('This game is already full. Please create a new game or join a different one.');
-      return;
-    }
-    
-    await ref.update({
-      p2: pid,
-      st: 'play'
-    });
-    
-    listen();
-    show(screens.game);
-  } catch (err) {
-    alert(`Error joining game: ${err.message}`);
-  }
+$('join').onclick=()=>join($('joinId').value.trim());
+async function join(id){
+  if(!id){alert("Please enter a Game ID");return;}
+  try{
+    gameId=id;me=2;
+    const ref=db.collection('cornhole').doc(id);
+    const snap=await ref.get();
+    if(!snap.exists){alert("Game not found.");return;}
+    const d=snap.data();
+    if(d.p2&&d.p2!==pid){alert("Game already full");return;}
+    await ref.update({p2:pid,st:'play'});
+    listen();show(screens.game);
+  }catch(err){alert("Error joining: "+err.message);}
 }
 
-// Check for game ID in URL params
-const qp = new URLSearchParams(location.search);
-if (qp.has('id')) join(qp.get('id'));
+/* –––– auto-join via URL –––– */
+const qp=new URLSearchParams(location.search);
+if(qp.has('id')) join(qp.get('id'));
 
-// ── Firestore listener ────────────────────────────────────────────────────────
-function listen() {
-  const unsubscribe = db.collection('cornhole').doc(gameId).onSnapshot(snap => {
-    if (!snap.exists) {
-      alert("Game no longer exists.");
-      location.href = location.pathname;
-      return;
-    }
-    
-    const d = snap.data();
-    const planetKey = d.planet || 'earth';
-    planet = planets[planetKey];
-    turn = d.turn;
+/* –––– Firestore listener –––– */
+let fbUnsub=null;
+function listen(){
+  if(fbUnsub)fbUnsub();
+  fbUnsub=db.collection('cornhole').doc(gameId).onSnapshot(snap=>{
+    if(!snap.exists){alert("Game was deleted");location.href=location.pathname;return;}
+    const d=snap.data();
+    planet = planets[d.planet]||planets.earth;
+    turn   = d.turn;
     throws = d.th;
-    score = d.sc;
-    updateUI(d.st, d.bags);
-  }, error => {
-    console.error("Firestore listening error:", error);
-    alert(`Connection error: ${error.message}`);
-  });
-  
-  // Cleanup listener on page unload
-  window.addEventListener('beforeunload', unsubscribe);
+    score  = d.sc;
+    updateUI(d.st,d.bags);
+  },err=>alert("Firestore error: "+err.message));
+  window.addEventListener('beforeunload',fbUnsub);
 }
 
-// ── UI refresh ────────────────────────────────────────────────────────────────
-function updateUI(st, bags) {
-  $('scores').textContent = `${score[1]} – ${score[2]}`;
-  $('turn').textContent = turn === me ? 'Your turn' : 'Opponent\'s turn';
-  $('throws').textContent = `Throws: ${throws[1]}/${MAX} - ${throws[2]}/${MAX}`;
-  
-  const planetName = planet ? planet.name || Object.keys(planets).find(k => planets[k] === planet) : 'Earth';
-  $('planet').textContent = `Gravity: ${planetName}`;
-  
-  if (st === 'wait') {
-    show(me === 1 ? screens.wait : screens.game);
-  } else if (st === 'play') {
+/* –––– UI refresh –––– */
+function updateUI(st,bags){
+  $('scores').textContent=`${score[1]} – ${score[2]}`;
+  $('turn').textContent = turn===me?'Your turn':"Opponent's turn";
+  $('throws').textContent=`Throws: ${throws[1]}/${MAX} – ${throws[2]}/${MAX}`;
+  $('planet').textContent=`Gravity: ${planet.name}`;
+
+  if(st==='wait'){show(me===1?screens.wait:screens.game);}
+  else if(st==='play'){
     show(screens.game);
-    if (turn === me && throws[me] < MAX) {
-      // Only spawn a new bag if one isn't already active
-      if (!document.querySelector('.bag')) {
-        spawnBag();
-      }
-    }
-  } else if (st === 'end') {
+    if(turn===me&&throws[me]<MAX&&!document.querySelector('.bag')) spawnBag();
+  }
+  else if(st==='end'){
     show(screens.result);
-    $('msg').textContent = score[me] > score[3-me] ? 'You win!' : 'You lose!';
+    $('msg').textContent = score[me]>score[3-me]?'You win!':'You lose!';
   }
 }
 
-// ── BAG DRAG & THROW ──────────────────────────────────────────────────────────
-let bag, shadow, start, isDragging = false;
-let dragStartX, dragStartY;
-let aimLine;
+/* –––– Bag, drag, throw –––– */
+let bag,shadow,start,isDragging=false,dragStartX,dragStartY,aimLine;
 
-function spawnBag() {
-  // Remove any existing bags first to prevent duplicates
-  const existingBags = document.querySelectorAll('.bag, .shadow');
-  existingBags.forEach(el => el.remove());
-  
-  // Remove aim line if it exists
-  if (aimLine) aimLine.remove();
-  
-  bag = document.createElement('div');
-  bag.className = 'bag';
-  bag.style.setProperty('--clr', me === 1 ? '#c41e3a' : '#4287f5');
-  
-  shadow = document.createElement('div');
-  shadow.className = 'shadow';
-  
-  document.body.append(bag, shadow);
-  
-  // Position at bottom center - player's perspective
-  const startX = innerWidth/2-17;
-  const startY = innerHeight-60; // Higher up from bottom for better perspective
-  bag.style.transform = `translate(${startX}px,${startY}px) scale(0.8)`;
-  shadow.style.transform = `translate(${startX}px,${startY+10}px) scale(0.8)`;
-  
-  // Add a small animation for appearance
-  setTimeout(() => {
-    bag.style.transition = 'transform 0.3s ease';
-    shadow.style.transition = 'transform 0.3s ease';
-    bag.style.transform = `translate(${startX}px,${startY}px) scale(1)`;
-    shadow.style.transform = `translate(${startX}px,${startY+10}px) scale(1)`;
-    
-    // Add event listeners after animation
-    setTimeout(() => {
-      bag.style.transition = '';
-      shadow.style.transition = '';
-      document.addEventListener('pointerdown', dragStart);
-    }, 300);
-  }, 50);
+function spawnBag(){
+  document.querySelectorAll('.bag,.shadow').forEach(el=>el.remove());
+  if(aimLine)aimLine.remove();
+
+  bag=document.createElement('div');
+  bag.className='bag';
+  bag.style.setProperty('--clr',me===1?'#c41e3a':'#4287f5');
+  shadow=document.createElement('div');
+  shadow.className='shadow';
+  document.body.append(bag,shadow);
+
+  const x=innerWidth/2-17,y=innerHeight-60;
+  bag.style.transform=`translate(${x}px,${y}px)`;
+  shadow.style.transform=`translate(${x}px,${innerHeight-6}px)`;
+  document.addEventListener('pointerdown',dragStart,{once:true});
 }
 
-function dragStart(e) {
-  // Prevent drag if it's not our turn
-  if (turn !== me) return;
-  
-  // Prevent default to avoid text selection
-  e.preventDefault();
-  
-  isDragging = true;
-  
-  // Get position of the bag for drag calculation
-  const bagRect = bag.getBoundingClientRect();
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
-  
-  // Starting position - center of the bag
-  start = {
-    x: bagRect.left + bagRect.width/2,
-    y: bagRect.top + bagRect.height/2,
-    t: performance.now()
-  };
-  
-  // Create aim line
-  aimLine = document.createElement('div');
-  aimLine.style.position = 'absolute';
-  aimLine.style.height = '2px';
-  aimLine.style.backgroundColor = me === 1 ? 'rgba(255, 100, 100, 0.7)' : 'rgba(100, 100, 255, 0.7)';
-  aimLine.style.transformOrigin = 'center bottom';
-  aimLine.style.zIndex = '5';
-  aimLine.style.pointerEvents = 'none';
+function dragStart(e){
+  if(turn!==me)return;
+  e.preventDefault();isDragging=true;
+  const r=bag.getBoundingClientRect();
+  start={x:r.left+r.width/2,y:r.top+r.height/2};
+  dragStartX=e.clientX;dragStartY=e.clientY;
+
+  aimLine=document.createElement('div');
+  aimLine.style.cssText='position:absolute;height:2px;background:rgba(255,255,255,.8);transform-origin:center bottom;z-index:5;pointer-events:none';
   document.body.appendChild(aimLine);
-  
-  document.addEventListener('pointermove', dragMove);
-  document.addEventListener('pointerup', dragEnd);
-  document.addEventListener('pointercancel', dragEnd);
+
+  document.addEventListener('pointermove',dragMove);
+  document.addEventListener('pointerup',dragEnd);
+  document.addEventListener('pointercancel',dragEnd);
 }
 
-function animateThrow(vx, vy) {
-  // Board position
-  const board = document.getElementById('board');
-  const boardRect = board.getBoundingClientRect();
-  
-  // Constants
-  const GRAVITY = planet.g * 0.2;
-  const DRAG = 0.99;
-  const TIME_STEP = 1000 / 60; // 60fps in milliseconds
-  
-  // Initial state
-  let x = parseFloat(bag.style.left);
-  let y = parseFloat(bag.style.top);
-  let velocityX = vx;
-  let velocityY = vy;
-  let time = 0;
-  
-  // Debug - draw the path
-  const pathPoint = document.createElement('div');
-  pathPoint.style.position = 'absolute';
-  pathPoint.style.width = '5px';
-  pathPoint.style.height = '5px';
-  pathPoint.style.borderRadius = '50%';
-  pathPoint.style.backgroundColor = 'red';
-  pathPoint.style.left = (x + 17) + 'px';
-  pathPoint.style.top = (y + 17) + 'px';
-  pathDiv.appendChild(pathPoint);
-  
-  // Animation function
-  function doFrame() {
-    // Apply forces
-    velocityY += GRAVITY;
-    velocityX *= DRAG;
-    velocityY *= DRAG;
-    
-    // Update position
-    x += velocityX / 10;
-    y += velocityY / 10;
-    
-    // Draw path point
-    const pathPoint = document.createElement('div');
-    pathPoint.style.position = 'absolute';
-    pathPoint.style.width = '2px';
-    pathPoint.style.height = '2px';
-    pathPoint.style.borderRadius = '50%';
-    pathPoint.style.backgroundColor = 'rgba(255,0,0,0.5)';
-    pathPoint.style.left = (x + 17) + 'px';
-    pathPoint.style.top = (y + 17) + 'px';
-    pathDiv.appendChild(pathPoint);
-    
-    // Update bag position
-    bag.style.left = x + 'px';
-    bag.style.top = y + 'px';
-    
-    // Update shadow
-    const groundY = window.innerHeight - 40;
-    const heightAboveGround = Math.max(0, groundY - y - 17);
-    const shadowScale = Math.max(0.2, 1 - heightAboveGround / 300);
-    shadow.style.left = x + 'px';
-    shadow.style.top = (groundY) + 'px';
-    shadow.style.transform = `scale(${shadowScale})`;
-    
-    // Check collision with ground
-    if (y + 35 > window.innerHeight - 20) {
-      // Bounce with ground
-      bag.style.left = x + 'px';
-      bag.style.top = (window.innerHeight - 55) + 'px';
-      
-      // Finish throw after hitting ground
-      setTimeout(() => {
-        finishThrow(0); // Miss
-        
-        // Fade out
-        bag.style.transition = 'opacity 0.5s';
-        shadow.style.transition = 'opacity 0.5s';
-        bag.style.opacity = '0.5';
-        shadow.style.opacity = '0.5';
-        
-        setTimeout(() => {
-          if (bag.parentNode) bag.remove();
-          if (shadow.parentNode) shadow.remove();
-          if (pathDiv.parentNode) pathDiv.remove();
-        }, 500);
-      }, 200);
-      
-      return; // Stop animation
-    }
-    
-    // Check collision with board
-    const holeCenterX = boardRect.left + boardRect.width/2;
-    const holeCenterY = boardRect.top + boardRect.height/5; // Hole is at top 1/5 of board
-    const distToHole = Math.hypot((x + 17) - holeCenterX, (y + 17) - holeCenterY);
-    
-    if (y >= boardRect.top && y <= boardRect.bottom && x >= boardRect.left && x <= boardRect.right) {
-      // Hit the board
-      
-      // Check if in hole
-      if (distToHole < 20) {
-        // Hit the hole
-        bag.style.left = (holeCenterX - 17) + 'px';
-        bag.style.top = (holeCenterY - 17) + 'px';
-        bag.style.transition = 'transform 0.3s, opacity 0.3s';
-        bag.style.transform = 'scale(0.1)';
-        bag.style.opacity = '0';
-        
-        shadow.style.transition = 'opacity 0.3s';
-        shadow.style.opacity = '0';
-        
-        setTimeout(() => {
-          finishThrow(3); // 3 points for hole
-          if (bag.parentNode) bag.remove();
-          if (shadow.parentNode) shadow.remove();
-          if (pathDiv.parentNode) pathDiv.remove();
-        }, 300);
-      } else {
-        // Hit the board but not the hole
-        bag.style.left = x + 'px';
-        bag.style.top = y + 'px';
-        
-        setTimeout(() => {
-          finishThrow(1); // 1 point for board
-          
-          // Fade out
-          bag.style.transition = 'opacity 0.5s';
-          shadow.style.transition = 'opacity 0.5s';
-          bag.style.opacity = '0.7';
-          shadow.style.opacity = '0';
-          
-          setTimeout(() => {
-            if (bag.parentNode) bag.remove();
-            if (shadow.parentNode) shadow.remove();
-            if (pathDiv.parentNode) pathDiv.remove();
-          }, 500);
-        }, 200);
-      }
-      
-      return; // Stop animation
-    }
-    
-    // Check if the bag has gone off-screen
-    if (x < -50 || x > window.innerWidth + 50 || y < -50 || time > 2000) {
-      // Off screen or timeout
-      bag.style.transition = 'opacity 0.3s';
-      shadow.style.transition = 'opacity 0.3s';
-      bag.style.opacity = '0';
-      shadow.style.opacity = '0';
-      
-      setTimeout(() => {
-        finishThrow(0); // Miss
-        if (bag.parentNode) bag.remove();
-        if (shadow.parentNode) shadow.remove();
-        if (pathDiv.parentNode) pathDiv.remove();
-      }, 300);
-      
-      return; // Stop animation
-    }
-    
-    // Continue animation
-    time += TIME_STEP;
-    requestAnimationFrame(doFrame);
-  }
-  
-  // Start animation
-  requestAnimationFrame(doFrame);
+function dragMove(e){
+  if(!isDragging)return;
+  const cx=e.clientX,cy=e.clientY;
+  bag.style.transform=`translate(${cx-17}px,${cy-17}px)`;
+  shadow.style.transform=`translate(${cx-17}px,${innerHeight-6}px) scale(.9)`;
+
+  const dx=cx-start.x,dy=cy-start.y,len=Math.hypot(dx,dy),ang=Math.atan2(dy,dx);
+  aimLine.style.width=len+'px';
+  aimLine.style.transform=`translate(${start.x}px,${start.y}px) rotate(${ang}rad)`;
 }
 
-function dragEnd(e) {
-  if (!isDragging) return;
-  
-  document.removeEventListener('pointermove', dragMove);
-  document.removeEventListener('pointerup', dragEnd);
-  document.removeEventListener('pointercancel', dragEnd);
-  
-  // Remove aim line
-  if (aimLine) {
-    aimLine.remove();
-    aimLine = null;
-  }
-  
-  // Calculate drag vector and distance
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
-  const dragDistance = Math.hypot(dx, dy);
-  
-  if (dragDistance < 10) {
-    // Too small a movement, consider it a click
-    isDragging = false;
-    return;
-  }
-  
-  // Get board position for targeting
-  const board = document.getElementById('board');
-  const boardRect = board.getBoundingClientRect();
-  const targetX = boardRect.left + boardRect.width/2;
-  const targetY = boardRect.top + boardRect.height/2;
-  
-  // Calculate drag angle from player perspective
-  const angle = Math.atan2(dy, dx);
-  
-  // Reverse the angle - pull down/right = throw up/left
-  const throwAngle = angle + Math.PI;
-  
-  // Base velocity on drag distance - longer drag = more power
-  const basePower = 15; // Base power factor
-  const maxPower = 40;  // Cap maximum power
-  const power = Math.min(dragDistance * 0.3, maxPower);
-  
-  console.log("THROW DATA:");
-  console.log("Drag distance:", dragDistance);
-  console.log("Angle:", angle * 180 / Math.PI);
-  console.log("Throw angle:", throwAngle * 180 / Math.PI);
-  console.log("Power:", power);
-  
-  // Component velocities - using standard physics formula
-  const velocityX = Math.cos(throwAngle) * power;
-  const velocityY = Math.sin(throwAngle) * power;
-  
-  console.log("Velocity X:", velocityX);
-  console.log("Velocity Y:", velocityY);
-  
-  // Launch the bag with these initial conditions
-  launchBag(velocityX, velocityY);
-  
-  isDragging = false;
+function dragEnd(e){
+  if(!isDragging)return;
+  isDragging=false;
+  document.removeEventListener('pointermove',dragMove);
+  document.removeEventListener('pointerup',dragEnd);
+  document.removeEventListener('pointercancel',dragEnd);
+  if(aimLine){aimLine.remove();aimLine=null;}
+
+  const dx=e.clientX-dragStartX,dy=e.clientY-dragStartY,dist=Math.hypot(dx,dy);
+  if(dist<10)return;                                // tiny tap
+
+  const angle=Math.atan2(dy,dx)+Math.PI;
+  const POWER_MULT=7;
+  const power=Math.min(dist*POWER_MULT,2200);
+  const vx=Math.cos(angle)*power, vy=Math.sin(angle)*power;
+
+  launchBag(vx,vy);
 }
 
-function launchBag(vx, vy) {
-  // Get current bag position
-  const bagRect = bag.getBoundingClientRect();
-  const startX = bagRect.left + bagRect.width/2;
-  const startY = bagRect.top + bagRect.height/2;
-  
-  // Remove any transitions
-  bag.style.transition = '';
-  shadow.style.transition = '';
-  
-  // Game physics constants
-  const gravity = planet.g * 0.3; // Gravity factor (adjusted for visual effect)
-  
-  // Animation state
-  let posX = startX;
-  let posY = startY;
-  let velX = vx;
-  let velY = vy;
-  let lastTime = performance.now();
-  let landed = false;
-  
-  // Create helper element to visualize trajectory (for debugging)
-  const tracer = document.createElement('div');
-  tracer.style.position = 'absolute';
-  tracer.style.top = '0';
-  tracer.style.left = '0';
-  tracer.style.width = '100%';
-  tracer.style.height = '100%';
-  tracer.style.pointerEvents = 'none';
-  tracer.style.zIndex = '1';
-  //document.body.appendChild(tracer); // Uncomment to see path
-  
-  // Animation loop - update on each frame
-  function animate() {
-    if (landed) return;
-    
-    // Calculate time delta for frame
-    const now = performance.now();
-    const deltaTime = Math.min(0.03, (now - lastTime) / 1000); // Cap at 30ms to prevent huge jumps
-    lastTime = now;
-    
-    // Update velocity - apply gravity
-    velY += gravity * deltaTime;
-    
-    // Update position based on velocity
-    posX += velX * deltaTime;
-    posY += velY * deltaTime;
-    
-    // Draw tracer point (for debugging)
-    if (tracer.parentNode) {
-      const point = document.createElement('div');
-      point.style.position = 'absolute';
-      point.style.width = '3px';
-      point.style.height = '3px';
-      point.style.borderRadius = '50%';
-      point.style.backgroundColor = 'red';
-      point.style.left = (posX - 1) + 'px';
-      point.style.top = (posY - 1) + 'px';
-      tracer.appendChild(point);
+/* –––– Physics / launch –––– */
+function launchBag(vx0,vy0){
+  const r=bag.getBoundingClientRect();
+  let x=r.left+r.width/2, y=r.top+r.height/2;
+  let vx=vx0, vy=vy0;
+  const g=planet.g*120;                // screen-tuned
+  const groundY=innerHeight-20;
+  let last=performance.now(),landed=false;
+
+  (function frame(now){
+    if(landed)return;
+    const dt=(now-last)/1000;last=now;
+    x+=vx*dt; y+=vy*dt; vy+=g*dt;
+
+    bag.style.transform=`translate(${x-17}px,${y-17}px)`;
+    const h=Math.max(0,groundY-y);
+    const s=Math.max(.25,1-h/700);
+    shadow.style.transform=`translate(${x-17}px,${groundY-6}px) scale(${s})`;
+
+    const board=$('board').getBoundingClientRect();
+    const hole =$('hole').getBoundingClientRect();
+
+    // ground
+    if(y>=groundY-17){landed=true;finishThrow(0);fadeOut();return;}
+
+    // board/hole
+    if(vy>0&&x>board.left&&x<board.right&&y>board.top&&y<board.bottom){
+      const hx=hole.left+hole.width/2, hy=hole.top+hole.height/2;
+      const inHole=Math.hypot(x-hx,y-hy)<hole.width/2;
+      landed=true;finishThrow(inHole?3:1);fadeOut(inHole?.2:.7);return;
     }
-    
-    // Update bag position
-    bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px)`;
-    
-    // Update shadow based on height
-    const groundY = innerHeight - 20;
-    const heightAboveGround = Math.max(0, groundY - posY);
-    const shadowScale = Math.max(0.2, 1 - heightAboveGround / 600);
-    const shadowX = posX + heightAboveGround * 0.1; // Offset based on height
-    shadow.style.transform = `translate(${shadowX - 17}px, ${groundY - 6}px) scale(${shadowScale})`;
-    
-    // Hit detection
-    
-    // 1. Check for hitting the ground
-    if (posY >= groundY - 17) {
-      landed = true;
-      
-      // Bounce animation
-      bag.style.transition = 'transform 0.15s ease';
-      bag.style.transform = `translate(${posX - 17}px, ${groundY - 35}px)`;
-      
-      setTimeout(() => {
-        bag.style.transform = `translate(${posX - 17}px, ${groundY - 17}px)`;
-        
-        setTimeout(() => {
-          if (tracer.parentNode) tracer.remove();
-          
-          // Fade out
-          bag.style.transition = 'opacity 0.5s ease';
-          shadow.style.transition = 'opacity 0.5s ease';
-          bag.style.opacity = '0.5';
-          shadow.style.opacity = '0.5';
-          
-          setTimeout(() => {
-            bag.remove();
-            shadow.remove();
-            finishThrow(0); // Miss
-          }, 500);
-        }, 300);
-      }, 150);
-      
-      return;
-    }
-    
-    // 2. Check for hitting the board or hole
-    const boardRect = document.getElementById('board').getBoundingClientRect();
-    const holeRect = document.getElementById('hole').getBoundingClientRect();
-    
-    // Only check board hits when bag is at approximately the right height and falling
-    if (velY > 0 && 
-        posY > boardRect.top - 10 && 
-        posY < boardRect.bottom + 10 && 
-        posX > boardRect.left - 10 && 
-        posX < boardRect.right + 10) {
-      
-      // Check for hole hit
-      const holeX = holeRect.left + holeRect.width/2;
-      const holeY = holeRect.top + holeRect.height/2;
-      const distToHole = Math.hypot(posX - holeX, posY - holeY);
-      
-      if (distToHole < holeRect.width/2) {
-        // Hit the hole!
-        landed = true;
-        
-        // Hole-in-one animation
-        bag.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-        bag.style.transform = `translate(${holeX - 17}px, ${holeY - 17}px) scale(0.2)`;
-        bag.style.opacity = '0.2';
-        
-        shadow.style.transition = 'opacity 0.3s ease';
-        shadow.style.opacity = '0';
-        
-        setTimeout(() => {
-          if (tracer.parentNode) tracer.remove();
-          bag.remove();
-          shadow.remove();
-          finishThrow(3); // 3 points
-        }, 300);
-        
-        return;
-      }
-      
-      // Check for board hit
-      if (posX > boardRect.left && posX < boardRect.right &&
-          posY > boardRect.top && posY < boardRect.bottom) {
-        // Hit the board!
-        landed = true;
-        
-        // Board landing animation
-        bag.style.transition = 'transform 0.15s ease';
-        bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px) scale(1.1)`;
-        
-        setTimeout(() => {
-          bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px)`;
-          
-          setTimeout(() => {
-            if (tracer.parentNode) tracer.remove();
-            
-            finishThrow(1); // 1 point
-            
-            // Fade out over time
-            bag.style.transition = 'opacity 0.7s ease';
-            shadow.style.transition = 'opacity 0.7s ease';
-            bag.style.opacity = '0.7';
-            shadow.style.opacity = '0';
-            
-            setTimeout(() => {
-              bag.remove();
-              shadow.remove();
-            }, 700);
-          }, 300);
-        }, 150);
-        
-        return;
-      }
-    }
-    
-    // 3. Check if bag has gone off screen
-    if (posX < -50 || posX > innerWidth + 50 || posY < -50) {
-      landed = true;
-      
-      // Fade out animation
-      bag.style.transition = 'opacity 0.3s ease';
-      shadow.style.transition = 'opacity 0.3s ease';
-      bag.style.opacity = '0';
-      shadow.style.opacity = '0';
-      
-      setTimeout(() => {
-        if (tracer.parentNode) tracer.remove();
-        bag.remove();
-        shadow.remove();
-        finishThrow(0); // Miss
-      }, 300);
-      
-      return;
-    }
-    
-    // Continue animation
-    requestAnimationFrame(animate);
+
+    // off screen
+    if(x<-60||x>innerWidth+60||y<-80){landed=true;finishThrow(0);fadeOut();return;}
+
+    requestAnimationFrame(frame);
+  })(last);
+
+  function fadeOut(op=.5){
+    bag.style.transition=shadow.style.transition='opacity .4s ease';
+    bag.style.opacity=shadow.style.opacity=op;
+    setTimeout(()=>{bag.remove();shadow.remove();},450);
   }
-  
-  // Start the animation loop
-  requestAnimationFrame(animate);
 }
 
-function finishThrow(points) {
-  // Update the game state in Firebase
-  db.runTransaction(async tx => {
-    try {
-      const ref = db.collection('cornhole').doc(gameId);
-      const snap = await tx.get(ref);
-      
-      if (!snap.exists) {
-        throw new Error("Game doesn't exist anymore");
-      }
-      
-      const d = snap.data();
-      
-      // Initialize bags array if it doesn't exist
-      if (!d.bags) d.bags = { 1: [], 2: [] };
-      if (!d.bags[me]) d.bags[me] = [];
-      
-      // Add the throw result
-      d.bags[me].push({ pts: points });
-      
-      // Create a visual feedback element for points
-      showPointsFeedback(points);
-      
-      // Increment throw counter
-      d.th[me]++;
-      
-      // Check if round is complete
-      if (d.th[1] >= MAX && d.th[2] >= MAX) {
-        scoreRound(d);
-      } else {
-        // Switch turns
-        d.turn = 3 - d.turn;
-      }
-      
-      d.st = 'play';
-      
-      tx.set(ref, d);
-    } catch (err) {
-      console.error("Error in transaction:", err);
-      alert(`Game error: ${err.message}`);
+/* –––– Game scoring –––– */
+function finishThrow(points){
+  db.runTransaction(async tx=>{
+    const ref=db.collection('cornhole').doc(gameId);
+    const snap=await tx.get(ref);
+    if(!snap.exists)throw new Error("Game missing");
+    const d=snap.data();
+    if(!d.bags)d.bags={1:[],2:[]};
+    d.bags[me].push({pts:points});
+    d.th[me]++;
+
+    showPointsFeedback(points);
+
+    if(d.th[1]>=MAX&&d.th[2]>=MAX){
+      scoreRound(d);
+    }else{
+      d.turn=3-d.turn;
     }
-  });
+    d.st='play';
+    tx.set(ref,d);
+  }).catch(err=>alert("Game error: "+err.message));
 }
 
-function showPointsFeedback(points) {
-  // Create point indicator
-  const pointsEl = document.createElement('div');
-  pointsEl.style.position = 'absolute';
-  pointsEl.style.top = '40%';
-  pointsEl.style.left = '50%';
-  pointsEl.style.transform = 'translate(-50%, -50%) scale(0)';
-  pointsEl.style.fontSize = '64px';
-  pointsEl.style.fontWeight = 'bold';
-  pointsEl.style.color = 'white';
-  pointsEl.style.textShadow = '0 0 10px rgba(0,0,0,0.5)';
-  pointsEl.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-  pointsEl.style.opacity = '0';
-  pointsEl.style.zIndex = '100';
-  
-  if (points === 3) {
-    pointsEl.textContent = '+3!';
-    pointsEl.style.color = '#FFD700';
-  } else if (points === 1) {
-    pointsEl.textContent = '+1';
-    pointsEl.style.color = '#FFFFFF';
-  } else {
-    pointsEl.textContent = 'Miss';
-    pointsEl.style.color = '#FF5555';
-  }
-  
-  document.body.appendChild(pointsEl);
-  
-  // Animate
-  setTimeout(() => {
-    pointsEl.style.opacity = '1';
-    pointsEl.style.transform = 'translate(-50%, -50%) scale(1)';
-    
-    setTimeout(() => {
-      pointsEl.style.opacity = '0';
-      pointsEl.style.transform = 'translate(-50%, -100%) scale(0.8)';
-      
-      setTimeout(() => {
-        pointsEl.remove();
-      }, 300);
-    }, 800);
-  }, 10);
+function showPointsFeedback(points){
+  const el=document.createElement('div');
+  el.style.cssText='position:absolute;top:40%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:64px;font-weight:bold;color:white;text-shadow:0 0 10px rgba(0,0,0,.5);transition:transform .3s,opacity .3s;opacity:0;z-index:100';
+  if(points===3){el.textContent='+3!';el.style.color='#FFD700';}
+  else if(points===1){el.textContent='+1';}
+  else {el.textContent='Miss';el.style.color='#FF5555';}
+  document.body.appendChild(el);
+  setTimeout(()=>{el.style.opacity=1;el.style.transform='translate(-50%,-50%) scale(1)';setTimeout(()=>{
+    el.style.opacity=0;el.style.transform='translate(-50%,-100%) scale(.8)';setTimeout(()=>el.remove(),300);
+  },800);},10);
 }
 
-function scoreRound(d) {
-  // Calculate points for each player
-  const p1 = d.bags[1].reduce((s, b) => s + b.pts, 0);
-  const p2 = d.bags[2].reduce((s, b) => s + b.pts, 0);
-  
-  // Calculate the difference in points (cancellation scoring)
-  const diff = Math.abs(p1 - p2);
-  
-  // Award points to the winner of the round
-  if (p1 > p2) {
-    d.sc[1] += diff;
-  } else if (p2 > p1) {
-    d.sc[2] += diff;
-  }
-  
-  // Reset for next round
-  d.bags = { 1: [], 2: [] };
-  d.th = { 1: 0, 2: 0 };
-  
-  // Player 1 always starts new rounds
-  d.turn = 1;
-  
-  // Check for win condition
-  if (d.sc[1] >= WIN || d.sc[2] >= WIN) {
-    d.st = 'end';
-  }
+function scoreRound(d){
+  const p1=d.bags[1].reduce((s,b)=>s+b.pts,0);
+  const p2=d.bags[2].reduce((s,b)=>s+b.pts,0);
+  const diff=Math.abs(p1-p2);
+  if(p1>p2)d.sc[1]+=diff;
+  else if(p2>p1)d.sc[2]+=diff;
+  d.bags={1:[],2:[]};
+  d.th={1:0,2:0};
+  d.turn=1;
+  if(d.sc[1]>=WIN||d.sc[2]>=WIN)d.st='end';
 }
 </script>
 </body>
