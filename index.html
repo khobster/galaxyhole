@@ -616,40 +616,34 @@ function dragEnd(e) {
     aimLine = null;
   }
   
-  // Calculate drag vector (note: we invert direction for throwing)
-  const dx = dragStartX - e.clientX; // Inverted for throwing direction
-  const dy = dragStartY - e.clientY; // Inverted for throwing direction
-  const distance = Math.hypot(dx, dy);
+  // Calculate the drag vector - important for determining throw direction and power
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  const dragDistance = Math.hypot(dx, dy);
   
   // If barely moved, reset the bag
-  if (distance < 15) {
+  if (dragDistance < 15) {
     isDragging = false;
     spawnBag(); // Reset the bag for a new throw
     return;
   }
   
-  // Calculate velocity - CRITICAL CHANGE FOR PERSPECTIVE THROW
-  // Apply much stronger forward (negative Y) velocity to simulate depth perspective
-  const powerFactor = 40; // Increased power for better throws
-  
-  // Compute direction angle
+  // Calculate initial velocity based on drag
+  // Using a negative value means pulling down will throw up (natural feel)
+  const powerFactor = 5;
   const angle = Math.atan2(dy, dx);
   
-  // We need to transform this into a 3D perspective throw
-  // For a realistic cornhole throw, most of the velocity should be in the forward direction
-  // with some left/right based on horizontal drag
+  // Convert drag to initial velocity
+  // We reverse the angle to make it feel natural (pull back = throw forward)
+  const initialVelocity = dragDistance * powerFactor / 30;
+  const initialAngle = angle + Math.PI; // Reverse direction
   
-  // Forward velocity (towards the board) - always strong in this direction
-  const forwardVelocity = Math.max(distance * 0.5, 30) * -1; // Negative because forward is up the screen
+  // Calculate velocity components
+  const vx = initialVelocity * Math.cos(initialAngle);
+  const vy = initialVelocity * Math.sin(initialAngle);
   
-  // Horizontal velocity (left/right) - based on horizontal drag component
-  const horizontalVelocity = Math.cos(angle) * distance * 0.3;
-  
-  // Vertical velocity (up/down) - for arc height, use angle to determine
-  const verticalVelocity = Math.sin(angle) * distance * -0.5; // Negative to make it go up
-  
-  // Launch the bag with these velocities!
-  throwBag(horizontalVelocity, verticalVelocity, forwardVelocity);
+  // Start the parabolic throw animation with these initial conditions
+  throwBagParabolic(vx, vy);
   isDragging = false;
 }
 
