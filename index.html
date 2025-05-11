@@ -584,23 +584,22 @@ function dragMove(e) {
   const dx = e.clientX - dragStartX;
   const dy = e.clientY - dragStartY;
   
-  // Calculate angle and distance for aim line
+  // Draw aim line
   const angle = Math.atan2(dy, dx);
-  const distance = Math.hypot(dx, dy);
+  const distance = Math.min(Math.hypot(dx, dy), 150);
   
-  // Draw aim line (opposite direction of drag = direction of throw)
-  aimLine.style.width = `${Math.min(distance * 1.5, 150)}px`;
+  aimLine.style.width = `${distance}px`;
   aimLine.style.left = `${start.x}px`;
   aimLine.style.top = `${start.y}px`;
-  aimLine.style.transform = `rotate(${angle}rad) translateY(-1px)`;
+  aimLine.style.transform = `rotate(${angle}rad)`;
   
-  // Move bag slightly in drag direction (rubber band effect)
-  const dragFactor = 0.2; // How much the bag "stretches" when dragged
+  // Move bag slightly (rubber band effect)
+  const dragFactor = 0.3;
   const moveX = dx * dragFactor;
   const moveY = dy * dragFactor;
   
-  bag.style.transform = `translate(${start.x + moveX - 17}px, ${start.y + moveY - 17}px)`;
-  shadow.style.transform = `translate(${start.x + moveX - 17}px, ${start.y + moveY + 10 - 17}px)`;
+  bag.style.transform = `translate(${start.x - 17 + moveX}px, ${start.y - 17 + moveY}px)`;
+  shadow.style.transform = `translate(${start.x - 17 + moveX}px, ${start.y - 17 + moveY + 10}px)`;
 }
 
 function dragEnd(e) {
@@ -616,220 +615,256 @@ function dragEnd(e) {
     aimLine = null;
   }
   
-  // Calculate the drag vector
+  // Calculate drag vector and distance
   const dx = e.clientX - dragStartX;
   const dy = e.clientY - dragStartY;
   const dragDistance = Math.hypot(dx, dy);
   
-  // If barely moved, reset the bag
-  if (dragDistance < 15) {
+  if (dragDistance < 10) {
+    // Too small a movement, consider it a click
     isDragging = false;
-    spawnBag(); // Reset the bag for a new throw
     return;
   }
   
-  // Debug
-  console.log("Drag distance: " + dragDistance);
-  console.log("Drag X: " + dx + ", Y: " + dy);
+  // Get board position for targeting
+  const board = document.getElementById('board');
+  const boardRect = board.getBoundingClientRect();
+  const targetX = boardRect.left + boardRect.width/2;
+  const targetY = boardRect.top + boardRect.height/2;
   
-  // Keep things VERY simple for debugging
-  // We want to use a very basic approach to ensure it works
+  // Calculate drag angle from player perspective
+  const angle = Math.atan2(dy, dx);
   
-  // Calculate velocity - using a simplified but effective method
-  // A negative Y velocity means the bag will go up
-  // A positive X velocity means the bag will go right
+  // Reverse the angle - pull down/right = throw up/left
+  const throwAngle = angle + Math.PI;
   
-  // Initial speed - scale based on drag distance
-  const speed = dragDistance * 0.2;
+  // Base velocity on drag distance - longer drag = more power
+  const basePower = 15; // Base power factor
+  const maxPower = 40;  // Cap maximum power
+  const power = Math.min(dragDistance * 0.3, maxPower);
   
-  // Calculate the angle - flip both dx and dy to reverse the direction
-  const throwAngle = Math.atan2(-dy, -dx);
+  console.log("THROW DATA:");
+  console.log("Drag distance:", dragDistance);
+  console.log("Angle:", angle * 180 / Math.PI);
+  console.log("Throw angle:", throwAngle * 180 / Math.PI);
+  console.log("Power:", power);
   
-  // Calculate velocity components
-  const vx = Math.cos(throwAngle) * speed;
-  const vy = Math.sin(throwAngle) * speed;
+  // Component velocities - using standard physics formula
+  const velocityX = Math.cos(throwAngle) * power;
+  const velocityY = Math.sin(throwAngle) * power;
   
-  console.log("Velocity X: " + vx + ", Y: " + vy + ", Speed: " + speed);
-  console.log("Angle: " + (throwAngle * 180 / Math.PI));
+  console.log("Velocity X:", velocityX);
+  console.log("Velocity Y:", velocityY);
   
-  // Create a simple throw function - keep it very basic
-  simpleThrow(vx, vy);
+  // Launch the bag with these initial conditions
+  launchBag(velocityX, velocityY);
   
   isDragging = false;
 }
 
-function simpleThrow(vx, vy) {
-  // Get starting position of the bag
-  const bagStyle = window.getComputedStyle(bag);
-  const matrix = new DOMMatrix(bagStyle.transform);
-  const startX = matrix.m41 + 17; // Center X of bag
-  const startY = matrix.m42 + 17; // Center Y of bag
+function launchBag(vx, vy) {
+  // Get current bag position
+  const bagRect = bag.getBoundingClientRect();
+  const startX = bagRect.left + bagRect.width/2;
+  const startY = bagRect.top + bagRect.height/2;
   
-  console.log("Starting at X: " + startX + ", Y: " + startY);
+  // Remove any transitions
+  bag.style.transition = '';
+  shadow.style.transition = '';
   
-  // Basic physics constants
-  const gravity = planet.g * 0.2; // Gravity constant (adjust as needed)
+  // Game physics constants
+  const gravity = planet.g * 0.3; // Gravity factor (adjusted for visual effect)
   
-  // Give visual feedback that we're throwing
-  bag.style.transition = 'transform 0.1s ease';
-  bag.style.transform = `translate(${startX - 17}px, ${startY - 17}px) scale(1.2)`;
+  // Animation state
+  let posX = startX;
+  let posY = startY;
+  let velX = vx;
+  let velY = vy;
+  let lastTime = performance.now();
+  let landed = false;
   
-  // After the visual feedback, start the animation
-  setTimeout(() => {
-    bag.style.transition = '';
-    shadow.style.transition = '';
+  // Create helper element to visualize trajectory (for debugging)
+  const tracer = document.createElement('div');
+  tracer.style.position = 'absolute';
+  tracer.style.top = '0';
+  tracer.style.left = '0';
+  tracer.style.width = '100%';
+  tracer.style.height = '100%';
+  tracer.style.pointerEvents = 'none';
+  tracer.style.zIndex = '1';
+  //document.body.appendChild(tracer); // Uncomment to see path
+  
+  // Animation loop - update on each frame
+  function animate() {
+    if (landed) return;
     
-    // Animation state
-    let time = 0;
-    const dt = 1/60; // 60fps simulation
-    let x = startX;
-    let y = startY;
-    let velX = vx;
-    let velY = vy;
-    let hasLanded = false;
+    // Calculate time delta for frame
+    const now = performance.now();
+    const deltaTime = Math.min(0.03, (now - lastTime) / 1000); // Cap at 30ms to prevent huge jumps
+    lastTime = now;
     
-    // Animation loop
-    function update() {
-      // If we've landed, stop the animation
-      if (hasLanded) return;
+    // Update velocity - apply gravity
+    velY += gravity * deltaTime;
+    
+    // Update position based on velocity
+    posX += velX * deltaTime;
+    posY += velY * deltaTime;
+    
+    // Draw tracer point (for debugging)
+    if (tracer.parentNode) {
+      const point = document.createElement('div');
+      point.style.position = 'absolute';
+      point.style.width = '3px';
+      point.style.height = '3px';
+      point.style.borderRadius = '50%';
+      point.style.backgroundColor = 'red';
+      point.style.left = (posX - 1) + 'px';
+      point.style.top = (posY - 1) + 'px';
+      tracer.appendChild(point);
+    }
+    
+    // Update bag position
+    bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px)`;
+    
+    // Update shadow based on height
+    const groundY = innerHeight - 20;
+    const heightAboveGround = Math.max(0, groundY - posY);
+    const shadowScale = Math.max(0.2, 1 - heightAboveGround / 600);
+    const shadowX = posX + heightAboveGround * 0.1; // Offset based on height
+    shadow.style.transform = `translate(${shadowX - 17}px, ${groundY - 6}px) scale(${shadowScale})`;
+    
+    // Hit detection
+    
+    // 1. Check for hitting the ground
+    if (posY >= groundY - 17) {
+      landed = true;
       
-      // Update velocity due to gravity
-      velY += gravity;
+      // Bounce animation
+      bag.style.transition = 'transform 0.15s ease';
+      bag.style.transform = `translate(${posX - 17}px, ${groundY - 35}px)`;
       
-      // Update position
-      x += velX;
-      y += velY;
-      
-      // Update bag position
-      bag.style.transform = `translate(${x - 17}px, ${y - 17}px)`;
-      
-      // Update shadow
-      const groundY = innerHeight - 20;
-      const heightAboveGround = Math.max(0, groundY - y);
-      const shadowScale = Math.max(0.2, 1 - heightAboveGround / 500);
-      shadow.style.transform = `translate(${x - 17}px, ${groundY - 6}px) scale(${shadowScale})`;
-      
-      // Check if we hit the ground
-      if (y >= groundY - 17) {
-        hasLanded = true;
-        finishThrow(0); // 0 points for a miss
-        
-        // Bounce animation
-        bag.style.transition = 'transform 0.2s ease, opacity 0.5s ease';
-        shadow.style.transition = 'transform 0.2s ease, opacity 0.5s ease';
-        
-        // First bounce
-        bag.style.transform = `translate(${x - 17}px, ${groundY - 30}px)`;
+      setTimeout(() => {
+        bag.style.transform = `translate(${posX - 17}px, ${groundY - 17}px)`;
         
         setTimeout(() => {
-          // Land
-          bag.style.transform = `translate(${x - 17}px, ${groundY - 17}px)`;
+          if (tracer.parentNode) tracer.remove();
           
           // Fade out
-          setTimeout(() => {
-            bag.style.opacity = '0.5';
-            shadow.style.opacity = '0.5';
-            
-            setTimeout(() => {
-              bag.remove();
-              shadow.remove();
-            }, 500);
-          }, 300);
-        }, 200);
-        
-        return;
-      }
-      
-      // Check if we hit the board
-      const boardRect = document.getElementById('board').getBoundingClientRect();
-      const holeRect = document.getElementById('hole').getBoundingClientRect();
-      
-      // Only check for board hit when the bag is descending and near the board's height
-      if (velY > 0 && y >= boardRect.top && y <= boardRect.bottom) {
-        // Check if we hit the hole
-        const holeX = holeRect.left + holeRect.width/2;
-        const holeY = holeRect.top + holeRect.height/2;
-        const distToHole = Math.hypot(x - holeX, y - holeY);
-        
-        if (distToHole < holeRect.width/2) {
-          // We hit the hole!
-          hasLanded = true;
-          
-          // Animation for hole-in-one
-          bag.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-          bag.style.transform = `translate(${holeX - 17}px, ${holeY - 17}px) scale(0.1)`;
-          bag.style.opacity = '0';
-          shadow.style.transition = 'opacity 0.3s ease';
-          shadow.style.opacity = '0';
+          bag.style.transition = 'opacity 0.5s ease';
+          shadow.style.transition = 'opacity 0.5s ease';
+          bag.style.opacity = '0.5';
+          shadow.style.opacity = '0.5';
           
           setTimeout(() => {
             bag.remove();
             shadow.remove();
-            finishThrow(3); // 3 points for a hole-in-one
-          }, 300);
-          
-          return;
-        }
-        
-        // Check if we hit the board itself
-        if (x > boardRect.left && x < boardRect.right) {
-          hasLanded = true;
-          
-          // Animation for landing on board
-          bag.style.transition = 'transform 0.2s ease';
-          bag.style.transform = `translate(${x - 17}px, ${y - 17}px) scale(1.1)`;
-          
-          setTimeout(() => {
-            bag.style.transform = `translate(${x - 17}px, ${y - 17}px)`;
-            
-            // Score after landing animation
-            setTimeout(() => {
-              finishThrow(1); // 1 point for landing on the board
-              
-              // Fade out
-              bag.style.transition = 'opacity 0.5s ease';
-              shadow.style.transition = 'opacity 0.5s ease';
-              bag.style.opacity = '0.7';
-              shadow.style.opacity = '0';
-              
-              setTimeout(() => {
-                bag.remove();
-                shadow.remove();
-              }, 500);
-            }, 200);
-          }, 200);
-          
-          return;
-        }
-      }
+            finishThrow(0); // Miss
+          }, 500);
+        }, 300);
+      }, 150);
       
-      // Check if we've gone off-screen (missed)
-      if (x < -50 || x > innerWidth + 50 || time > 5) {
-        hasLanded = true;
+      return;
+    }
+    
+    // 2. Check for hitting the board or hole
+    const boardRect = document.getElementById('board').getBoundingClientRect();
+    const holeRect = document.getElementById('hole').getBoundingClientRect();
+    
+    // Only check board hits when bag is at approximately the right height and falling
+    if (velY > 0 && 
+        posY > boardRect.top - 10 && 
+        posY < boardRect.bottom + 10 && 
+        posX > boardRect.left - 10 && 
+        posX < boardRect.right + 10) {
+      
+      // Check for hole hit
+      const holeX = holeRect.left + holeRect.width/2;
+      const holeY = holeRect.top + holeRect.height/2;
+      const distToHole = Math.hypot(posX - holeX, posY - holeY);
+      
+      if (distToHole < holeRect.width/2) {
+        // Hit the hole!
+        landed = true;
         
-        // Fade out animation for missed shots
-        bag.style.transition = 'opacity 0.3s ease';
+        // Hole-in-one animation
+        bag.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        bag.style.transform = `translate(${holeX - 17}px, ${holeY - 17}px) scale(0.2)`;
+        bag.style.opacity = '0.2';
+        
         shadow.style.transition = 'opacity 0.3s ease';
-        bag.style.opacity = '0';
         shadow.style.opacity = '0';
         
         setTimeout(() => {
+          if (tracer.parentNode) tracer.remove();
           bag.remove();
           shadow.remove();
-          finishThrow(0); // 0 points for a miss
+          finishThrow(3); // 3 points
         }, 300);
         
         return;
       }
       
-      // Update time and continue animation
-      time += dt;
-      requestAnimationFrame(update);
+      // Check for board hit
+      if (posX > boardRect.left && posX < boardRect.right &&
+          posY > boardRect.top && posY < boardRect.bottom) {
+        // Hit the board!
+        landed = true;
+        
+        // Board landing animation
+        bag.style.transition = 'transform 0.15s ease';
+        bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px) scale(1.1)`;
+        
+        setTimeout(() => {
+          bag.style.transform = `translate(${posX - 17}px, ${posY - 17}px)`;
+          
+          setTimeout(() => {
+            if (tracer.parentNode) tracer.remove();
+            
+            finishThrow(1); // 1 point
+            
+            // Fade out over time
+            bag.style.transition = 'opacity 0.7s ease';
+            shadow.style.transition = 'opacity 0.7s ease';
+            bag.style.opacity = '0.7';
+            shadow.style.opacity = '0';
+            
+            setTimeout(() => {
+              bag.remove();
+              shadow.remove();
+            }, 700);
+          }, 300);
+        }, 150);
+        
+        return;
+      }
     }
     
-    // Start the animation
-    requestAnimationFrame(update);
-  }, 100);
+    // 3. Check if bag has gone off screen
+    if (posX < -50 || posX > innerWidth + 50 || posY < -50) {
+      landed = true;
+      
+      // Fade out animation
+      bag.style.transition = 'opacity 0.3s ease';
+      shadow.style.transition = 'opacity 0.3s ease';
+      bag.style.opacity = '0';
+      shadow.style.opacity = '0';
+      
+      setTimeout(() => {
+        if (tracer.parentNode) tracer.remove();
+        bag.remove();
+        shadow.remove();
+        finishThrow(0); // Miss
+      }, 300);
+      
+      return;
+    }
+    
+    // Continue animation
+    requestAnimationFrame(animate);
+  }
+  
+  // Start the animation loop
+  requestAnimationFrame(animate);
 }
 
 function finishThrow(points) {
