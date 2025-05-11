@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -577,29 +577,170 @@ function dragStart(e) {
   document.addEventListener('pointercancel', dragEnd);
 }
 
-function dragMove(e) {
-  if (!isDragging) return;
+function animateThrow(vx, vy) {
+  // Board position
+  const board = document.getElementById('board');
+  const boardRect = board.getBoundingClientRect();
   
-  // Calculate drag distance and direction
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
+  // Constants
+  const GRAVITY = planet.g * 0.2;
+  const DRAG = 0.99;
+  const TIME_STEP = 1000 / 60; // 60fps in milliseconds
   
-  // Draw aim line
-  const angle = Math.atan2(dy, dx);
-  const distance = Math.min(Math.hypot(dx, dy), 150);
+  // Initial state
+  let x = parseFloat(bag.style.left);
+  let y = parseFloat(bag.style.top);
+  let velocityX = vx;
+  let velocityY = vy;
+  let time = 0;
   
-  aimLine.style.width = `${distance}px`;
-  aimLine.style.left = `${start.x}px`;
-  aimLine.style.top = `${start.y}px`;
-  aimLine.style.transform = `rotate(${angle}rad)`;
+  // Debug - draw the path
+  const pathPoint = document.createElement('div');
+  pathPoint.style.position = 'absolute';
+  pathPoint.style.width = '5px';
+  pathPoint.style.height = '5px';
+  pathPoint.style.borderRadius = '50%';
+  pathPoint.style.backgroundColor = 'red';
+  pathPoint.style.left = (x + 17) + 'px';
+  pathPoint.style.top = (y + 17) + 'px';
+  pathDiv.appendChild(pathPoint);
   
-  // Move bag slightly (rubber band effect)
-  const dragFactor = 0.3;
-  const moveX = dx * dragFactor;
-  const moveY = dy * dragFactor;
+  // Animation function
+  function doFrame() {
+    // Apply forces
+    velocityY += GRAVITY;
+    velocityX *= DRAG;
+    velocityY *= DRAG;
+    
+    // Update position
+    x += velocityX / 10;
+    y += velocityY / 10;
+    
+    // Draw path point
+    const pathPoint = document.createElement('div');
+    pathPoint.style.position = 'absolute';
+    pathPoint.style.width = '2px';
+    pathPoint.style.height = '2px';
+    pathPoint.style.borderRadius = '50%';
+    pathPoint.style.backgroundColor = 'rgba(255,0,0,0.5)';
+    pathPoint.style.left = (x + 17) + 'px';
+    pathPoint.style.top = (y + 17) + 'px';
+    pathDiv.appendChild(pathPoint);
+    
+    // Update bag position
+    bag.style.left = x + 'px';
+    bag.style.top = y + 'px';
+    
+    // Update shadow
+    const groundY = window.innerHeight - 40;
+    const heightAboveGround = Math.max(0, groundY - y - 17);
+    const shadowScale = Math.max(0.2, 1 - heightAboveGround / 300);
+    shadow.style.left = x + 'px';
+    shadow.style.top = (groundY) + 'px';
+    shadow.style.transform = `scale(${shadowScale})`;
+    
+    // Check collision with ground
+    if (y + 35 > window.innerHeight - 20) {
+      // Bounce with ground
+      bag.style.left = x + 'px';
+      bag.style.top = (window.innerHeight - 55) + 'px';
+      
+      // Finish throw after hitting ground
+      setTimeout(() => {
+        finishThrow(0); // Miss
+        
+        // Fade out
+        bag.style.transition = 'opacity 0.5s';
+        shadow.style.transition = 'opacity 0.5s';
+        bag.style.opacity = '0.5';
+        shadow.style.opacity = '0.5';
+        
+        setTimeout(() => {
+          if (bag.parentNode) bag.remove();
+          if (shadow.parentNode) shadow.remove();
+          if (pathDiv.parentNode) pathDiv.remove();
+        }, 500);
+      }, 200);
+      
+      return; // Stop animation
+    }
+    
+    // Check collision with board
+    const holeCenterX = boardRect.left + boardRect.width/2;
+    const holeCenterY = boardRect.top + boardRect.height/5; // Hole is at top 1/5 of board
+    const distToHole = Math.hypot((x + 17) - holeCenterX, (y + 17) - holeCenterY);
+    
+    if (y >= boardRect.top && y <= boardRect.bottom && x >= boardRect.left && x <= boardRect.right) {
+      // Hit the board
+      
+      // Check if in hole
+      if (distToHole < 20) {
+        // Hit the hole
+        bag.style.left = (holeCenterX - 17) + 'px';
+        bag.style.top = (holeCenterY - 17) + 'px';
+        bag.style.transition = 'transform 0.3s, opacity 0.3s';
+        bag.style.transform = 'scale(0.1)';
+        bag.style.opacity = '0';
+        
+        shadow.style.transition = 'opacity 0.3s';
+        shadow.style.opacity = '0';
+        
+        setTimeout(() => {
+          finishThrow(3); // 3 points for hole
+          if (bag.parentNode) bag.remove();
+          if (shadow.parentNode) shadow.remove();
+          if (pathDiv.parentNode) pathDiv.remove();
+        }, 300);
+      } else {
+        // Hit the board but not the hole
+        bag.style.left = x + 'px';
+        bag.style.top = y + 'px';
+        
+        setTimeout(() => {
+          finishThrow(1); // 1 point for board
+          
+          // Fade out
+          bag.style.transition = 'opacity 0.5s';
+          shadow.style.transition = 'opacity 0.5s';
+          bag.style.opacity = '0.7';
+          shadow.style.opacity = '0';
+          
+          setTimeout(() => {
+            if (bag.parentNode) bag.remove();
+            if (shadow.parentNode) shadow.remove();
+            if (pathDiv.parentNode) pathDiv.remove();
+          }, 500);
+        }, 200);
+      }
+      
+      return; // Stop animation
+    }
+    
+    // Check if the bag has gone off-screen
+    if (x < -50 || x > window.innerWidth + 50 || y < -50 || time > 2000) {
+      // Off screen or timeout
+      bag.style.transition = 'opacity 0.3s';
+      shadow.style.transition = 'opacity 0.3s';
+      bag.style.opacity = '0';
+      shadow.style.opacity = '0';
+      
+      setTimeout(() => {
+        finishThrow(0); // Miss
+        if (bag.parentNode) bag.remove();
+        if (shadow.parentNode) shadow.remove();
+        if (pathDiv.parentNode) pathDiv.remove();
+      }, 300);
+      
+      return; // Stop animation
+    }
+    
+    // Continue animation
+    time += TIME_STEP;
+    requestAnimationFrame(doFrame);
+  }
   
-  bag.style.transform = `translate(${start.x - 17 + moveX}px, ${start.y - 17 + moveY}px)`;
-  shadow.style.transform = `translate(${start.x - 17 + moveX}px, ${start.y - 17 + moveY + 10}px)`;
+  // Start animation
+  requestAnimationFrame(doFrame);
 }
 
 function dragEnd(e) {
