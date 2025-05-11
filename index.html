@@ -1,102 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Space Cornhole — Multiplayer v2 (fixed arc)</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Space Cornhole — Multiplayer v2</title>
 
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    html,body{height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#87CEEB 0%,#90EE90 100%);overflow:hidden}
-    h1{color:#333;margin-bottom:1.5rem;text-shadow:1px 1px 3px rgba(255,255,255,.7)}
-    .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;transition:opacity .3s ease}
-    #setup{display:flex}
-    button{padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:background .2s,transform .1s;white-space:nowrap}
-    button:hover{background:#d42e4a;transform:translateY(-2px)}
-    button:active{transform:translateY(0)}
-    label{font-weight:500;margin-bottom:.5rem;display:block}
-    select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:inherit;width:100%;margin-top:.25rem}
-    .input-group{width:300px;margin-bottom:1rem}
-    #board{position:absolute;width:120px;height:200px;left:50%;top:30%;transform:translate(-50%,-50%);background:#8B4513;border:8px solid #654321;border-radius:8px;box-shadow:0 10px 20px rgba(0,0,0,.3)}
-    #hole{position:absolute;width:35px;height:35px;left:50%;top:20%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px rgba(0,0,0,.5)}
-    .bag{position:absolute;width:35px;height:35px;border-radius:5px;background:var(--clr);box-shadow:0 2px 5px rgba(0,0,0,.25);will-change:transform;z-index:10}
-    .shadow{position:absolute;width:35px;height:12px;border-radius:50%;background:rgba(0,0,0,.2);will-change:transform;pointer-events:none}
-    #hud{position:absolute;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1rem;pointer-events:none;z-index:20}
-    #planet,#scoreAndTurn,#throws{background:rgba(255,255,255,.8);padding:.3rem .8rem;border-radius:.4rem;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1);pointer-events:auto}
-    #scoreAndTurn{display:flex;align-items:center;gap:1rem}
-    #instructions{background:rgba(255,255,255,.8);padding:1rem;border-radius:.5rem;margin-top:1rem;max-width:400px;font-size:.9rem;line-height:1.4}
-    /* waiting animation dots */
-    .waiting-animation{display:inline-block;position:relative;width:80px;height:12px}
-    .waiting-animation div{position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:#c41e3a;animation-timing-function:cubic-bezier(0,1,1,0)}
-    .waiting-animation div:nth-child(1){left:8px;animation:waiting1 1s infinite}
-    .waiting-animation div:nth-child(2){left:8px;animation:waiting2 1s infinite}
-    .waiting-animation div:nth-child(3){left:32px;animation:waiting2 1s infinite}
-    .waiting-animation div:nth-child(4){left:56px;animation:waiting3 1s infinite}
-    @keyframes waiting1{0%{transform:scale(0)}100%{transform:scale(1)}}
-    @keyframes waiting2{0%{transform:translate(0,0)}100%{transform:translate(24px,0)}}
-    @keyframes waiting3{0%{transform:scale(1)}100%{transform:scale(0)}}
-  </style>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#87CEEB 0%,#90EE90 100%);overflow:hidden}
+/* —— layout —— */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;transition:opacity .3s}
+#setup{display:flex}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1rem;z-index:30}
+#planet,#scoreAndTurn,#throws{background:rgba(255,255,255,.85);padding:.3rem .8rem;border-radius:.45rem;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#scoreAndTurn{flex-direction:row;gap:1rem}
+/* —— board —— */
+#board{position:absolute;width:120px;height:200px;left:50%;top:45%;transform:translate(-50%,-50%);background:#8B4513;border:8px solid #654321;border-radius:8px;box-shadow:0 10px 20px rgba(0,0,0,.35)}
+#hole{position:absolute;width:35px;height:35px;left:50%;top:20%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px rgba(0,0,0,.5)}
+/* —— bag + shadow —— */
+.bag{position:absolute;width:35px;height:35px;border-radius:5px;background:var(--clr);box-shadow:0 2px 5px rgba(0,0,0,.25);will-change:transform;z-index:20}
+.shadow{position:absolute;width:35px;height:12px;border-radius:50%;background:rgba(0,0,0,.2);will-change:transform;pointer-events:none;z-index:10}
+/* —— misc UI elements (unchanged styles trimmed for brevity) —— */
+button{padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer}
+button:hover{background:#d42e4a}
+label{font-weight:500;display:block;margin-bottom:.4rem}
+select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:inherit;width:100%}
+.input-group{width:300px;margin-bottom:1rem}
+#instructions{background:rgba(255,255,255,.85);padding:1rem;border-radius:.5rem;max-width:400px;font-size:.9rem;line-height:1.4}
+.waiting-animation{display:inline-block;position:relative;width:80px;height:12px}
+.waiting-animation div{position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:#c41e3a;animation-timing-function:cubic-bezier(0,1,1,0)}
+.waiting-animation div:nth-child(1){left:8px;animation:waiting1 1s infinite}
+.waiting-animation div:nth-child(2){left:8px;animation:waiting2 1s infinite}
+.waiting-animation div:nth-child(3){left:32px;animation:waiting2 1s infinite}
+.waiting-animation div:nth-child(4){left:56px;animation:waiting3 1s infinite}
+@keyframes waiting1{0%{transform:scale(0)}100%{transform:scale(1)}}
+@keyframes waiting2{0%{transform:translate(0,0)}100%{transform:translate(24px,0)}}
+@keyframes waiting3{0%{transform:scale(1)}100%{transform:scale(0)}}
+</style>
 </head>
 <body>
 
-  <!-- SETUP SCREEN -->
-  <div id="setup" class="screen">
-    <h1>Space Cornhole</h1>
-    <div class="input-group">
-      <label for="planetSel">Select Gravity:</label>
-      <select id="planetSel">
-        <option value="earth">Earth (9.8)</option>
-        <option value="moon">Moon (1.6)</option>
-        <option value="mars">Mars (3.7)</option>
-        <option value="jupiter">Jupiter (24.8)</option>
-      </select>
-    </div>
-    <button id="create">Create New Game</button>
-    <div class="input-group">
-      <label for="joinId">Join Existing Game:</label>
-      <input id="joinId" placeholder="Enter Game ID" />
-    </div>
-    <button id="join">Join Game</button>
-    <div id="instructions">
-      <p><strong>How to play:</strong> Drag and release to throw your bean bags toward the board. Score 1 point for landing on the board, 3 points for getting in the hole. First to 21 points wins!</p>
-    </div>
+<!-- —— SETUP —— -->
+<div id="setup" class="screen">
+  <h1>Space Cornhole</h1>
+  <div class="input-group">
+    <label for="planetSel">Select Gravity:</label>
+    <select id="planetSel">
+      <option value="earth">Earth (9.8)</option>
+      <option value="moon">Moon (1.6)</option>
+      <option value="mars">Mars (3.7)</option>
+      <option value="jupiter">Jupiter (24.8)</option>
+    </select>
   </div>
+  <button id="create">Create New Game</button>
+  <div class="input-group">
+    <label for="joinId">Join Existing Game:</label>
+    <input id="joinId" placeholder="Enter Game ID" />
+  </div>
+  <button id="join">Join Game</button>
+  <div id="instructions">
+    <p><strong>How to play:</strong> Drag a bag down and back, release, and it will fly opposite your pull. Land on the board for 1 pt, in the hole for 3 pts. First to 21 wins.</p>
+  </div>
+</div>
 
-  <!-- WAIT SCREEN -->
-  <div id="wait" class="screen">
-    <h2>Game Created!</h2>
-    <p>Share this link with your opponent:</p>
-    <div class="link-container">
-      <input id="link" readonly />
-      <button id="copy">Copy</button>
-    </div>
-    <p id="waitMsg">Waiting for opponent to join…</p>
-    <div class="waiting-animation"><div></div><div></div><div></div><div></div></div>
+<!-- —— WAIT —— -->
+<div id="wait" class="screen">
+  <h2>Game Created!</h2>
+  <p>Share this link with your opponent:</p>
+  <div style="display:flex;gap:.5rem">
+    <input id="link" readonly style="width:340px" />
+    <button id="copy">Copy</button>
   </div>
+  <p id="waitMsg">Waiting for opponent…</p>
+  <div class="waiting-animation"><div></div><div></div><div></div><div></div></div>
+</div>
 
-  <!-- GAME SCREEN -->
-  <div id="game" class="screen">
-    <div id="hud">
-      <div id="planet"></div>
-      <div id="scoreAndTurn">
-        <div id="scores">0 – 0</div>
-        <div id="turn"></div>
-      </div>
-      <div id="throws"></div>
+<!-- —— GAME —— -->
+<div id="game" class="screen">
+  <div id="hud">
+    <div id="planet"></div>
+    <div id="scoreAndTurn">
+      <div id="scores">0 – 0</div>
+      <div id="turn"></div>
     </div>
-    <div id="board"><div id="hole"></div></div>
+    <div id="throws"></div>
   </div>
+  <div id="board"><div id="hole"></div></div>
+</div>
 
-  <!-- RESULT SCREEN -->
-  <div id="result" class="screen">
-    <h2 id="msg"></h2>
-    <button id="again">Play Again</button>
-  </div>
+<!-- —— RESULT —— -->
+<div id="result" class="screen">
+  <h2 id="msg"></h2>
+  <button id="again">Play Again</button>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 <script>
-/* –––– Firebase –––– */
+/* ——— Firebase ——— */
 firebase.initializeApp({
   apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
   authDomain:"galaxy-hole-53c76.firebaseapp.com",
@@ -107,127 +108,115 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-/* –––– Physics presets –––– */
-const planets={
-  earth:{g:9.8,name:"Earth"},
-  moon:{g:1.6,name:"Moon"},
-  mars:{g:3.7,name:"Mars"},
-  jupiter:{g:24.8,name:"Jupiter"}
+/* ——— physics + game constants ——— */
+const planets = {
+  earth:   {g:9.8,  name:"Earth"},
+  moon:    {g:1.6,  name:"Moon"},
+  mars:    {g:3.7,  name:"Mars"},
+  jupiter: {g:24.8, name:"Jupiter"}
 };
 let planet = planets.earth;
+const MAX=4, WIN=21;
 
-/* –––– State –––– */
-let gameId=null,me=null,turn=1;
-let throws={1:0,2:0},score={1:0,2:0};
-const MAX=4,WIN=21;
-const pid=(()=>{let v=localStorage.pid;if(!v){v=Math.random().toString(36).slice(2,9);localStorage.pid=v;}return v;})();
+/* ——— state ——— */
+let gameId=null, me=null, turn=1;
+let throws={1:0,2:0}, score={1:0,2:0};
+const pid=(()=>{let v=localStorage.pid; if(!v){v=Math.random().toString(36).slice(2,9);localStorage.pid=v;} return v;})();
 
-/* –––– DOM helpers –––– */
+/* ——— helpers ——— */
 const $=id=>document.getElementById(id);
 const screens={setup:$('setup'),wait:$('wait'),game:$('game'),result:$('result')};
 function show(scr){Object.values(screens).forEach(s=>{s.style.display=s===scr?'flex':'none';if(s===scr){s.style.opacity=0;setTimeout(()=>s.style.opacity=1,10);}})}
-show(screens.setup);
 
-/* –––– UI actions –––– */
+/* ——— UI handlers ——— */
 $('planetSel').onchange=e=>planet=planets[e.target.value];
 $('copy').onclick=()=>{navigator.clipboard.writeText($('link').value);$('copy').textContent="Copied!";setTimeout(()=>$('copy').textContent="Copy",2000);};
 $('again').onclick=()=>location.href=location.pathname;
+show(screens.setup);
 
+/* ——— create & join ——— */
 $('create').onclick=async()=>{
-  try{
-    const doc=await db.collection('cornhole').add({
-      p1:pid,p2:null,planet:$('planetSel').value,st:'wait',
-      turn:1,sc:{1:0,2:0},th:{1:0,2:0},bags:{1:[],2:[]}
-    });
-    gameId=doc.id;me=1;planet=planets[$('planetSel').value];
-    $('link').value=`${location.origin}${location.pathname}?id=${gameId}`;
-    show(screens.wait);
-    listen();
-  }catch(err){alert("Error creating game: "+err.message);}
+  const doc=await db.collection('cornhole').add({
+    p1:pid,p2:null,planet:$('planetSel').value,st:'wait',
+    turn:1,sc:{1:0,2:0},th:{1:0,2:0},bags:{1:[],2:[]}
+  });
+  gameId=doc.id; me=1; planet=planets[$('planetSel').value];
+  $('link').value=`${location.origin}${location.pathname}?id=${gameId}`;
+  show(screens.wait); listen();
 };
 
 $('join').onclick=()=>join($('joinId').value.trim());
 async function join(id){
-  if(!id){alert("Please enter a Game ID");return;}
-  try{
-    gameId=id;me=2;
-    const ref=db.collection('cornhole').doc(id);
-    const snap=await ref.get();
-    if(!snap.exists){alert("Game not found.");return;}
-    const d=snap.data();
-    if(d.p2&&d.p2!==pid){alert("Game already full");return;}
-    await ref.update({p2:pid,st:'play'});
-    listen();show(screens.game);
-  }catch(err){alert("Error joining: "+err.message);}
+  if(!id){alert("Enter Game ID");return;}
+  const ref=db.collection('cornhole').doc(id); const snap=await ref.get();
+  if(!snap.exists){alert("Game not found");return;}
+  if(snap.data().p2 && snap.data().p2!==pid){alert("Game full");return;}
+  gameId=id; me=2;
+  await ref.update({p2:pid,st:'play'});
+  listen(); show(screens.game);
 }
 
-/* –––– auto-join via URL –––– */
+/* auto-join */
 const qp=new URLSearchParams(location.search);
 if(qp.has('id')) join(qp.get('id'));
 
-/* –––– Firestore listener –––– */
-let fbUnsub=null;
+/* ——— Firestore listener ——— */
+let unsub=null;
 function listen(){
-  if(fbUnsub)fbUnsub();
-  fbUnsub=db.collection('cornhole').doc(gameId).onSnapshot(snap=>{
-    if(!snap.exists){alert("Game was deleted");location.href=location.pathname;return;}
+  if(unsub)unsub();
+  unsub=db.collection('cornhole').doc(gameId).onSnapshot(snap=>{
+    if(!snap.exists){alert("Game deleted");location.href=location.pathname;return;}
     const d=snap.data();
-    planet = planets[d.planet]||planets.earth;
-    turn   = d.turn;
-    throws = d.th;
-    score  = d.sc;
-    updateUI(d.st,d.bags);
-  },err=>alert("Firestore error: "+err.message));
-  window.addEventListener('beforeunload',fbUnsub);
+    planet=planets[d.planet]; turn=d.turn; throws=d.th; score=d.sc;
+    updateUI(d.st);
+  });
+  window.addEventListener('beforeunload',unsub);
 }
 
-/* –––– UI refresh –––– */
-function updateUI(st,bags){
+/* ——— UI refresh ——— */
+function updateUI(st){
   $('scores').textContent=`${score[1]} – ${score[2]}`;
-  $('turn').textContent = turn===me?'Your turn':"Opponent's turn";
+  $('turn').textContent=turn===me?'Your turn':"Opponent's turn";
   $('throws').textContent=`Throws: ${throws[1]}/${MAX} – ${throws[2]}/${MAX}`;
   $('planet').textContent=`Gravity: ${planet.name}`;
 
-  if(st==='wait'){show(me===1?screens.wait:screens.game);}
+  if(st==='wait') show(me===1?screens.wait:screens.game);
   else if(st==='play'){
     show(screens.game);
-    if(turn===me&&throws[me]<MAX&&!document.querySelector('.bag')) spawnBag();
-  }
-  else if(st==='end'){
+    if(turn===me && throws[me]<MAX && !document.querySelector('.bag')) spawnBag();
+  } else if(st==='end'){
     show(screens.result);
     $('msg').textContent = score[me]>score[3-me]?'You win!':'You lose!';
   }
 }
 
-/* –––– Bag, drag, throw –––– */
-let bag,shadow,start,isDragging=false,dragStartX,dragStartY,aimLine;
+/* ——— bag / drag / throw ——— */
+let bag,shadow,isDragging=false,startX,startY,aimLine;
 
 function spawnBag(){
   document.querySelectorAll('.bag,.shadow').forEach(el=>el.remove());
-  if(aimLine)aimLine.remove();
+  if(aimLine) aimLine.remove();
 
   bag=document.createElement('div');
   bag.className='bag';
   bag.style.setProperty('--clr',me===1?'#c41e3a':'#4287f5');
-  shadow=document.createElement('div');
-  shadow.className='shadow';
+  shadow=document.createElement('div'); shadow.className='shadow';
   document.body.append(bag,shadow);
 
-  const x=innerWidth/2-17,y=innerHeight-60;
-  bag.style.transform=`translate(${x}px,${y}px)`;
-  shadow.style.transform=`translate(${x}px,${innerHeight-6}px)`;
-  document.addEventListener('pointerdown',dragStart,{once:true});
+  const x=innerWidth/2-17, y=innerHeight-60;
+  bag.style.transform=`translate(${x}px,${y}px)`; shadow.style.transform=`translate(${x}px,${innerHeight-6}px)`;
+
+  bag.addEventListener('pointerdown',dragStart,{once:true});
 }
 
 function dragStart(e){
-  if(turn!==me)return;
-  e.preventDefault();isDragging=true;
-  const r=bag.getBoundingClientRect();
-  start={x:r.left+r.width/2,y:r.top+r.height/2};
-  dragStartX=e.clientX;dragStartY=e.clientY;
+  if(turn!==me) return;
+  e.preventDefault(); isDragging=true;
+  const rect=bag.getBoundingClientRect();
+  startX=rect.left+rect.width/2; startY=rect.top+rect.height/2;
 
   aimLine=document.createElement('div');
-  aimLine.style.cssText='position:absolute;height:2px;background:rgba(255,255,255,.8);transform-origin:center bottom;z-index:5;pointer-events:none';
+  aimLine.style.cssText='position:absolute;height:2px;background:#fff;transform-origin:left center;pointer-events:none;z-index:25';
   document.body.appendChild(aimLine);
 
   document.addEventListener('pointermove',dragMove);
@@ -236,125 +225,114 @@ function dragStart(e){
 }
 
 function dragMove(e){
-  if(!isDragging)return;
-  const cx=e.clientX,cy=e.clientY;
-  bag.style.transform=`translate(${cx-17}px,${cy-17}px)`;
-  shadow.style.transform=`translate(${cx-17}px,${innerHeight-6}px) scale(.9)`;
-
-  const dx=cx-start.x,dy=cy-start.y,len=Math.hypot(dx,dy),ang=Math.atan2(dy,dx);
+  if(!isDragging) return;
+  const x=e.clientX, y=e.clientY;
+  bag.style.transform=`translate(${x-17}px,${y-17}px)`;
+  shadow.style.transform=`translate(${x-17}px,${innerHeight-6}px) scale(.9)`;
+  const dx=x-startX, dy=y-startY, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx);
   aimLine.style.width=len+'px';
-  aimLine.style.transform=`translate(${start.x}px,${start.y}px) rotate(${ang}rad)`;
+  aimLine.style.transform=`translate(${startX}px,${startY}px) rotate(${ang}rad)`;
 }
 
 function dragEnd(e){
-  if(!isDragging)return;
-  isDragging=false;
+  if(!isDragging) return; isDragging=false;
   document.removeEventListener('pointermove',dragMove);
   document.removeEventListener('pointerup',dragEnd);
   document.removeEventListener('pointercancel',dragEnd);
   if(aimLine){aimLine.remove();aimLine=null;}
 
-  const dx=e.clientX-dragStartX,dy=e.clientY-dragStartY,dist=Math.hypot(dx,dy);
-  if(dist<10)return;                                // tiny tap
+  const pullX=e.clientX-startX, pullY=e.clientY-startY;
+  const dist=Math.hypot(pullX,pullY);
+  if(dist<10) return;                         // tiny tap
 
-  const angle=Math.atan2(dy,dx)+Math.PI;
-  const POWER_MULT=7;
-  const power=Math.min(dist*POWER_MULT,2200);
-  const vx=Math.cos(angle)*power, vy=Math.sin(angle)*power;
+  /* throw opposite the pull */
+  const POWER=9;                             // tweak strength
+  const vx = (startX - e.clientX)*POWER;
+  const vy = (startY - e.clientY)*POWER;
 
   launchBag(vx,vy);
 }
 
-/* –––– Physics / launch –––– */
-function launchBag(vx0,vy0){
-  const r=bag.getBoundingClientRect();
-  let x=r.left+r.width/2, y=r.top+r.height/2;
-  let vx=vx0, vy=vy0;
-  const g=planet.g*120;                // screen-tuned
-  const groundY=innerHeight-20;
-  let last=performance.now(),landed=false;
+/* ——— physics loop ——— */
+function launchBag(vx,vy){
+  const rect=bag.getBoundingClientRect();
+  let x=rect.left+rect.width/2, y=rect.top+rect.height/2;
+  const g=planet.g*120;                      // px/s²
+  const ground=innerHeight-20;
+  let last=performance.now(),done=false;
 
-  (function frame(now){
-    if(landed)return;
-    const dt=(now-last)/1000;last=now;
+  requestAnimationFrame(function step(now){
+    if(done) return;
+    const dt=(now-last)/1000; last=now;
     x+=vx*dt; y+=vy*dt; vy+=g*dt;
 
     bag.style.transform=`translate(${x-17}px,${y-17}px)`;
-    const h=Math.max(0,groundY-y);
-    const s=Math.max(.25,1-h/700);
-    shadow.style.transform=`translate(${x-17}px,${groundY-6}px) scale(${s})`;
+    const h=Math.max(0,ground-y), s=Math.max(.25,1-h/700);
+    shadow.style.transform=`translate(${x-17}px,${ground-6}px) scale(${s})`;
 
+    /* collisions */
     const board=$('board').getBoundingClientRect();
-    const hole =$('hole').getBoundingClientRect();
+    const hole =$ ('hole' ).getBoundingClientRect();
 
     // ground
-    if(y>=groundY-17){landed=true;finishThrow(0);fadeOut();return;}
+    if(y>=ground-17){ done=true; finishThrow(0); fade(); return; }
 
-    // board/hole
-    if(vy>0&&x>board.left&&x<board.right&&y>board.top&&y<board.bottom){
-      const hx=hole.left+hole.width/2, hy=hole.top+hole.height/2;
-      const inHole=Math.hypot(x-hx,y-hy)<hole.width/2;
-      landed=true;finishThrow(inHole?3:1);fadeOut(inHole?.2:.7);return;
+    // board / hole
+    if(vy>0 && x>board.left && x<board.right && y>board.top && y<board.bottom){
+      const cx=hole.left+hole.width/2, cy=hole.top+hole.height/2;
+      const inHole=Math.hypot(x-cx,y-cy)<hole.width/2;
+      done=true; finishThrow(inHole?3:1); fade(inHole?.2:.7); return;
     }
 
-    // off screen
-    if(x<-60||x>innerWidth+60||y<-80){landed=true;finishThrow(0);fadeOut();return;}
+    // off-screen failsafe
+    if(x<-80||x>innerWidth+80||y<-100){ done=true; finishThrow(0); fade(); return; }
 
-    requestAnimationFrame(frame);
-  })(last);
+    requestAnimationFrame(step);
+  });
 
-  function fadeOut(op=.5){
+  function fade(op=.5){
     bag.style.transition=shadow.style.transition='opacity .4s ease';
     bag.style.opacity=shadow.style.opacity=op;
     setTimeout(()=>{bag.remove();shadow.remove();},450);
   }
 }
 
-/* –––– Game scoring –––– */
-function finishThrow(points){
+/* ——— scoring ——— */
+function finishThrow(pts){
   db.runTransaction(async tx=>{
-    const ref=db.collection('cornhole').doc(gameId);
-    const snap=await tx.get(ref);
-    if(!snap.exists)throw new Error("Game missing");
+    const ref=db.collection('cornhole').doc(gameId), snap=await tx.get(ref);
     const d=snap.data();
-    if(!d.bags)d.bags={1:[],2:[]};
-    d.bags[me].push({pts:points});
+    if(!d.bags) d.bags={1:[],2:[]};
+    d.bags[me].push({pts});
     d.th[me]++;
 
-    showPointsFeedback(points);
+    showFlyText(pts);
 
-    if(d.th[1]>=MAX&&d.th[2]>=MAX){
-      scoreRound(d);
-    }else{
+    if(d.th[1]>=MAX && d.th[2]>=MAX){
+      const p1=d.bags[1].reduce((s,b)=>s+b.pts,0);
+      const p2=d.bags[2].reduce((s,b)=>s+b.pts,0);
+      const diff=Math.abs(p1-p2);
+      if(p1>p2) d.sc[1]+=diff; else if(p2>p1) d.sc[2]+=diff;
+      d.bags={1:[],2:[]}; d.th={1:0,2:0}; d.turn=1;
+      if(d.sc[1]>=WIN||d.sc[2]>=WIN) d.st='end';
+    } else {
       d.turn=3-d.turn;
     }
-    d.st='play';
-    tx.set(ref,d);
-  }).catch(err=>alert("Game error: "+err.message));
+    d.st='play'; tx.set(ref,d);
+  });
 }
 
-function showPointsFeedback(points){
-  const el=document.createElement('div');
-  el.style.cssText='position:absolute;top:40%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:64px;font-weight:bold;color:white;text-shadow:0 0 10px rgba(0,0,0,.5);transition:transform .3s,opacity .3s;opacity:0;z-index:100';
-  if(points===3){el.textContent='+3!';el.style.color='#FFD700';}
-  else if(points===1){el.textContent='+1';}
-  else {el.textContent='Miss';el.style.color='#FF5555';}
-  document.body.appendChild(el);
-  setTimeout(()=>{el.style.opacity=1;el.style.transform='translate(-50%,-50%) scale(1)';setTimeout(()=>{
-    el.style.opacity=0;el.style.transform='translate(-50%,-100%) scale(.8)';setTimeout(()=>el.remove(),300);
-  },800);},10);
-}
-
-function scoreRound(d){
-  const p1=d.bags[1].reduce((s,b)=>s+b.pts,0);
-  const p2=d.bags[2].reduce((s,b)=>s+b.pts,0);
-  const diff=Math.abs(p1-p2);
-  if(p1>p2)d.sc[1]+=diff;
-  else if(p2>p1)d.sc[2]+=diff;
-  d.bags={1:[],2:[]};
-  d.th={1:0,2:0};
-  d.turn=1;
-  if(d.sc[1]>=WIN||d.sc[2]>=WIN)d.st='end';
+function showFlyText(pts){
+  const t=document.createElement('div');
+  t.style.cssText='position:absolute;top:42%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:60px;font-weight:bold;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.6);transition:.3s;z-index:40';
+  t.textContent=pts===3?'+3!':pts===1?'+1':'Miss';
+  if(pts===3) t.style.color='#FFD700'; else if(pts===0) t.style.color='#FF4444';
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.transform='translate(-50%,-50%) scale(1)';t.style.opacity='1';
+    setTimeout(()=>{t.style.transform='translate(-50%,-120%) scale(.8)';t.style.opacity='0';
+      setTimeout(()=>t.remove(),300);
+    },800);
+  },20);
 }
 </script>
 </body>
