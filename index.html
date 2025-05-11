@@ -3,48 +3,139 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>Space Cornhole — Multiplayer v2</title>
+<title>Space Cornhole — Multiplayer v3</title>
 
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#87CEEB 0%,#90EE90 100%);overflow:hidden}
+* {box-sizing:border-box;margin:0;padding:0}
+html, body {height:100%;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(#1E3B70 0%, #090979 50%, #00d4ff 100%);overflow:hidden}
 /* —— layout —— */
-.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;transition:opacity .3s}
-#setup{display:flex}
-#hud{position:absolute;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1rem;z-index:30}
-#planet,#scoreAndTurn,#throws{background:rgba(255,255,255,.85);padding:.3rem .8rem;border-radius:.45rem;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-#scoreAndTurn{flex-direction:row;gap:1rem}
+.screen {position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;transition:opacity .3s}
+#setup {display:flex}
+#hud {position:absolute;top:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:1rem;z-index:30}
+#planet, #scoreAndTurn, #throws {background:rgba(255,255,255,.85);padding:.3rem .8rem;border-radius:.45rem;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#scoreAndTurn {flex-direction:row;gap:1rem}
 /* —— board —— */
-#board{position:absolute;width:120px;height:200px;left:50%;top:45%;transform:translate(-50%,-50%);background:#8B4513;border:8px solid #654321;border-radius:8px;box-shadow:0 10px 20px rgba(0,0,0,.35)}
-#hole{position:absolute;width:35px;height:35px;left:50%;top:20%;transform:translate(-50%,-50%);border-radius:50%;background:#000;box-shadow:inset 0 0 10px rgba(0,0,0,.5)}
+#board {
+  position:absolute;
+  width:120px;
+  height:200px;
+  left:50%;
+  top:45%;
+  transform:translate(-50%,-50%) perspective(800px) rotateX(10deg);
+  background:#8B4513;
+  border:8px solid #654321;
+  border-radius:8px;
+  box-shadow:0 10px 20px rgba(0,0,0,.35);
+  transition: transform 0.3s ease;
+}
+#hole {
+  position:absolute;
+  width:35px;
+  height:35px;
+  left:50%;
+  top:20%;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:#000;
+  box-shadow:inset 0 0 10px rgba(0,0,0,.5)
+}
 /* —— bag + shadow —— */
-.bag{position:absolute;width:35px;height:35px;border-radius:5px;background:var(--clr);box-shadow:0 2px 5px rgba(0,0,0,.25);will-change:transform;z-index:20}
-.shadow{position:absolute;width:35px;height:12px;border-radius:50%;background:rgba(0,0,0,.2);will-change:transform;pointer-events:none;z-index:10}
-/* —— misc UI elements (unchanged styles trimmed for brevity) —— */
-button{padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer}
-button:hover{background:#d42e4a}
-label{font-weight:500;display:block;margin-bottom:.4rem}
-select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:inherit;width:100%}
-.input-group{width:300px;margin-bottom:1rem}
-#instructions{background:rgba(255,255,255,.85);padding:1rem;border-radius:.5rem;max-width:400px;font-size:.9rem;line-height:1.4}
-.waiting-animation{display:inline-block;position:relative;width:80px;height:12px}
-.waiting-animation div{position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:#c41e3a;animation-timing-function:cubic-bezier(0,1,1,0)}
-.waiting-animation div:nth-child(1){left:8px;animation:waiting1 1s infinite}
-.waiting-animation div:nth-child(2){left:8px;animation:waiting2 1s infinite}
-.waiting-animation div:nth-child(3){left:32px;animation:waiting2 1s infinite}
-.waiting-animation div:nth-child(4){left:56px;animation:waiting3 1s infinite}
-@keyframes waiting1{0%{transform:scale(0)}100%{transform:scale(1)}}
-@keyframes waiting2{0%{transform:translate(0,0)}100%{transform:translate(24px,0)}}
-@keyframes waiting3{0%{transform:scale(1)}100%{transform:scale(0)}}
+.bag {
+  position:absolute;
+  width:35px;
+  height:35px;
+  border-radius:5px;
+  background:var(--clr);
+  box-shadow:0 2px 5px rgba(0,0,0,.25);
+  transform-style: preserve-3d;
+  will-change:transform;
+  z-index:20;
+}
+.shadow {
+  position:absolute;
+  width:35px;
+  height:12px;
+  border-radius:50%;
+  background:rgba(0,0,0,.2);
+  will-change:transform;
+  filter: blur(2px);
+  pointer-events:none;
+  z-index:10;
+}
+/* —— trajectory —— */
+.trajectory-point {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  z-index: 15;
+}
+/* —— misc UI elements —— */
+button {padding:.6rem 1.2rem;border:none;border-radius:.5rem;font-weight:600;color:#fff;background:#c41e3a;cursor:pointer}
+button:hover {background:#d42e4a}
+label {font-weight:500;display:block;margin-bottom:.4rem}
+select, input {padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:inherit;width:100%}
+.input-group {width:300px;margin-bottom:1rem}
+#instructions {background:rgba(255,255,255,.85);padding:1rem;border-radius:.5rem;max-width:400px;font-size:.9rem;line-height:1.4}
+.waiting-animation {display:inline-block;position:relative;width:80px;height:12px}
+.waiting-animation div {position:absolute;top:0;width:12px;height:12px;border-radius:50%;background:#c41e3a;animation-timing-function:cubic-bezier(0,1,1,0)}
+.waiting-animation div:nth-child(1) {left:8px;animation:waiting1 1s infinite}
+.waiting-animation div:nth-child(2) {left:8px;animation:waiting2 1s infinite}
+.waiting-animation div:nth-child(3) {left:32px;animation:waiting2 1s infinite}
+.waiting-animation div:nth-child(4) {left:56px;animation:waiting3 1s infinite}
+@keyframes waiting1 {0% {transform:scale(0)} 100% {transform:scale(1)}}
+@keyframes waiting2 {0% {transform:translate(0,0)} 100% {transform:translate(24px,0)}}
+@keyframes waiting3 {0% {transform:scale(1)} 100% {transform:scale(0)}}
+
+/* —— bag rotation animation —— */
+@keyframes bag-rotation {
+  0% { transform: rotateZ(0deg); }
+  100% { transform: rotateZ(360deg); }
+}
+
+/* —— stars background —— */
+.stars {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  animation: twinkle 3s infinite;
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* —— pulse animation —— */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
 </style>
 </head>
 <body>
 
+<!-- Stars background -->
+<div class="stars" id="stars"></div>
+
 <!-- —— SETUP —— -->
 <div id="setup" class="screen">
-  <h1>Space Cornhole</h1>
+  <h1 style="color: white; text-shadow: 0 0 10px rgba(0, 212, 255, 0.7); font-size: 2.5rem;">Space Cornhole</h1>
   <div class="input-group">
-    <label for="planetSel">Select Gravity:</label>
+    <label for="planetSel" style="color: white;">Select Gravity:</label>
     <select id="planetSel">
       <option value="earth">Earth (9.8)</option>
       <option value="moon">Moon (1.6)</option>
@@ -54,24 +145,25 @@ select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:i
   </div>
   <button id="create">Create New Game</button>
   <div class="input-group">
-    <label for="joinId">Join Existing Game:</label>
+    <label for="joinId" style="color: white;">Join Existing Game:</label>
     <input id="joinId" placeholder="Enter Game ID" />
   </div>
   <button id="join">Join Game</button>
   <div id="instructions">
     <p><strong>How to play:</strong> Drag a bag down and back, release, and it will fly opposite your pull. Land on the board for 1 pt, in the hole for 3 pts. First to 21 wins.</p>
+    <p><strong>Tip:</strong> The bag's trajectory follows realistic physics based on the selected gravity!</p>
   </div>
 </div>
 
 <!-- —— WAIT —— -->
 <div id="wait" class="screen">
-  <h2>Game Created!</h2>
-  <p>Share this link with your opponent:</p>
+  <h2 style="color: white; text-shadow: 0 0 10px rgba(0, 212, 255, 0.7);">Game Created!</h2>
+  <p style="color: white;">Share this link with your opponent:</p>
   <div style="display:flex;gap:.5rem">
     <input id="link" readonly style="width:340px" />
     <button id="copy">Copy</button>
   </div>
-  <p id="waitMsg">Waiting for opponent…</p>
+  <p id="waitMsg" style="color: white;">Waiting for opponent…</p>
   <div class="waiting-animation"><div></div><div></div><div></div><div></div></div>
 </div>
 
@@ -90,13 +182,34 @@ select,input{padding:.5rem 1rem;border:2px solid #444;border-radius:.4rem;font:i
 
 <!-- —— RESULT —— -->
 <div id="result" class="screen">
-  <h2 id="msg"></h2>
+  <h2 id="msg" style="color: white; text-shadow: 0 0 10px rgba(0, 212, 255, 0.7);"></h2>
   <button id="again">Play Again</button>
 </div>
+
+<!-- —— TRAJECTORY PREDICTION (hidden until needed) —— -->
+<div id="trajectory" style="display: none;"></div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 <script>
+/* ——— Create stars background ——— */
+function createStars() {
+  const starsContainer = document.getElementById('stars');
+  const starCount = 150;
+  
+  for (let i = 0; i < starCount; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = `${Math.random() * 100}%`;
+    star.style.top = `${Math.random() * 100}%`;
+    star.style.width = `${Math.random() * 2 + 1}px`;
+    star.style.height = star.style.width;
+    star.style.animationDelay = `${Math.random() * 3}s`;
+    starsContainer.appendChild(star);
+  }
+}
+createStars();
+
 /* ——— Firebase ——— */
 firebase.initializeApp({
   apiKey:"AIzaSyBMuOpUCgNHUkccH_ENPE9l-iQApvdHtA4",
@@ -110,229 +223,1652 @@ const db = firebase.firestore();
 
 /* ——— physics + game constants ——— */
 const planets = {
-  earth:   {g:9.8,  name:"Earth"},
-  moon:    {g:1.6,  name:"Moon"},
-  mars:    {g:3.7,  name:"Mars"},
-  jupiter: {g:24.8, name:"Jupiter"}
+  earth:   {g: 9.8,  name: "Earth", color: "#87CEEB"},
+  moon:    {g: 1.6,  name: "Moon", color: "#E0E0E0"},
+  mars:    {g: 3.7,  name: "Mars", color: "#E27B58"},
+  jupiter: {g: 24.8, name: "Jupiter", color: "#E4A788"}
 };
 let planet = planets.earth;
-const MAX=4, WIN=21;
+const MAX = 4, WIN = 21;
+const FRICTION = 0.7; // Surface friction for the board
+const AIR_RESISTANCE = 0.98; // Air resistance factor
 
 /* ——— state ——— */
-let gameId=null, me=null, turn=1;
-let throws={1:0,2:0}, score={1:0,2:0};
-const pid=(()=>{let v=localStorage.pid; if(!v){v=Math.random().toString(36).slice(2,9);localStorage.pid=v;} return v;})();
+let gameId = null, me = null, turn = 1;
+let throws = {1: 0, 2: 0}, score = {1: 0, 2: 0};
+const pid = (()=>{
+  let v = localStorage.pid; 
+  if(!v) {
+    v = Math.random().toString(36).slice(2,9);
+    localStorage.pid = v;
+  } 
+  return v;
+})();
 
 /* ——— helpers ——— */
-const $=id=>document.getElementById(id);
-const screens={setup:$('setup'),wait:$('wait'),game:$('game'),result:$('result')};
-function show(scr){Object.values(screens).forEach(s=>{s.style.display=s===scr?'flex':'none';if(s===scr){s.style.opacity=0;setTimeout(()=>s.style.opacity=1,10);}})}
-
-/* ——— UI handlers ——— */
-$('planetSel').onchange=e=>planet=planets[e.target.value];
-$('copy').onclick=()=>{navigator.clipboard.writeText($('link').value);$('copy').textContent="Copied!";setTimeout(()=>$('copy').textContent="Copy",2000);};
-$('again').onclick=()=>location.href=location.pathname;
-show(screens.setup);
-
-/* ——— create & join ——— */
-$('create').onclick=async()=>{
-  const doc=await db.collection('cornhole').add({
-    p1:pid,p2:null,planet:$('planetSel').value,st:'wait',
-    turn:1,sc:{1:0,2:0},th:{1:0,2:0},bags:{1:[],2:[]}
-  });
-  gameId=doc.id; me=1; planet=planets[$('planetSel').value];
-  $('link').value=`${location.origin}${location.pathname}?id=${gameId}`;
-  show(screens.wait); listen();
+const $ = id => document.getElementById(id);
+const screens = {
+  setup: $('setup'),
+  wait: $('wait'),
+  game: $('game'),
+  result: $('result')
 };
 
-$('join').onclick=()=>join($('joinId').value.trim());
-async function join(id){
-  if(!id){alert("Enter Game ID");return;}
-  const ref=db.collection('cornhole').doc(id); const snap=await ref.get();
-  if(!snap.exists){alert("Game not found");return;}
-  if(snap.data().p2 && snap.data().p2!==pid){alert("Game full");return;}
-  gameId=id; me=2;
-  await ref.update({p2:pid,st:'play'});
-  listen(); show(screens.game);
+/* ——— Debug Mode ——— */
+let debugMode = false;
+
+// Add a key event listener for toggling debug mode
+document.addEventListener('keydown', e => {
+  // Toggle debug mode with 'D' key
+  if (e.key === 'd' && e.ctrlKey) {
+    debugMode = !debugMode;
+    
+    // Toggle display of debug info
+    const existingDebug = document.getElementById('debug-panel');
+    if (debugMode) {
+      if (!existingDebug) {
+        const debugPanel = document.createElement('div');
+        debugPanel.id = 'debug-panel';
+        debugPanel.style.cssText = `
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: rgba(0, 0, 0, 0.7);
+          color: white;
+          padding: 10px;
+          border-radius: 5px;
+          font-family: monospace;
+          font-size: 12px;
+          z-index: 1000;
+          pointer-events: none;
+        `;
+        document.body.appendChild(debugPanel);
+      }
+    } else if (existingDebug) {
+      existingDebug.remove();
+    }
+  }
+});
+
+// Update debug info
+function updateDebugInfo(physics = {}) {
+  if (!debugMode) return;
+  
+  const debugPanel = document.getElementById('debug-panel');
+  if (!debugPanel) return;
+  
+  // Create debug content
+  let debugContent = `
+    <div style="margin-bottom: 5px; font-weight: bold;">Physics Debug</div>
+    <div>Gravity: ${planet.g.toFixed(1)}</div>
+    <div>Air Resistance: ${AIR_RESISTANCE}</div>
+    <div>Friction: ${FRICTION}</div>
+  `;
+  
+  // Add current physics values if available
+  if (physics.x) {
+    debugContent += `
+      <div style="margin-top: 5px; font-weight: bold;">Bag</div>
+      <div>Position: (${physics.x.toFixed(0)}, ${physics.y.toFixed(0)})</div>
+      <div>Velocity: (${physics.vx?.toFixed(1) || 0}, ${physics.vy?.toFixed(1) || 0})</div>
+      <div>Height: ${physics.height?.toFixed(1) || 0}</div>
+    `;
+  }
+  
+  // Add game state
+  debugContent += `
+    <div style="margin-top: 5px; font-weight: bold;">Game State</div>
+    <div>Turn: ${turn} (${turn === me ? 'You' : 'Opponent'})</div>
+    <div>Score: ${score[1]} - ${score[2]}</div>
+    <div>Throws: ${throws[1]}/${MAX} - ${throws[2]}/${MAX}</div>
+  `;
+  
+  debugPanel.innerHTML = debugContent;
 }
-
-/* auto-join */
-const qp=new URLSearchParams(location.search);
-if(qp.has('id')) join(qp.get('id'));
-
-/* ——— Firestore listener ——— */
-let unsub=null;
-function listen(){
-  if(unsub)unsub();
-  unsub=db.collection('cornhole').doc(gameId).onSnapshot(snap=>{
-    if(!snap.exists){alert("Game deleted");location.href=location.pathname;return;}
-    const d=snap.data();
-    planet=planets[d.planet]; turn=d.turn; throws=d.th; score=d.sc;
-    updateUI(d.st);
-  });
-  window.addEventListener('beforeunload',unsub);
-}
-
-/* ——— UI refresh ——— */
-function updateUI(st){
-  $('scores').textContent=`${score[1]} – ${score[2]}`;
-  $('turn').textContent=turn===me?'Your turn':"Opponent's turn";
-  $('throws').textContent=`Throws: ${throws[1]}/${MAX} – ${throws[2]}/${MAX}`;
-  $('planet').textContent=`Gravity: ${planet.name}`;
-
-  if(st==='wait') show(me===1?screens.wait:screens.game);
-  else if(st==='play'){
-    show(screens.game);
-    if(turn===me && throws[me]<MAX && !document.querySelector('.bag')) spawnBag();
-  } else if(st==='end'){
-    show(screens.result);
-    $('msg').textContent = score[me]>score[3-me]?'You win!':'You lose!';
+/* ——— Sound effects system ——— */
+class SoundEffects {
+  constructor() {
+    this.audioContext = null;
+    this.sounds = {};
+    
+    // Initialize audio context on first user interaction
+    const initAudio = () => {
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.createSounds();
+      }
+      document.removeEventListener('click', initAudio);
+    };
+    document.addEventListener('click', initAudio);
+  }
+  
+  createSounds() {
+    // Create throw sound
+    this.createThrowSound();
+    // Create hit board sound
+    this.createBoardHitSound();
+    // Create hole sound
+    this.createHoleSound();
+    // Create miss sound
+    this.createMissSound();
+  }
+  
+  createThrowSound() {
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(220, this.audioContext.currentTime + 0.2);
+    
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    this.sounds.throw = { oscillator, gainNode };
+  }
+  
+  createBoardHitSound() {
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime);
+    
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    this.sounds.boardHit = { oscillator, gainNode };
+  }
+  
+  createHoleSound() {
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(660, this.audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(220, this.audioContext.currentTime + 0.5);
+    
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.5);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    this.sounds.hole = { oscillator, gainNode };
+  }
+  
+  createMissSound() {
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(110, this.audioContext.currentTime);
+    oscillator.frequency.linearRampToValueAtTime(70, this.audioContext.currentTime + 0.2);
+    
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.01);
+    gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.2);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    this.sounds.miss = { oscillator, gainNode };
+  }
+  
+  playSound(type) {
+    if (!this.audioContext) return;
+    
+    const sound = this.sounds[type];
+    if (!sound) return;
+    
+    // Create new instances to allow overlapping sounds
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    // Copy settings from the template
+    oscillator.type = sound.oscillator.type;
+    
+    if (type === 'throw') {
+      oscillator.frequency.setValueAtTime(440, this.audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(220, this.audioContext.currentTime + 0.2);
+      
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    } else if (type === 'boardHit') {
+      oscillator.frequency.setValueAtTime(150, this.audioContext.currentTime);
+      
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    } else if (type === 'hole') {
+      oscillator.frequency.setValueAtTime(660, this.audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(220, this.audioContext.currentTime + 0.5);
+      
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.5);
+    } else if (type === 'miss') {
+      oscillator.frequency.setValueAtTime(110, this.audioContext.currentTime);
+      oscillator.frequency.linearRampToValueAtTime(70, this.audioContext.currentTime + 0.2);
+      
+      gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + 0.01);
+      gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.2);
+    }
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.start();
+    oscillator.stop(this.audioContext.currentTime + 1);
   }
 }
 
+// Initialize sound effects
+const soundEffects = new SoundEffects();
+
+/* ——— UI handlers ——— */
+$('planetSel').onchange = e => {
+  planet = planets[e.target.value];
+  localStorage.setItem('lastPlanet', e.target.value);
+  // Update background gradient based on selected planet
+  document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+};
+
+$('copy').onclick = () => {
+  navigator.clipboard.writeText($('link').value);
+  $('copy').textContent = "Copied!";
+  setTimeout(() => $('copy').textContent = "Copy", 2000);
+};
+
+$('again').onclick = () => location.href = location.pathname;
+/* ——— Show/hide loading indicator ——— */
+function showLoadingIndicator() {
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.id = 'loading-overlay';
+  loadingOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+  
+  const loadingSpinner = document.createElement('div');
+  loadingSpinner.style.cssText = `
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #c41e3a;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  `;
+  
+  const spinnerStyle = document.createElement('style');
+  spinnerStyle.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+  
+  document.head.appendChild(spinnerStyle);
+  loadingOverlay.appendChild(loadingSpinner);
+  document.body.appendChild(loadingOverlay);
+}
+
+function hideLoadingIndicator() {
+  const loadingOverlay = document.getElementById('loading-overlay');
+  if (loadingOverlay) {
+    loadingOverlay.style.opacity = '0';
+    loadingOverlay.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => {
+      loadingOverlay.remove();
+    }, 300);
+  }
+}
+
+/* ——— Show tutorial for first-time players ——— */
+function showTutorial() {
+  // Check if tutorial has been seen before
+  if (localStorage.getItem('tutorialSeen')) return;
+  
+  const tutorialOverlay = document.createElement('div');
+  tutorialOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+  `;
+  
+  const tutorialContent = document.createElement('div');
+  tutorialContent.style.cssText = `
+    max-width: 80%;
+    max-height: 80%;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 10px;
+    padding: 20px;
+    color: #333;
+    text-align: center;
+    overflow: auto;
+  `;
+  
+  tutorialContent.innerHTML = `
+    <h2 style="margin-bottom: 15px; color: #c41e3a;">Space Cornhole Tutorial</h2>
+    <div style="margin-bottom: 20px;">
+      <p>Welcome to Space Cornhole! Here's how to play:</p>
+      <ul style="text-align: left; margin: 15px 0; padding-left: 20px;">
+        <li><strong>Goal:</strong> Land your bag on the board (1pt) or in the hole (3pts)</li>
+        <li><strong>Throwing:</strong> Drag your bag backward, then release to throw</li>
+        <li><strong>Physics:</strong> Different planets have different gravity!</li>
+        <li><strong>Scoring:</strong> After all bags are thrown, only the team with more points scores the difference</li>
+        <li><strong>Win:</strong> First to 21 points wins the game</li>
+      </ul>
+      <p>The direction line and trajectory prediction will help you aim accurately.</p>
+    </div>
+    <button id="close-tutorial" style="padding: 8px 16px; background: #c41e3a; color: white; border: none; border-radius: 5px; cursor: pointer;">Got it!</button>
+  `;
+  
+  tutorialOverlay.appendChild(tutorialContent);
+  document.body.appendChild(tutorialOverlay);
+  
+  // Add event listener to close button
+  document.getElementById('close-tutorial').addEventListener('click', () => {
+    tutorialOverlay.style.opacity = '0';
+    tutorialOverlay.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => {
+      tutorialOverlay.remove();
+      localStorage.setItem('tutorialSeen', 'true');
+    }, 300);
+  });
+}
+
+/* ——— Add restart button ——— */
+function addRestartButton() {
+  const restartButton = document.createElement('button');
+  restartButton.textContent = 'New Game';
+  restartButton.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+    z-index: 40;
+  `;
+  
+  restartButton.addEventListener('click', () => {
+    if (confirm('Are you sure you want to start a new game?')) {
+      location.href = location.pathname;
+    }
+  });
+  
+  $('game').appendChild(restartButton);
+}
+
+/* ——— Add ability to show/hide trajectory prediction ——— */
+function addTrajectoryToggle() {
+  // Add toggle button
+  const toggleButton = document.createElement('button');
+  toggleButton.textContent = 'Hide Trajectory';
+  toggleButton.id = 'trajectory-toggle';
+  toggleButton.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 120
+    px;
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+    z-index: 40;
+  `;
+  
+  // Check if trajectory prediction is enabled (default: true)
+  let trajectoryEnabled = localStorage.getItem('trajectoryEnabled') !== 'false';
+  toggleButton.textContent = trajectoryEnabled ? 'Hide Trajectory' : 'Show Trajectory';
+  
+  toggleButton.addEventListener('click', () => {
+    trajectoryEnabled = !trajectoryEnabled;
+    localStorage.setItem('trajectoryEnabled', trajectoryEnabled);
+    toggleButton.textContent = trajectoryEnabled ? 'Hide Trajectory' : 'Show Trajectory';
+  });
+  
+  $('game').appendChild(toggleButton);
+  
+  // Override the predictTrajectory function based on user preference
+  const originalPredictTrajectory = window.predictTrajectory;
+  window.predictTrajectory = function(...args) {
+    if (trajectoryEnabled) {
+      return originalPredictTrajectory(...args);
+    } else {
+      // Clear any existing trajectory points but don't create new ones
+      document.querySelectorAll('.trajectory-point').forEach(el => el.remove());
+      window.trajectoryPoints = [];
+      return;
+    }
+  };
+}
+
+/* ——— create & join game ——— */
+$('create').onclick = async() => {
+  showLoadingIndicator();
+  try {
+    const doc = await db.collection('cornhole').add({
+      p1: pid, p2: null, planet: $('planetSel').value, st: 'wait',
+      turn: 1, sc: {1: 0, 2: 0}, th: {1: 0, 2: 0}, bags: {1: [], 2: []}
+    });
+    gameId = doc.id; 
+    me = 1; 
+    planet = planets[$('planetSel').value];
+    $('link').value = `${location.origin}${location.pathname}?id=${gameId}`;
+    show(screens.wait); 
+    listen();
+    
+    // Show tutorial for first-time players
+    setTimeout(showTutorial, 500);
+    
+    // Add restart button once game is created
+    addRestartButton();
+  } catch (error) {
+    alert('Error creating game: ' + error.message);
+  } finally {
+    hideLoadingIndicator();
+  }
+};
+
+$('join').onclick = () => join($('joinId').value.trim());
+async function join(id) {
+  if(!id) {
+    alert("Enter Game ID");
+    return;
+  }
+  
+  showLoadingIndicator();
+  try {
+    const ref = db.collection('cornhole').doc(id); 
+    const snap = await ref.get();
+    if(!snap.exists) {
+      alert("Game not found");
+      hideLoadingIndicator();
+      return;
+    }
+    if(snap.data().p2 && snap.data().p2 !== pid) {
+      alert("Game full");
+      hideLoadingIndicator();
+      return;
+    }
+    gameId = id; 
+    me = 2;
+    planet = planets[snap.data().planet]; // Get planet from game data
+    await ref.update({p2: pid, st: 'play'});
+    listen(); 
+    show(screens.game);
+    
+    // Show tutorial for first-time players
+    setTimeout(showTutorial, 500);
+    
+    // Add restart button once game is joined
+    addRestartButton();
+  } catch (error) {
+    alert('Error joining game: ' + error.message);
+  } finally {
+    hideLoadingIndicator();
+  }
+}
+/* ——— Firestore listener ——— */
+let unsub = null;
+function listen() {
+  if(unsub) unsub();
+  unsub = db.collection('cornhole').doc(gameId).onSnapshot(snap => {
+    if(!snap.exists) {
+      alert("Game deleted");
+      location.href = location.pathname;
+      return;
+    }
+    const d = snap.data();
+    planet = planets[d.planet]; 
+    turn = d.turn; 
+    throws = d.th; 
+    score = d.sc;
+    
+    // Animate score changes
+    const oldScore = {1: parseInt($('scores').textContent.split(' – ')[0]), 2: parseInt($('scores').textContent.split(' – ')[1])};
+    if (oldScore[1] !== score[1] || oldScore[2] !== score[2]) {
+      animateScoreChange(oldScore, score);
+    }
+    
+    updateUI(d.st);
+    
+    // Update debug info if debug mode is on
+    updateDebugInfo();
+  });
+  window.addEventListener('beforeunload', unsub);
+}
+
+// Animate score changes
+function animateScoreChange(oldScore, newScore) {
+  const scoreElement = $('scores');
+  const originalColor = scoreElement.style.color;
+  
+  // Highlight which player's score changed
+  if (oldScore[1] !== newScore[1]) {
+    // Player 1 score changed
+    scoreElement.style.color = '#c41e3a';
+  } else if (oldScore[2] !== newScore[2]) {
+    // Player 2 score changed
+    scoreElement.style.color = '#4287f5';
+  }
+  
+  // Pulse animation
+  scoreElement.style.transition = 'transform 0.3s ease, color 0.3s ease';
+  scoreElement.style.transform = 'scale(1.2)';
+  
+  setTimeout(() => {
+    scoreElement.style.transform = 'scale(1)';
+    setTimeout(() => {
+      scoreElement.style.color = originalColor;
+      scoreElement.style.transition = '';
+    }, 300);
+  }, 300);
+}
+
+/* ——— Enhanced screen transitions ——— */
+function show(scr) {
+  // First fade out current screen
+  Object.values(screens).forEach(s => {
+    if (s.style.display === 'flex') {
+      s.style.opacity = '0';
+      s.style.transform = 'scale(0.95)';
+      s.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      
+      setTimeout(() => {
+        s.style.display = 'none';
+        // Now show new screen
+        scr.style.display = 'flex';
+        scr.style.opacity = '0';
+        scr.style.transform = 'scale(0.95)';
+        
+        // Trigger reflow to ensure animation runs
+        void scr.offsetWidth;
+        
+        scr.style.opacity = '1';
+        scr.style.transform = 'scale(1)';
+      }, 300);
+    }
+  });
+  
+  // If no screen is currently shown, just show the new one immediately
+  if (!Object.values(screens).some(s => s.style.display === 'flex')) {
+    scr.style.display = 'flex';
+    scr.style.opacity = '0';
+    scr.style.transform = 'scale(0.95)';
+    scr.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    
+    // Trigger reflow to ensure animation runs
+    void scr.offsetWidth;
+    
+    scr.style.opacity = '1';
+    scr.style.transform = 'scale(1)';
+  }
+  
+  // Update background based on selected planet
+  if (planet && planet.color) {
+    document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+  }
+}
+
+/* ——— UI refresh ——— */
+function updateUI(st) {
+  $('scores').textContent = `${score[1]} – ${score[2]}`;
+  $('turn').textContent = turn === me ? 'Your turn' : "Opponent's turn";
+  $('throws').textContent = `Throws: ${throws[1]}/${MAX} – ${throws[2]}/${MAX}`;
+  $('planet').textContent = `Gravity: ${planet.name}`;
+
+  // Highlight active player
+  if (turn === me) {
+    $('turn').style.color = me === 1 ? '#c41e3a' : '#4287f5';
+    $('turn').style.fontWeight = 'bold';
+  } else {
+    $('turn').style.color = '';
+    $('turn').style.fontWeight = '';
+  }
+
+  // Update background based on planet
+  if (planet && planet.color) {
+    document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+  }
+
+  if(st === 'wait') {
+    show(me === 1 ? screens.wait : screens.game);
+  } else if(st === 'play') {
+    show(screens.game);
+    
+    // Pulse effect for active player
+    if(turn === me) {
+      const turnIndicator = $('turn');
+      turnIndicator.style.animation = 'none';
+      // Trigger reflow to restart animation
+      void turnIndicator.offsetWidth;
+      turnIndicator.style.animation = 'pulse 2s infinite';
+    }
+    
+    if(turn === me && throws[me] < MAX && !document.querySelector('.bag')) {
+      spawnBag();
+    }
+  } else if(st === 'end') {
+    // Show animated end game screen
+    show(screens.result);
+    
+    // Determine win/lose message and animation
+    const isWinner = score[me] > score[3-me];
+    $('msg').textContent = isWinner ? 'You win!' : 'You lose!';
+    
+    // Add confetti for winner
+    if (isWinner) {
+      createConfetti();
+    }
+  }
+}
+/* ——— Create confetti for winner ——— */
+function createConfetti() {
+  const confettiContainer = document.createElement('div');
+  confettiContainer.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+    overflow: hidden;
+  `;
+  
+  // Add to result screen
+  screens.result.appendChild(confettiContainer);
+  
+  // Create confetti pieces
+  const colors = ['#c41e3a', '#4287f5', '#ffcc00', '#00cc66', '#ff6699'];
+  const confettiCount = 150;
+  
+  for (let i = 0; i < confettiCount; i++) {
+    createConfettiPiece(confettiContainer, colors[Math.floor(Math.random() * colors.length)]);
+  }
+  
+  // Remove confetti after animation completes
+  setTimeout(() => confettiContainer.remove(), 10000);
+}
+
+function createConfettiPiece(container, color) {
+  const confetti = document.createElement('div');
+  
+  // Random size between 5px and 15px
+  const size = Math.random() * 10 + 5;
+  
+  // Random rotation
+  const rotation = Math.random() * 360;
+  
+  // Random shape (square, rectangle, or circle)
+  const shapeType = Math.floor(Math.random() * 3);
+  
+  let shape;
+  if (shapeType === 0) {
+    // Square
+    shape = 'square';
+    confetti.style.borderRadius = '0';
+  } else if (shapeType === 1) {
+    // Rectangle
+    shape = 'rect';
+    confetti.style.width = `${size * 1.5}px`;
+    confetti.style.borderRadius = '0';
+  } else {
+    // Circle
+    shape = 'circle';
+    confetti.style.borderRadius = '50%';
+  }
+  
+  // Set base styles
+  confetti.style.cssText = `
+    position: absolute;
+    left: ${Math.random() * 100}%;
+    top: -20px;
+    width: ${shape === 'rect' ? size * 1.5 : size}px;
+    height: ${size}px;
+    background-color: ${color};
+    border-radius: ${shape === 'circle' ? '50%' : '0'};
+    transform: rotate(${rotation}deg);
+    opacity: ${Math.random() * 0.6 + 0.4};
+    z-index: 51;
+  `;
+  
+  // Add to container
+  container.appendChild(confetti);
+  
+  // Animation parameters
+  const duration = Math.random() * 3 + 2; // 2-5 seconds
+  const startTime = Date.now();
+  const horizontalSpeed = (Math.random() - 0.5) * 10; // Random horizontal movement
+  const verticalSpeed = Math.random() * 2 + 1; // Fall speed
+  const rotationSpeed = (Math.random() - 0.5) * 5; // Rotation speed
+  
+  // Animate confetti piece
+  function animateConfetti() {
+    const elapsed = (Date.now() - startTime) / 1000; // seconds
+    const progress = elapsed / duration;
+    
+    if (progress >= 1) {
+      confetti.remove();
+      return;
+    }
+    
+    // Calculate position
+    const x = parseFloat(confetti.style.left) + horizontalSpeed * (1/60); // 60fps target
+    const y = (progress * window.innerHeight * verticalSpeed);
+    const currentRotation = rotation + rotationSpeed * elapsed * 60;
+    
+    // Update position
+    confetti.style.left = `${x}%`;
+    confetti.style.top = `${y}px`;
+    confetti.style.transform = `rotate(${currentRotation}deg)`;
+    
+    // Fade out near the end
+    if (progress > 0.8) {
+      confetti.style.opacity = (1 - progress) * 5 * (Math.random() * 0.6 + 0.4);
+    }
+    
+    requestAnimationFrame(animateConfetti);
+  }
+  
+  requestAnimationFrame(animateConfetti);
+}
+
+/* ——— Show summary of points for the inning ——— */
+function showInningSummary(p1, p2) {
+  const summary = document.createElement('div');
+  
+  // Style the summary box
+  summary.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  `;
+  
+  // Calculate the point difference
+  const diff = Math.abs(p1 - p2);
+  let winner = '';
+  
+  if (p1 > p2) {
+    winner = me === 1 ? 'You' : 'Opponent';
+  } else if (p2 > p1) {
+    winner = me === 2 ? 'You' : 'Opponent';
+  } else {
+    winner = 'No one'; // Tie
+  }
+  
+  // Create the content
+  summary.innerHTML = `
+    <h3 style="margin-bottom: 0.5rem;">Round Summary</h3>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+      <div>Player 1: ${p1} pts</div>
+      <div>Player 2: ${p2} pts</div>
+    </div>
+    <div style="font-weight: bold; margin-top: 0.5rem; font-size: 1.2rem;">
+      ${winner} scored ${diff} point${diff !== 1 ? 's' : ''}!
+    </div>
+  `;
+  
+  document.body.appendChild(summary);
+  
+  // Fade in
+  setTimeout(() => {
+    summary.style.opacity = '1';
+    
+    // Fade out and remove after 3 seconds
+    setTimeout(() => {
+      summary.style.opacity = '0';
+      setTimeout(() => summary.remove(), 300);
+    }, 3000);
+  }, 10);
+}
 /* ——— bag / drag / throw ——— */
-let bag,shadow,isDragging=false,startX,startY,aimLine;
+let bag, shadow, isDragging = false, startX, startY, aimLine;
+let trajectoryPoints = []; // Store trajectory prediction points
 
-function spawnBag(){
-  document.querySelectorAll('.bag,.shadow').forEach(el=>el.remove());
+function spawnBag() {
+  // Clear any existing elements
+  document.querySelectorAll('.bag,.shadow,.trajectory-point').forEach(el => el.remove());
   if(aimLine) aimLine.remove();
+  trajectoryPoints = [];
 
-  bag=document.createElement('div');
-  bag.className='bag';
-  bag.style.setProperty('--clr',me===1?'#c41e3a':'#4287f5');
-  shadow=document.createElement('div'); shadow.className='shadow';
-  document.body.append(bag,shadow);
+  // Create bag and shadow
+  bag = document.createElement('div');
+  bag.className = 'bag';
+  bag.style.setProperty('--clr', me === 1 ? '#c41e3a' : '#4287f5');
+  
+  // Add inner details to the bag
+  const bagInner = document.createElement('div');
+  bagInner.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 70%;
+    border-radius: 3px;
+    background: ${me === 1 ? '#d5354f' : '#5c9fff'};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 10px;
+  `;
+  bagInner.textContent = me === 1 ? 'P1' : 'P2';
+  bag.appendChild(bagInner);
+  
+  shadow = document.createElement('div'); 
+  shadow.className = 'shadow';
+  document.body.append(bag, shadow);
 
-  const x=innerWidth/2-17, y=innerHeight-60;
-  bag.style.transform=`translate(${x}px,${y}px)`; shadow.style.transform=`translate(${x}px,${innerHeight-6}px)`;
-
-  bag.addEventListener('pointerdown',dragStart,{once:true});
+  // Position initial bag at bottom of screen with spawn animation
+  const x = innerWidth/2 - 17, y = innerHeight - 60;
+  bag.style.opacity = '0';
+  bag.style.transform = `translate(${x}px, ${y}px) scale(0.5)`;
+  shadow.style.opacity = '0';
+  shadow.style.transform = `translate(${x}px, ${innerHeight-6}px) scale(0.5)`;
+  
+  // Animate bag appearance
+  setTimeout(() => {
+    bag.style.transition = shadow.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    bag.style.opacity = '1';
+    bag.style.transform = `translate(${x}px, ${y}px) scale(1)`;
+    shadow.style.opacity = '0.6';
+    shadow.style.transform = `translate(${x}px, ${innerHeight-6}px) scale(0.9)`;
+    
+    // Add glow effect on player's turn
+    if (turn === me) {
+      bag.style.boxShadow = `0 0 15px ${me === 1 ? 'rgba(196, 30, 58, 0.7)' : 'rgba(66, 135, 245, 0.7)'}`;
+    }
+    
+    // Add event listener for drag start after animation completes
+    setTimeout(() => {
+      bag.style.transition = shadow.style.transition = '';
+      bag.addEventListener('pointerdown', dragStart, {once: true});
+    }, 300);
+  }, 10);
+  
+  // Add instruction tooltip
+  if (throws[me] === 0) {
+    const tooltip = document.createElement('div');
+    tooltip.style.cssText = `
+      position: absolute;
+      bottom: ${y - 30}px;
+      left: ${x}px;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    `;
+    tooltip.textContent = 'Drag back to throw!';
+    document.body.appendChild(tooltip);
+    
+    // Show tooltip after a delay
+    setTimeout(() => {
+      tooltip.style.opacity = '1';
+      // Hide tooltip after a while
+      setTimeout(() => {
+        tooltip.style.opacity = '0';
+        setTimeout(() => tooltip.remove(), 300);
+      }, 3000);
+    }, 500);
+  }
 }
 
-function dragStart(e){
-  if(turn!==me) return;
-  e.preventDefault(); isDragging=true;
-  const rect=bag.getBoundingClientRect();
-  startX=rect.left+rect.width/2; startY=rect.top+rect.height/2;
+function dragStart(e) {
+  if(turn !== me) return;
+  e.preventDefault(); 
+  isDragging = true;
+  
+  const rect = bag.getBoundingClientRect();
+  startX = rect.left + rect.width/2; 
+  startY = rect.top + rect.height/2;
 
-  aimLine=document.createElement('div');
-  aimLine.style.cssText='position:absolute;height:2px;background:#fff;transform-origin:left center;pointer-events:none;z-index:25';
+  // Create aim line
+  aimLine = document.createElement('div');
+  aimLine.style.cssText = 'position:absolute;height:3px;background:#fff;transform-origin:left center;pointer-events:none;z-index:25;box-shadow:0 0 5px rgba(255,255,255,0.7);';
   document.body.appendChild(aimLine);
+  
+  // Create aim indicator
+  const aimIndicator = document.createElement('div');
+  aimIndicator.style.cssText = `
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    border: 2px solid white;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 26;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  `;
+  aimIndicator.id = 'aim-indicator';
+  document.body.appendChild(aimIndicator);
 
-  document.addEventListener('pointermove',dragMove);
-  document.addEventListener('pointerup',dragEnd);
-  document.addEventListener('pointercancel',dragEnd);
+  // Add event listeners for drag movement and end
+  document.addEventListener('pointermove', dragMove);
+  document.addEventListener('pointerup', dragEnd);
+  document.addEventListener('pointercancel', dragEnd);
 }
-
-function dragMove(e){
+function dragMove(e) {
   if(!isDragging) return;
-  const x=e.clientX, y=e.clientY;
-  bag.style.transform=`translate(${x-17}px,${y-17}px)`;
-  shadow.style.transform=`translate(${x-17}px,${innerHeight-6}px) scale(.9)`;
-  const dx=x-startX, dy=y-startY, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx);
-  aimLine.style.width=len+'px';
-  aimLine.style.transform=`translate(${startX}px,${startY}px) rotate(${ang}rad)`;
+  const x = e.clientX, y = e.clientY;
+  
+  // Update bag position
+  bag.style.transform = `translate(${x-17}px, ${y-17}px)`;
+  shadow.style.transform = `translate(${x-17}px, ${innerHeight-6}px) scale(.9)`;
+  
+  // Update aim line
+  const dx = x - startX, dy = y - startY;
+  const len = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx);
+  
+  aimLine.style.width = len + 'px';
+  aimLine.style.transform = `translate(${startX}px, ${startY}px) rotate(${ang}rad)`;
+  
+  // Update aim indicator (shows opposite direction)
+  const aimIndicator = document.getElementById('aim-indicator');
+  if (aimIndicator) {
+    // Position further from start point based on pull distance
+    const intensity = Math.min(1, len / 200); // Scale factor for power
+    const powerScale = intensity * 1.5; // Scale for visual feedback
+    
+    // Calculate position in the opposite direction of the drag (where the bag will go)
+    const oppositeX = startX - dx * powerScale;
+    const oppositeY = startY - dy * powerScale;
+    
+    aimIndicator.style.transform = `translate(${oppositeX}px, ${oppositeY}px) scale(${1 + intensity})`;
+    
+    // Color based on power
+    const r = Math.floor(255 * intensity);
+    const g = Math.floor(255 * (1 - intensity));
+    aimIndicator.style.backgroundColor = `rgba(${r}, ${g}, 100, 0.4)`;
+    aimIndicator.style.borderColor = `rgb(${r}, ${g}, 100)`;
+  }
+  
+  // Clear previous trajectory prediction
+  document.querySelectorAll('.trajectory-point').forEach(el => el.remove());
+  trajectoryPoints = [];
+  
+  // Calculate and display trajectory prediction (if pull is significant)
+  if (len > 10) {
+    // Throw opposite the pull direction
+    const POWER = 9;
+    const vx = (startX - x) * POWER;
+    const vy = (startY - y) * POWER;
+    
+    predictTrajectory(startX, startY, vx, vy);
+  }
 }
 
-function dragEnd(e){
-  if(!isDragging) return; isDragging=false;
-  document.removeEventListener('pointermove',dragMove);
-  document.removeEventListener('pointerup',dragEnd);
-  document.removeEventListener('pointercancel',dragEnd);
-  if(aimLine){aimLine.remove();aimLine=null;}
+function dragEnd(e) {
+  if(!isDragging) return; 
+  isDragging = false;
+  
+  // Remove event listeners
+  document.removeEventListener('pointermove', dragMove);
+  document.removeEventListener('pointerup', dragEnd);
+  document.removeEventListener('pointercancel', dragEnd);
+  
+  // Remove aim line and trajectory prediction
+  if(aimLine) {
+    aimLine.remove();
+    aimLine = null;
+  }
+  
+  // Remove aim indicator
+  const aimIndicator = document.getElementById('aim-indicator');
+  if (aimIndicator) {
+    aimIndicator.remove();
+  }
+  
+  trajectoryPoints.forEach(p => p.remove());
+  trajectoryPoints = [];
 
-  const pullX=e.clientX-startX, pullY=e.clientY-startY;
-  const dist=Math.hypot(pullX,pullY);
-  if(dist<10) return;                         // tiny tap
+  // Calculate pull distance and direction
+  const pullX = e.clientX - startX;
+  const pullY = e.clientY - startY;
+  const dist = Math.hypot(pullX, pullY);
+  
+  // Ignore tiny taps
+  if(dist < 10) return;
 
-  /* throw opposite the pull */
-  const POWER=9;                             // tweak strength
-  const vx = (startX - e.clientX)*POWER;
-  const vy = (startY - e.clientY)*POWER;
+  // Throw opposite the pull with power proportional to pull distance
+  const POWER = 9;
+  const vx = (startX - e.clientX) * POWER;
+  const vy = (startY - e.clientY) * POWER;
 
-  launchBag(vx,vy);
+  launchBag(vx, vy);
 }
 
-/* ——— physics loop ——— */
-function launchBag(vx,vy){
-  const rect=bag.getBoundingClientRect();
-  let x=rect.left+rect.width/2, y=rect.top+rect.height/2;
-  const g=planet.g*120;                      // px/s²
-  const ground=innerHeight-20;
-  let last=performance.now(),done=false;
-
-  requestAnimationFrame(function step(now){
+function predictTrajectory(startX, startY, vx, vy) {
+  // Check if trajectory prediction is enabled
+  const trajectoryEnabled = localStorage.getItem('trajectoryEnabled') !== 'false';
+  if (!trajectoryEnabled) return;
+  
+  // Clear previous trajectory points
+  trajectoryPoints.forEach(p => p.remove());
+  trajectoryPoints = [];
+  
+  const g = planet.g * 120; // px/s²
+  const ground = innerHeight - 20;
+  const dt = 1/15; // Time step for prediction
+  const MAX_POINTS = 30; // Maximum number of trajectory points
+  
+  let x = startX;
+  let y = startY;
+  let currVx = vx;
+  let currVy = vy;
+  let pointCount = 0;
+  
+  // Get board position for collision detection in prediction
+  const board = $('board').getBoundingClientRect();
+  const hole = $('hole').getBoundingClientRect();
+  
+  // Create trajectory container
+  const trajectoryContainer = document.createElement('div');
+  trajectoryContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:15;';
+  document.body.appendChild(trajectoryContainer);
+  trajectoryPoints.push(trajectoryContainer);
+  
+  // Create trajectory path (line)
+  const path = document.createElement('div');
+  path.style.cssText = `
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 15;
+  `;
+  trajectoryContainer.appendChild(path);
+  
+  // Draw path
+  const pathPoints = [];
+  let collision = false;
+  let collisionType = null;
+  let collisionPoint = null;
+  
+  // Create trajectory points with decreasing opacity
+  while (pointCount < MAX_POINTS && !collision) {
+    // Apply physics
+    currVx *= AIR_RESISTANCE;
+    currVy += g * dt; // Apply gravity
+    currVy *= AIR_RESISTANCE;
+    
+    x += currVx * dt;
+    y += currVy * dt;
+    
+    // Don't render points below ground
+    if (y >= ground) {
+      collision = true;
+      collisionType = 'ground';
+      collisionPoint = {x, y: ground};
+      break;
+    }
+    
+    // Check board collision for trajectory prediction
+    if (currVy > 0 && x > board.left && x < board.right && y > board.top && y < board.bottom) {
+      const cx = hole.left + hole.width/2;
+      const cy = hole.top + hole.height/2;
+      const inHole = Math.hypot(x - cx, y - cy)
+      const inHole = Math.hypot(x - cx, y - cy) < hole.width/2;
+      
+      collision = true;
+      collisionType = inHole ? 'hole' : 'board';
+      collisionPoint = {x, y};
+      break;
+    }
+    
+    // Add point to path
+    pathPoints.push({x, y});
+    pointCount++;
+  }
+  
+  // Create SVG path for smoother trajectory line
+  if (pathPoints.length > 0) {
+    let pathSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    pathSvg.setAttribute('width', '100%');
+    pathSvg.setAttribute('height', '100%');
+    pathSvg.style.position = 'absolute';
+    pathSvg.style.top = '0';
+    pathSvg.style.left = '0';
+    pathSvg.style.pointerEvents = 'none';
+    
+    let pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    let pathD = `M ${pathPoints[0].x} ${pathPoints[0].y}`;
+    
+    for (let i = 1; i < pathPoints.length; i++) {
+      pathD += ` L ${pathPoints[i].x} ${pathPoints[i].y}`;
+    }
+    
+    // Add collision point to path
+    if (collisionPoint) {
+      pathD += ` L ${collisionPoint.x} ${collisionPoint.y}`;
+    }
+    
+    pathElement.setAttribute('d', pathD);
+    pathElement.setAttribute('fill', 'none');
+    pathElement.setAttribute('stroke', me === 1 ? 'rgba(196, 30, 58, 0.6)' : 'rgba(66, 135, 245, 0.6)');
+    pathElement.setAttribute('stroke-width', '2');
+    pathElement.setAttribute('stroke-dasharray', '5,5');
+    pathSvg.appendChild(pathElement);
+    
+    // Add end marker based on collision type
+    if (collisionPoint) {
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      marker.setAttribute('cx', collisionPoint.x);
+      marker.setAttribute('cy', collisionPoint.y);
+      marker.setAttribute('r', '5');
+      
+      // Color based on collision type
+      if (collisionType === 'hole') {
+        marker.setAttribute('fill', '#FFD700');
+        marker.setAttribute('stroke', '#FFA500');
+      } else if (collisionType === 'board') {
+        marker.setAttribute('fill', '#FFFFFF');
+        marker.setAttribute('stroke', '#AAAAAA');
+      } else {
+        marker.setAttribute('fill', '#FF4444');
+        marker.setAttribute('stroke', '#AA0000');
+      }
+      
+      marker.setAttribute('stroke-width', '2');
+      pathSvg.appendChild(marker);
+    }
+    
+    trajectoryContainer.appendChild(pathSvg);
+    trajectoryPoints.push(pathSvg);
+  }
+}
+function launchBag(vx, vy) {
+  // Play throw sound
+  soundEffects.playSound('throw');
+  
+  const rect = bag.getBoundingClientRect();
+  let x = rect.left + rect.width/2;
+  let y = rect.top + rect.height/2;
+  
+  const g = planet.g * 120; // px/s²
+  const ground = innerHeight - 20;
+  
+  let last = performance.now();
+  let done = false;
+  
+  // Variables for rotation effect
+  const rotationSpeed = Math.hypot(vx, vy) / 100;
+  let rotation = 0;
+  
+  // Variables for tracking maximum height (for shadow opacity)
+  let maxHeight = 0;
+  let currHeight = 0;
+  
+  // Create trail effect
+  const trailContainer = document.createElement('div');
+  trailContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:15;';
+  document.body.appendChild(trailContainer);
+  
+  const trails = [];
+  const MAX_TRAILS = 10;
+  
+  // Calculate initial velocity magnitude for bag scaling
+  const initialVelocityMag = Math.hypot(vx, vy);
+  
+  requestAnimationFrame(function step(now) {
     if(done) return;
-    const dt=(now-last)/1000; last=now;
-    x+=vx*dt; y+=vy*dt; vy+=g*dt;
-
-    bag.style.transform=`translate(${x-17}px,${y-17}px)`;
-    const h=Math.max(0,ground-y), s=Math.max(.25,1-h/700);
-    shadow.style.transform=`translate(${x-17}px,${ground-6}px) scale(${s})`;
-
-    /* collisions */
-    const board=$('board').getBoundingClientRect();
-    const hole =$ ('hole' ).getBoundingClientRect();
-
-    // ground
-    if(y>=ground-17){ done=true; finishThrow(0); fade(); return; }
-
-    // board / hole
-    if(vy>0 && x>board.left && x<board.right && y>board.top && y<board.bottom){
-      const cx=hole.left+hole.width/2, cy=hole.top+hole.height/2;
-      const inHole=Math.hypot(x-cx,y-cy)<hole.width/2;
-      done=true; finishThrow(inHole?3:1); fade(inHole?.2:.7); return;
+    
+    const dt = (now - last) / 1000; 
+    last = now;
+    
+    // Apply air resistance
+    vx *= AIR_RESISTANCE;
+    vy += g * dt; // Apply gravity
+    vy *= AIR_RESISTANCE;
+    
+    // Update position
+    x += vx * dt;
+    y += vy * dt;
+    
+    // Bag rotation effect
+    rotation += rotationSpeed * dt * 50;
+    
+    // Calculate height above ground for shadow effect
+    currHeight = ground - y;
+    maxHeight = Math.max(maxHeight, currHeight);
+    
+    // Calculate velocity magnitude ratio for scaling effect
+    const velocityMag = Math.hypot(vx, vy);
+    const velocityRatio = Math.min(1, velocityMag / initialVelocityMag);
+    const heightRatio = Math.min(1, currHeight / 400);
+    
+    // Scale bag slightly based on height and velocity (creating a pseudo-3D effect)
+    const scale = 0.9 + 0.2 * heightRatio;
+    
+    // Update bag position with rotation and scale
+    bag.style.transform = `translate(${x-17}px, ${y-17}px) rotate(${rotation}deg) scale(${scale})`;
+    
+    // Update shadow based on height
+    const shadowScale = Math.max(0.25, 1 - currHeight/700);
+    const shadowOpacity = Math.max(0.1, 0.6 - (currHeight / maxHeight) * 0.4);
+    const shadowX = x + (currHeight * 0.1); // Shadow offset increases with height
+    shadow.style.transform = `translate(${shadowX-17}px, ${ground-6}px) scale(${shadowScale})`;
+    shadow.style.opacity = shadowOpacity.toString();
+    
+    // Create trail effect
+    if (Math.random() < 0.3 && velocityMag > 100) {
+      const trail = document.createElement('div');
+      trail.className = 'bag';
+      trail.style.setProperty('--clr', me === 1 ? '#c41e3a' : '#4287f5');
+      trail.style.opacity = '0.2';
+      trail.style.transform = `translate(${x-17}px, ${y-17}px) rotate(${rotation}deg) scale(${scale * 0.8})`;
+      trail.style.transition = 'opacity 0.3s ease';
+      trailContainer.appendChild(trail);
+      
+      // Fade out and remove trail element
+      setTimeout(() => {
+        trail.style.opacity = '0';
+        setTimeout(() => trail.remove(), 300);
+      }, 10);
+      
+      trails.push(trail);
+      
+      // Limit number of trails
+      if (trails.length > MAX_TRAILS) {
+        const oldTrail = trails.shift();
+        oldTrail.remove();
+      }
+    }
+    
+    // Update debug info if debug mode is on
+    if (debugMode) {
+      updateDebugInfo({
+        x, y, vx, vy, 
+        height: currHeight
+      });
     }
 
-    // off-screen failsafe
-    if(x<-80||x>innerWidth+80||y<-100){ done=true; finishThrow(0); fade(); return; }
+    /* collision detection */
+    const board = $('board').getBoundingClientRect();
+    const hole = $('hole').getBoundingClientRect();
+
+    // Ground collision
+    if(y >= ground - 17) { 
+      done = true; 
+      soundEffects.playSound('miss');
+      finishThrow(0); 
+      fade(); 
+      cleanupTrails();
+      return; 
+    }
+
+    // Board collision
+    if(vy > 0 && x > board.left && x < board.right && y > board.top && y < board.bottom) {
+      const cx = hole.left + hole.width/2;
+      const cy = hole.top + hole.height/2;
+      const inHole = Math.hypot(x - cx, y - cy) < hole.width/2;
+      
+      if (inHole) {
+        // In hole - 3 points
+        done = true;
+        soundEffects.playSound('hole');
+        finishThrow(3);
+        fade(0.2);
+        cleanupTrails();
+        
+        // Add falling animation for the bag
+        const fallAnimation = () => {
+          y += 5;
+          rotation += 5;
+          bag.style.transform = `translate(${x-17}px, ${y-17}px) rotate(${rotation}deg) scale(${1 - (y - hole.top) / 100})`;
+          if (y < hole.top + 100) {
+            requestAnimationFrame(fallAnimation);
+          } else {
+            bag.style.opacity = "0";
+          }
+        };
+        requestAnimationFrame(fallAnimation);
+        return;
+      } else {
+        // On board - 1 point
+        done = true;
+        soundEffects.playSound('boardHit');
+        
+        // Set the bag to rest on top of the board with a slight bounce effect
+        const boardY = board.top;
+        y = boardY - 17; // Place bag on top of board
+        
+        // Apply a small random rotation to make it look like it settled naturally
+        const finalRotation = rotation + (Math.random() * 40 - 20);
+        
+        // Show the bag resting on the board
+        bag.style.transform = `translate(${x-17}px, ${y-17}px) rotate(${finalRotation}deg)`;
+        shadow.style.opacity = "0"; // Hide shadow since bag is on the board
+        
+        finishThrow(1);
+        fade(0.7);
+        cleanupTrails();
+        return;
+      }
+    }
+
+    // Off-screen failsafe
+    if(x < -80 || x > innerWidth + 80 || y < -100) { 
+      done = true; 
+      soundEffects.playSound('miss');
+      finishThrow(0); 
+      fade(); 
+      cleanupTrails();
+      return; 
+    }
 
     requestAnimationFrame(step);
   });
 
-  function fade(op=.5){
-    bag.style.transition=shadow.style.transition='opacity .4s ease';
-    bag.style.opacity=shadow.style.opacity=op;
-    setTimeout(()=>{bag.remove();shadow.remove();},450);
+  function cleanupTrails() {
+    // Remove all trails
+    while (trails.length > 0) {
+      const trail = trails.pop();
+      trail.remove();
+    }
+    setTimeout(() => trailContainer.remove(), 300);
+  }
+
+  function fade(op = 0.5) {
+    bag.style.transition = shadow.style.transition = 'opacity 0.4s ease';
+    bag.style.opacity = shadow.style.opacity = op;
+    setTimeout(() => {
+      bag.remove();
+      shadow.remove();
+    }, 450);
   }
 }
-
 /* ——— scoring ——— */
-function finishThrow(pts){
-  db.runTransaction(async tx=>{
-    const ref=db.collection('cornhole').doc(gameId), snap=await tx.get(ref);
-    const d=snap.data();
-    if(!d.bags) d.bags={1:[],2:[]};
+function finishThrow(pts) {
+  db.runTransaction(async tx => {
+    const ref = db.collection('cornhole').doc(gameId);
+    const snap = await tx.get(ref);
+    const d = snap.data();
+    
+    if(!d.bags) d.bags = {1: [], 2: []};
     d.bags[me].push({pts});
     d.th[me]++;
 
     showFlyText(pts);
 
-    if(d.th[1]>=MAX && d.th[2]>=MAX){
-      const p1=d.bags[1].reduce((s,b)=>s+b.pts,0);
-      const p2=d.bags[2].reduce((s,b)=>s+b.pts,0);
-      const diff=Math.abs(p1-p2);
-      if(p1>p2) d.sc[1]+=diff; else if(p2>p1) d.sc[2]+=diff;
-      d.bags={1:[],2:[]}; d.th={1:0,2:0}; d.turn=1;
-      if(d.sc[1]>=WIN||d.sc[2]>=WIN) d.st='end';
+    if(d.th[1] >= MAX && d.th[2] >= MAX) {
+      // Round complete - calculate scoring using cancellation scoring
+      const p1 = d.bags[1].reduce((s, b) => s + b.pts, 0);
+      const p2 = d.bags[2].reduce((s, b) => s + b.pts, 0);
+      
+      // Show inning summary
+      showInningSummary(p1, p2);
+      
+      const diff = Math.abs(p1 - p2);
+      
+      if(p1 > p2) d.sc[1] += diff; 
+      else if(p2 > p1) d.sc[2] += diff;
+      
+      // Reset for next round
+      d.bags = {1: [], 2: []}; 
+      d.th = {1: 0, 2: 0}; 
+      d.turn = 1;
+      
+      // Check for game end
+      if(d.sc[1] >= WIN || d.sc[2] >= WIN) d.st = 'end';
     } else {
-      d.turn=3-d.turn;
+      // Switch turns
+      d.turn = 3 - d.turn;
     }
-    d.st='play'; tx.set(ref,d);
+    
+    d.st = 'play'; 
+    tx.set(ref, d);
   });
 }
 
-function showFlyText(pts){
-  const t=document.createElement('div');
-  t.style.cssText='position:absolute;top:42%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:60px;font-weight:bold;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.6);transition:.3s;z-index:40';
-  t.textContent=pts===3?'+3!':pts===1?'+1':'Miss';
-  if(pts===3) t.style.color='#FFD700'; else if(pts===0) t.style.color='#FF4444';
+function showFlyText(pts) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:absolute;top:42%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:60px;font-weight:bold;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.6);transition:.3s;z-index:40';
+  
+  if (pts === 3) {
+    t.textContent = '+3!';
+    t.style.color = '#FFD700';
+  } else if (pts === 1) {
+    t.textContent = '+1';
+    t.style.color = '#FFFFFF';
+  } else {
+    t.textContent = 'Miss';
+    t.style.color = '#FF4444';
+  }
+  
   document.body.appendChild(t);
-  setTimeout(()=>{t.style.transform='translate(-50%,-50%) scale(1)';t.style.opacity='1';
-    setTimeout(()=>{t.style.transform='translate(-50%,-120%) scale(.8)';t.style.opacity='0';
-      setTimeout(()=>t.remove(),300);
-    },800);
-  },20);
+  
+  setTimeout(() => {
+    t.style.transform = 'translate(-50%,-50%) scale(1)';
+    t.style.opacity = '1';
+    setTimeout(() => {
+      t.style.transform = 'translate(-50%,-120%) scale(.8)';
+      t.style.opacity = '0';
+      setTimeout(() => t.remove(), 300);
+    }, 800);
+  }, 20);
+}
+
+/* ——— Board perspective tilting based on mouse position ——— */
+document.addEventListener('mousemove', (e) => {
+  if (screens.game.style.display === 'flex') {
+    const board = $('board');
+    const mouseX = e.clientX / window.innerWidth - 0.5;
+    const mouseY = e.clientY / window.innerHeight - 0.5;
+    
+    // Limit tilt to a subtle amount
+    const maxTilt = 5;
+    const tiltX = -mouseY * maxTilt;
+    const tiltY = mouseX * maxTilt;
+    
+    board.style.transform = `translate(-50%,-50%) perspective(800px) rotateX(${10 + tiltX}deg) rotateY(${tiltY}deg)`;
+  }
+});
+
+/* ——— Add cheat code for fun features ——— */
+const cheatSequence = [];
+document.addEventListener('keydown', e => {
+  cheatSequence.push(e.key);
+  if (cheatSequence.length > 10) {
+    cheatSequence.shift();
+  }
+  
+  // Check for "spacegravity" cheat code
+  if (cheatSequence.join('').includes('spacegravity')) {
+    // Reset the sequence
+    cheatSequence.length = 0;
+    
+    // Activate zero gravity mode
+    activateZeroGravity();
+  }
+});
+
+function activateZeroGravity() {
+  // Create a custom zero gravity planet
+  planets.zero = {g: 0.1, name: "Zero-G", color: "#FF00FF"};
+  
+  // Switch to zero gravity
+  planet = planets.zero;
+  
+  // Update UI
+  $('planet').textContent = `Gravity: ${planet.name} (CHEAT MODE)`;
+  $('planet').style.color = 'magenta';
+  
+  // Visual effects
+  document.body.style.background = `linear-gradient(${planet.color} 0%, #000000 50%, #00d4ff 100%)`;
+  
+  // Notify the player
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: #FF00FF;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 24px;
+    z-index: 1000;
+    text-shadow: 0 0 10px #FF00FF;
+  `;
+  notification.textContent = '🚀 ZERO GRAVITY MODE ACTIVATED! 🚀';
+  document.body.appendChild(notification);
+  
+  // Remove notification after a few seconds
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 1s ease';
+    setTimeout(() => notification.remove(), 1000);
+  }, 3000);
+  
+  // Update Firebase with new planet if this is a multiplayer game
+  if (gameId && me === turn) {
+    db.collection('cornhole').doc(gameId).update({
+      planet: 'zero'
+    });
+  }
+}
+
+/* ——— Mobile device detection and optimizations ——— */
+function optimizeForMobile() {
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  if (isMobile) {
+    // Adjust styles for mobile
+    const style = document.createElement('style');
+    style.textContent = `
+      button { 
+        padding: 12px 20px;
+        font-size: 16px;
+      }
+      
+      #board {
+        width: 100px;
+        height: 180px;
+      }
+      
+      #hole {
+        width: 30px;
+        height: 30px;
+      }
+      
+      .bag {
+        width: 30px;
+        height: 30px;
+      }
+      
+      .shadow {
+        width: 30px;
+        height: 10px;
+      }
+      
+      #instructions {
+        font-size: 14px;
+        max-width: 90%;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Add viewport meta tag for proper scaling
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport) {
+      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    }
+  }
+}
+
+// Initialize all enhanced features when DOM is loaded
+window.addEventListener('DOMContentLoaded', () => {
+  optimizeForMobile();
+  
+  // Load last used planet from local storage
+  const lastPlanet = localStorage.getItem('lastPlanet');
+  if (lastPlanet && planets[lastPlanet]) {
+    $('planetSel').value = lastPlanet;
+    planet = planets[lastPlanet];
+    
+    // Update background gradient based on selected planet
+    document.body.style.background = `linear-gradient(${planet.color} 0%, #090979 50%, #00d4ff 100%)`;
+  }
+  
+  // Add trajectory toggle when game starts
+  const checkInterval = setInterval(() => {
+    if (gameId && $('game').style.display === 'flex') {
+      addTrajectoryToggle();
+      clearInterval(checkInterval);
+    }
+  }, 1000);
+});
+
+// Auto-join
+const qp = new URLSearchParams(location.search);
+if (qp.has('id')) {
+  join(qp.get('id'));
+} else {
+  // If no game ID in URL, show the setup screen
+  show(screens.setup);
 }
 </script>
 </body>
